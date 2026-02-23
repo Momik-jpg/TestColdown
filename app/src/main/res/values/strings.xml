@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Prüfungs-Countdown</string>
+    <string name="widget_next_exam_name">Nächste Prüfung</string>
+    <string name="widget_exam_list_name">Prüfungsliste</string>
+</resources>
