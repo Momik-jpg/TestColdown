@@ -31,3 +31,28 @@ Android-App für Prüfungs-Countdown mit Home-Screen-Widgets.
 2. `Widgets` oeffnen.
 3. `Exam Countdown` auswaehlen.
 4. `Naechste Pruefung` oder `Pruefungsliste` platzieren.
+
+## Play Store Internal Testing (AAB + Signing)
+1. Upload-Keystore erzeugen (einmalig):
+   `keytool -genkeypair -v -keystore keystore/upload-keystore.jks -alias upload -keyalg RSA -keysize 4096 -validity 10950`
+2. `keystore.properties.example` nach `keystore.properties` kopieren und Passwoerter eintragen.
+3. Signiertes Release-Bundle bauen:
+   `.\gradlew.bat :app:bundlePlayRelease`
+4. Ergebnis liegt im Projekt unter:
+   `dist/ExamCountdown-release.aab`
+5. In Google Play Console:
+   `App` -> `Testing` -> `Internal testing` -> neues Release -> `.aab` hochladen.
+
+Hinweise:
+- Fuer jeden neuen Upload `versionCode` in `app/build.gradle.kts` erhoehen.
+- `keystore.properties` und `keystore/*.jks` niemals committen.
+
+## GitHub-Verteilung (kostenlos)
+1. Projekt zu GitHub pushen:
+   - `git remote add origin https://github.com/<DEIN_USER>/<DEIN_REPO>.git`
+   - `git push -u origin main`
+2. Nach jedem Push auf `main` baut GitHub Actions automatisch ein APK.
+3. Download:
+   - GitHub Repository -> `Actions` -> `Build Android APK` -> letzter Lauf
+   - Artifact `ExamCountdown-debug-apk` herunterladen.
+4. APK auf dem Handy installieren (Unbekannte Apps erlauben).

@@ -1,3 +1,8 @@
+import java.io.FileInputStream
+import java.util.Properties
+import org.gradle.api.GradleException
+import org.gradle.api.tasks.Copy
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -8,6 +13,13 @@ val localBuildDir = System.getenv("LOCALAPPDATA")
     ?.let { file("$it/ExamCountdownBuild/app") }
     ?: file("${rootDir}/.build/app")
 layout.buildDirectory.set(localBuildDir)
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+val hasKeystoreProperties = keystorePropertiesFile.exists()
+if (hasKeystoreProperties) {
+    FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
+}
 
 android {
     namespace = "com.andrin.examcountdown"
@@ -23,9 +35,26 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            if (hasKeystoreProperties) {
+                val storeFilePath = keystoreProperties.getProperty("storeFile")
+                if (!storeFilePath.isNullOrBlank()) {
+                    storeFile = rootProject.file(storeFilePath)
+                }
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasKeystoreProperties) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -55,6 +84,28 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+}
+
+tasks.register("bundlePlayRelease") {
+    group = "release"
+    description = "Build signed Play Store AAB and copy it to dist/."
+    if (hasKeystoreProperties) {
+        dependsOn("bundleRelease", "copyReleaseAabToDist")
+    } else {
+        doFirst {
+            throw GradleException(
+                "Missing keystore.properties. Copy keystore.properties.example and fill your upload key values."
+            )
+        }
+    }
+}
+
+tasks.register<Copy>("copyReleaseAabToDist") {
+    group = "release"
+    description = "Copy release AAB to dist as ExamCountdown-release.aab."
+    from(layout.buildDirectory.file("outputs/bundle/release/app-release.aab"))
+    into(rootProject.layout.projectDirectory.dir("dist"))
+    rename { "ExamCountdown-release.aab" }
 }
 
 dependencies {

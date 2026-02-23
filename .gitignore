@@ -4,6 +4,7 @@ build/
 
 # Local configuration
 local.properties
+keystore.properties
 
 # Android Studio
 .idea/
@@ -13,7 +14,14 @@ local.properties
 **/build/
 captures/
 *.apk
+*.aab
+dist/
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Signing keys
+*.jks
+*.keystore
+keystore/
