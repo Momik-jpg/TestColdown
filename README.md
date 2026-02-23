@@ -12,5 +12,10 @@
 9. Entpacke die ZIP-Datei.
 10. Installiere `app-debug.apk` auf deinem Handy.
 
+## Direkt-Download über Releases
+1. Öffne `Releases` im Repository.
+2. Lade die neueste Datei `ExamCountdown-debug-<version>.apk` herunter.
+3. Installiere die APK auf dem Handy.
+
 ## Hinweis
 - Auf Android musst du eventuell `Unbekannte Apps installieren` erlauben.
