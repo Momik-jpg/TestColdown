@@ -29,12 +29,14 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
@@ -142,6 +144,8 @@ private data class TimetableLessonBlock(
     val isCancelledSlot: Boolean,
     val lessonCount: Int
 )
+
+private const val SUBJECT_FILTER_ALL = "Alle Fächer"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -824,6 +828,19 @@ private fun TimetableContent(
                 .toLocalDate() == today
         }
     }
+    val nowMillis = System.currentTimeMillis()
+    val activeLesson = remember(mergedLessons, nowMillis) {
+        mergedLessons.firstOrNull { lesson ->
+            !lesson.isCancelledSlot &&
+                nowMillis in lesson.startsAtEpochMillis until lesson.endsAtEpochMillis
+        }
+    }
+    val upcomingLesson = remember(mergedLessons, nowMillis) {
+        mergedLessons.firstOrNull { lesson ->
+            !lesson.isCancelledSlot &&
+                lesson.startsAtEpochMillis > nowMillis
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -837,6 +854,13 @@ private fun TimetableContent(
                     onClear = onClearChanges
                 )
             }
+        }
+
+        item(key = "now-next-lesson") {
+            TimetableNowNextCard(
+                activeLesson = activeLesson,
+                upcomingLesson = upcomingLesson
+            )
         }
 
         item(key = "timezone-note") {
@@ -961,11 +985,18 @@ private fun TimetableWeekGrid(
                     contentDescription = "Vorherige Woche"
                 )
             }
-            Text(
-                text = "Woche ab ${formatCompactDay(weekStart)}",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Woche ab ${formatCompactDay(weekStart)}",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (weekOffset != 0) {
+                    TextButton(onClick = { onWeekOffsetChange(0) }) {
+                        Text("Heute")
+                    }
+                }
+            }
             IconButton(onClick = { onWeekOffsetChange(weekOffset + 1) }) {
                 Icon(
                     imageVector = Icons.Outlined.KeyboardArrowRight,
@@ -1016,6 +1047,88 @@ private fun TimetableWeekGrid(
 }
 
 @Composable
+private fun TimetableNowNextCard(
+    activeLesson: TimetableLessonBlock?,
+    upcomingLesson: TimetableLessonBlock?
+) {
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Orientierung",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            if (activeLesson == null && upcomingLesson == null) {
+                Text(
+                    text = "Keine kommende Lektion gefunden.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                activeLesson?.let { lesson ->
+                    Surface(
+                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = "Jetzt: ${lesson.title}",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "${formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis)}${lesson.location?.let { " · $it" }.orEmpty()}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
+
+                upcomingLesson?.let { lesson ->
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = "Nächste: ${lesson.title}",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "${formatExamDateShort(lesson.startsAtEpochMillis)} · ${formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun WeekGridLessonRow(lesson: TimetableLessonBlock) {
     val titleColor = when {
         lesson.isCancelledSlot -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -1043,8 +1156,12 @@ private fun WeekGridLessonRow(lesson: TimetableLessonBlock) {
 @Composable
 private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
     val isCancelled = lesson.isCancelledSlot
+    val nowMillis = System.currentTimeMillis()
+    val isCurrent = !isCancelled && nowMillis in lesson.startsAtEpochMillis until lesson.endsAtEpochMillis
     val cardColor = if (isCancelled) {
         MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.28f)
+    } else if (isCurrent) {
+        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.22f)
     } else {
         MaterialTheme.colorScheme.surface
     }
@@ -1080,6 +1197,19 @@ private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (isCurrent) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                text = "Jetzt",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                     if (!isCancelled && lesson.lessonCount > 1) {
                         Surface(
                             color = MaterialTheme.colorScheme.primaryContainer,
@@ -1373,7 +1503,39 @@ private fun ExamListContent(
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit
 ) {
-    val nextExam = exams.firstOrNull()
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var selectedSubject by rememberSaveable { mutableStateOf(SUBJECT_FILTER_ALL) }
+    val subjectOptions = remember(exams) {
+        val subjects = exams.mapNotNull { exam ->
+            exam.subject?.trim()?.takeIf { it.isNotBlank() }
+        }
+            .distinct()
+            .sortedBy { it.lowercase() }
+        listOf(SUBJECT_FILTER_ALL) + subjects
+    }
+    LaunchedEffect(subjectOptions) {
+        if (selectedSubject !in subjectOptions) {
+            selectedSubject = SUBJECT_FILTER_ALL
+        }
+    }
+
+    val filteredExams = remember(exams, searchQuery, selectedSubject) {
+        val query = searchQuery.trim().lowercase()
+        exams.filter { exam ->
+            val matchesSubject = selectedSubject == SUBJECT_FILTER_ALL ||
+                exam.subject?.equals(selectedSubject, ignoreCase = true) == true
+            val matchesQuery = query.isBlank() || listOf(
+                exam.subject.orEmpty(),
+                exam.title,
+                exam.location.orEmpty()
+            )
+                .joinToString(" ")
+                .lowercase()
+                .contains(query)
+            matchesSubject && matchesQuery
+        }
+    }
+    val nextExam = filteredExams.firstOrNull()
 
     if (exams.isEmpty()) {
         LazyColumn(
@@ -1413,16 +1575,42 @@ private fun ExamListContent(
             )
         }
         item {
+            ExamInsightsCard(
+                exams = exams,
+                visibleCount = filteredExams.size
+            )
+        }
+        item {
+            ExamSearchAndFilterCard(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                selectedSubject = selectedSubject,
+                subjects = subjectOptions,
+                onSubjectSelected = { selectedSubject = it }
+            )
+        }
+        item {
             nextExam?.let { exam ->
                 NextExamHero(exam = exam)
             }
         }
 
-        items(items = exams, key = { it.id }) { exam ->
-            ExamCard(
-                exam = exam,
-                onDelete = { onDelete(exam.id) }
-            )
+        if (filteredExams.isEmpty()) {
+            item {
+                NoExamResultsCard(
+                    onClearFilters = {
+                        searchQuery = ""
+                        selectedSubject = SUBJECT_FILTER_ALL
+                    }
+                )
+            }
+        } else {
+            items(items = filteredExams, key = { it.id }) { exam ->
+                ExamCard(
+                    exam = exam,
+                    onDelete = { onDelete(exam.id) }
+                )
+            }
         }
     }
 }
@@ -1467,6 +1655,173 @@ private fun ExamToolsCard(
                 OutlinedButton(onClick = onImportBackup, modifier = Modifier.weight(1f)) {
                     Text("Backup Import")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExamInsightsCard(
+    exams: List<Exam>,
+    visibleCount: Int
+) {
+    val now = System.currentTimeMillis()
+    val in7Days = now + 7L * 24L * 60L * 60L * 1000L
+    val in30Days = now + 30L * 24L * 60L * 60L * 1000L
+    val examsNext7 = exams.count { it.startsAtEpochMillis in now..in7Days }
+    val examsNext30 = exams.count { it.startsAtEpochMillis in now..in30Days }
+    val subjectCount = exams.mapNotNull { it.subject?.trim()?.takeIf(String::isNotBlank) }.distinct().size
+
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Überblick",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                InsightPill(
+                    label = "Sichtbar",
+                    value = visibleCount.toString(),
+                    modifier = Modifier.weight(1f)
+                )
+                InsightPill(
+                    label = "7 Tage",
+                    value = examsNext7.toString(),
+                    modifier = Modifier.weight(1f)
+                )
+                InsightPill(
+                    label = "30 Tage",
+                    value = examsNext30.toString(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Text(
+                text = "Fächer mit Prüfungen: $subjectCount",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun InsightPill(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExamSearchAndFilterCard(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    selectedSubject: String,
+    subjects: List<String>,
+    onSubjectSelected: (String) -> Unit
+) {
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Suche") },
+                placeholder = { Text("Titel, Fach oder Ort") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Outlined.Search,
+                        contentDescription = null
+                    )
+                },
+                trailingIcon = {
+                    if (query.isNotBlank()) {
+                        IconButton(onClick = { onQueryChange("") }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = "Suche löschen"
+                            )
+                        }
+                    }
+                }
+            )
+            if (subjects.size > 1) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    subjects.forEach { subject ->
+                        FilterChip(
+                            selected = selectedSubject == subject,
+                            onClick = { onSubjectSelected(subject) },
+                            label = { Text(subject) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoExamResultsCard(
+    onClearFilters: () -> Unit
+) {
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Keine Prüfungen für diesen Filter.",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            OutlinedButton(onClick = onClearFilters) {
+                Text("Filter zurücksetzen")
             }
         }
     }
