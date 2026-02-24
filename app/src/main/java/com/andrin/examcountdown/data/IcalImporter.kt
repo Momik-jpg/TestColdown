@@ -46,8 +46,12 @@ class IcalImporter {
 
             Exam(
                 id = "ical:$stableIdSeed".replace("\\s+".toRegex(), "_"),
-                title = event.summary.ifBlank { "Prüfung" }.take(140),
-                location = event.location?.trim()?.takeIf { it.isNotBlank() }?.take(160),
+                title = formatExamTitle(event.summary).take(140),
+                location = event.location
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { normalizeGermanWords(it) }
+                    ?.take(160),
                 startsAtEpochMillis = event.startsAtEpochMillis
             )
         }
@@ -220,6 +224,47 @@ class IcalImporter {
     private fun resolveZone(tzid: String?): ZoneId {
         if (tzid.isNullOrBlank()) return ZoneId.systemDefault()
         return runCatching { ZoneId.of(tzid) }.getOrDefault(ZoneId.systemDefault())
+    }
+
+    private fun formatExamTitle(rawSummary: String): String {
+        val cleaned = normalizeGermanWords(rawSummary.trim())
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        if (cleaned.isBlank()) return "Prüfung"
+
+        val firstToken = cleaned.substringBefore(' ')
+        val remaining = cleaned.substringAfter(' ', "").trim()
+
+        if (firstToken.contains("_")) {
+            if (remaining.isNotBlank()) return remaining
+            return firstToken.replace('_', ' ')
+                .replace(Regex("\\s+"), " ")
+                .trim()
+                .ifBlank { "Prüfung" }
+        }
+
+        return cleaned
+    }
+
+    private fun normalizeGermanWords(input: String): String {
+        var text = input
+        text = replaceWordCaseInsensitive(text, "pruefungen", "Prüfungen")
+        text = replaceWordCaseInsensitive(text, "pruefung", "Prüfung")
+        text = replaceWordCaseInsensitive(text, "nachpruefungen", "Nachprüfungen")
+        text = replaceWordCaseInsensitive(text, "nachpruefung", "Nachprüfung")
+        return text
+    }
+
+    private fun replaceWordCaseInsensitive(input: String, from: String, replacement: String): String {
+        val regex = Regex("\\b$from\\b", RegexOption.IGNORE_CASE)
+        return regex.replace(input) { match ->
+            val startsUpper = match.value.firstOrNull()?.isUpperCase() == true
+            if (startsUpper) {
+                replacement
+            } else {
+                replacement.lowercase(Locale.ROOT)
+            }
+        }
     }
 
     private fun unescapeIcalText(value: String): String {
