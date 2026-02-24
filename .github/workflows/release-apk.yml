@@ -34,15 +34,18 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          set +e
           if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
             mkdir -p keystore
             echo "$KEYSTORE_BASE64" | base64 --decode > keystore/upload-keystore.jks
-            cat > keystore.properties <<EOF
-            storeFile=keystore/upload-keystore.jks
-            storePassword=$KEYSTORE_PASSWORD
-            keyAlias=$KEY_ALIAS
-            keyPassword=$KEY_PASSWORD
-            EOF
+            if [ $? -ne 0 ]; then
+              echo "Keystore decoding failed; using debug fallback."
+              echo "has_signing=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            printf "storeFile=keystore/upload-keystore.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" \
+              "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
             echo "has_signing=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_signing=false" >> "$GITHUB_OUTPUT"
