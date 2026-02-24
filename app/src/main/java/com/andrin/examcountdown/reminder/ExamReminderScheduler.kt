@@ -17,15 +17,18 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 object ExamReminderScheduler {
     private const val WORK_PREFIX = "exam-reminder-"
     private const val SNOOZE_WORK_PREFIX = "exam-reminder-snooze-"
 
-    fun scheduleExamReminder(context: Context, exam: Exam) {
+    suspend fun scheduleExamReminder(
+        context: Context,
+        exam: Exam,
+        quietHoursOverride: QuietHoursConfig? = null
+    ) {
         val appContext = context.applicationContext
-        val quietHours = runBlocking { ExamRepository(appContext).readQuietHoursConfig() }
+        val quietHours = quietHoursOverride ?: ExamRepository(appContext).readQuietHoursConfig()
         val triggers = resolveTriggerTimes(exam, quietHours)
         if (triggers.isEmpty()) {
             cancelExamReminder(context, exam.id)
@@ -52,7 +55,7 @@ object ExamReminderScheduler {
                 .addTag(workTag(exam.id))
                 .build()
 
-            WorkManager.getInstance(context).enqueueUniqueWork(
+            WorkManager.getInstance(appContext).enqueueUniqueWork(
                 uniqueName(exam.id, index, trigger.triggerAtMillis),
                 ExistingWorkPolicy.REPLACE,
                 request
@@ -66,8 +69,16 @@ object ExamReminderScheduler {
 
     fun syncFromStoredExams(context: Context) {
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-            val exams = ExamRepository(context.applicationContext).readSnapshot()
-            exams.forEach { exam -> scheduleExamReminder(context, exam) }
+            val repository = ExamRepository(context.applicationContext)
+            val quietHours = repository.readQuietHoursConfig()
+            val exams = repository.readSnapshot()
+            exams.forEach { exam ->
+                scheduleExamReminder(
+                    context = context,
+                    exam = exam,
+                    quietHoursOverride = quietHours
+                )
+            }
         }
     }
 

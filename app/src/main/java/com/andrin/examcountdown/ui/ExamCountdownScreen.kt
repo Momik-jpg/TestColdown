@@ -742,24 +742,38 @@ private fun OnboardingDialog(
 @Composable
 private fun SyncStatusStrip(syncStatus: SyncStatus) {
     val error = syncStatus.lastSyncError
+    val now = System.currentTimeMillis()
+    val staleThresholdMillis = 24L * 60L * 60L * 1000L
+    val isStale = syncStatus.lastSyncAtMillis?.let { last ->
+        now - last > staleThresholdMillis
+    } == true
     val headline = when {
         !error.isNullOrBlank() -> error
         syncStatus.lastSyncAtMillis != null -> {
             val time = formatSyncDateTime(syncStatus.lastSyncAtMillis)
-            "Zuletzt synchronisiert: $time"
+            if (isStale) {
+                "Zuletzt synchronisiert: $time (veraltet)"
+            } else {
+                "Zuletzt synchronisiert: $time"
+            }
         }
         else -> "Noch keine Synchronisierung"
     }
-    val details = syncStatus.lastSyncSummary
-        ?.takeIf { it.isNotBlank() && error.isNullOrBlank() }
+    val details = when {
+        !error.isNullOrBlank() -> null
+        isStale -> "Letzter erfolgreicher Sync ist älter als 24h. Bitte oben auf Aktualisieren tippen."
+        else -> syncStatus.lastSyncSummary?.takeIf { it.isNotBlank() }
+    }
 
     val containerColor = when {
         !error.isNullOrBlank() -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
+        isStale -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f)
         else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
     }
 
     val textColor = when {
         !error.isNullOrBlank() -> MaterialTheme.colorScheme.onErrorContainer
+        isStale -> MaterialTheme.colorScheme.onTertiaryContainer
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 

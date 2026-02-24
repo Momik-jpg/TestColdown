@@ -130,6 +130,22 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun replaceIcalSyncSnapshot(importedExams: List<Exam>, importedLessons: List<TimetableLesson>) {
+        appContext.dataStore.edit { preferences ->
+            val currentExams = decodeExams(preferences[examsKey])
+            val manualExams = currentExams.filterNot { it.id.startsWith("ical:") }
+            val mergedExams = (manualExams + importedExams)
+                .distinctBy { it.id }
+                .sortedBy { it.startsAtEpochMillis }
+            val mergedLessons = importedLessons
+                .distinctBy { it.id }
+                .sortedBy { it.startsAtEpochMillis }
+
+            preferences[examsKey] = json.encodeToString(mergedExams)
+            preferences[lessonsKey] = json.encodeToString(mergedLessons)
+        }
+    }
+
     suspend fun replaceSyncedLessons(imported: List<TimetableLesson>) {
         appContext.dataStore.edit { preferences ->
             val updated = imported.sortedBy { it.startsAtEpochMillis }
@@ -242,34 +258,72 @@ class ExamRepository(private val appContext: Context) {
     }
 
     suspend fun importBackupJson(raw: String): AppBackup {
-        val backup = json.decodeFromString<AppBackup>(raw)
+        val normalizedRaw = raw.trim()
+        require(normalizedRaw.isNotBlank()) { "Backup ist leer." }
+        require(normalizedRaw.length <= MAX_BACKUP_CHARS) {
+            "Backup ist zu groß (max. ${MAX_BACKUP_CHARS / 1_000} KB)."
+        }
+
+        val backup = runCatching { json.decodeFromString<AppBackup>(normalizedRaw) }
+            .getOrElse { throwable ->
+                throw IllegalArgumentException("Backup-Datei ist ungültig.", throwable)
+            }
+
+        require(backup.schemaVersion in 1..AppBackup.CURRENT_SCHEMA_VERSION) {
+            "Nicht unterstützte Backup-Version (${backup.schemaVersion})."
+        }
+
+        val sanitizedExams = backup.exams
+            .distinctBy { it.id }
+            .take(MAX_BACKUP_EXAMS)
+            .sortedBy { it.startsAtEpochMillis }
+
+        val sanitizedLessons = backup.lessons
+            .distinctBy { it.id }
+            .take(MAX_BACKUP_LESSONS)
+            .sortedBy { it.startsAtEpochMillis }
+
+        val sanitizedChanges = backup.timetableChanges
+            .sortedByDescending { it.changedAtEpochMillis }
+            .distinctBy { entry ->
+                "${entry.lessonId}|${entry.changeType}|${entry.startsAtEpochMillis}|${entry.oldValue.orEmpty()}|${entry.newValue.orEmpty()}|${entry.changedAtEpochMillis}"
+            }
+            .take(MAX_BACKUP_TIMETABLE_CHANGES)
+
+        val sanitizedUrl = normalizeImportedIcalUrl(backup.iCalUrl)
+        val sanitizedQuietHours = QuietHoursConfig(
+            enabled = backup.quietHours.enabled,
+            startMinutesOfDay = backup.quietHours.startMinutesOfDay.coerceIn(0, 24 * 60 - 1),
+            endMinutesOfDay = backup.quietHours.endMinutesOfDay.coerceIn(0, 24 * 60 - 1)
+        )
+
         appContext.dataStore.edit { preferences ->
             preferences[examsKey] = json.encodeToString(
-                backup.exams.sortedBy { it.startsAtEpochMillis }
+                sanitizedExams
             )
             preferences[lessonsKey] = json.encodeToString(
-                backup.lessons.sortedBy { it.startsAtEpochMillis }
+                sanitizedLessons
             )
             preferences[timetableChangesKey] = json.encodeToString(
-                backup.timetableChanges
-                    .sortedByDescending { it.changedAtEpochMillis }
-                    .take(120)
+                sanitizedChanges
             )
 
-            val url = backup.iCalUrl?.trim().orEmpty()
-            if (url.isBlank()) {
+            if (sanitizedUrl == null) {
                 preferences.remove(iCalUrlKey)
             } else {
-                preferences[iCalUrlKey] = url
+                preferences[iCalUrlKey] = sanitizedUrl
             }
 
             preferences[onboardingDoneKey] = backup.onboardingDone
             preferences[onboardingPromptSeenKey] = backup.onboardingPromptSeen
-            preferences[quietHoursEnabledKey] = backup.quietHours.enabled
-            preferences[quietHoursStartMinutesKey] = backup.quietHours.startMinutesOfDay.toLong()
-            preferences[quietHoursEndMinutesKey] = backup.quietHours.endMinutesOfDay.toLong()
+            preferences[quietHoursEnabledKey] = sanitizedQuietHours.enabled
+            preferences[quietHoursStartMinutesKey] = sanitizedQuietHours.startMinutesOfDay.toLong()
+            preferences[quietHoursEndMinutesKey] = sanitizedQuietHours.endMinutesOfDay.toLong()
             preferences[syncIntervalMinutesKey] = normalizeSyncIntervalMinutes(backup.syncIntervalMinutes)
             preferences[showSyncStatusStripKey] = backup.showSyncStatusStrip
+            preferences.remove(lastSyncAtMillisKey)
+            preferences.remove(lastSyncSummaryKey)
+            preferences.remove(lastSyncErrorKey)
         }
         return backup
     }
@@ -303,7 +357,20 @@ class ExamRepository(private val appContext: Context) {
         return value.coerceIn(15L, 12L * 60L)
     }
 
+    private fun normalizeImportedIcalUrl(raw: String?): String? {
+        val normalized = raw?.trim().orEmpty()
+        if (normalized.isBlank()) return null
+        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+            return normalized
+        }
+        return null
+    }
+
     companion object {
         const val DEFAULT_SYNC_INTERVAL_MINUTES: Long = 6L * 60L
+        private const val MAX_BACKUP_CHARS: Int = 1_000_000
+        private const val MAX_BACKUP_EXAMS: Int = 5_000
+        private const val MAX_BACKUP_LESSONS: Int = 15_000
+        private const val MAX_BACKUP_TIMETABLE_CHANGES: Int = 500
     }
 }

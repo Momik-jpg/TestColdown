@@ -18,12 +18,16 @@ data class IcalImportResult(
 
 class IcalImporter {
     suspend fun importFromUrl(url: String): IcalImportResult = withContext(Dispatchers.IO) {
-        val normalizedUrl = url.trim()
-        require(normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://")) {
-            "Ungültige URL"
-        }
-
+        val normalizedUrl = normalizeAndValidateUrl(url)
         val raw = IcalHttpClient.download(normalizedUrl)
+        importFromRawInternal(raw)
+    }
+
+    internal suspend fun importFromRaw(raw: String): IcalImportResult = withContext(Dispatchers.Default) {
+        importFromRawInternal(raw)
+    }
+
+    private fun importFromRawInternal(raw: String): IcalImportResult {
         val parsedEvents = parseIcalEvents(raw)
             .filter { it.startsAtEpochMillis > System.currentTimeMillis() }
             .sortedBy { it.startsAtEpochMillis }
@@ -33,7 +37,7 @@ class IcalImporter {
         }
 
         if (examCandidates.isEmpty()) {
-            return@withContext IcalImportResult(
+            return IcalImportResult(
                 exams = emptyList(),
                 message = "Keine kommenden Prüfungen im iCal gefunden."
             )
@@ -57,10 +61,18 @@ class IcalImporter {
             )
         }.distinctBy { it.id }
 
-        IcalImportResult(
+        return IcalImportResult(
             exams = exams,
             message = "${exams.size} Prüfungen aus iCal importiert."
         )
+    }
+
+    private fun normalizeAndValidateUrl(url: String): String {
+        val normalizedUrl = url.trim()
+        require(normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://")) {
+            "Ungültige URL"
+        }
+        return normalizedUrl
     }
 
     private fun isExamLike(event: ParsedIcalEvent): Boolean {

@@ -37,7 +37,22 @@ internal fun shouldRetrySync(throwable: Throwable): Boolean {
         is UnknownHostException,
         is SocketTimeoutException,
         is ConnectException -> true
-        is IOException -> throwable !is FileNotFoundException
+        is SSLException -> false
+        is IOException -> {
+            if (throwable is FileNotFoundException) return false
+            when (extractHttpStatusCode(throwable.message)) {
+                null -> true
+                408, 429 -> true
+                in 500..599 -> true
+                else -> false
+            }
+        }
         else -> false
     }
+}
+
+private fun extractHttpStatusCode(message: String?): Int? {
+    val raw = message.orEmpty()
+    val match = Regex("HTTP-(\\d{3})").find(raw) ?: return null
+    return match.groupValues.getOrNull(1)?.toIntOrNull()
 }

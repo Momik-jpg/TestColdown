@@ -14,7 +14,7 @@ data class QuietHoursConfig(
 
 @Serializable
 data class AppBackup(
-    val schemaVersion: Int = 3,
+    val schemaVersion: Int = CURRENT_SCHEMA_VERSION,
     val exportedAtEpochMillis: Long = System.currentTimeMillis(),
     val exams: List<Exam> = emptyList(),
     val lessons: List<TimetableLesson> = emptyList(),
@@ -25,4 +25,8 @@ data class AppBackup(
     val quietHours: QuietHoursConfig = QuietHoursConfig(),
     val syncIntervalMinutes: Long = 6L * 60L,
     val showSyncStatusStrip: Boolean = true
-)
+) {
+    companion object {
+        const val CURRENT_SCHEMA_VERSION: Int = 3
+    }
+}

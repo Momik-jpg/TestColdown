@@ -16,6 +16,10 @@ import com.andrin.examcountdown.data.IcalSyncEngine
 import com.andrin.examcountdown.data.shouldRetrySync
 import com.andrin.examcountdown.data.toSyncErrorMessage
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class IcalSyncWorker(
     appContext: Context,
@@ -42,6 +46,7 @@ class IcalSyncWorker(
 object IcalSyncScheduler {
     private const val PERIODIC_WORK_NAME = "ical-sync-periodic"
     private const val IMMEDIATE_WORK_NAME = "ical-sync-immediate"
+    private val scheduleScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     fun schedule(context: Context, repeatIntervalMinutes: Long = ExamRepository.DEFAULT_SYNC_INTERVAL_MINUTES) {
         val interval = repeatIntervalMinutes.coerceIn(15L, 12L * 60L)
@@ -58,12 +63,13 @@ object IcalSyncScheduler {
     }
 
     fun scheduleFromRepository(context: Context) {
-        val interval = runCatching {
-            kotlinx.coroutines.runBlocking {
-                ExamRepository(context.applicationContext).readSyncIntervalMinutes()
-            }
-        }.getOrDefault(ExamRepository.DEFAULT_SYNC_INTERVAL_MINUTES)
-        schedule(context, interval)
+        val appContext = context.applicationContext
+        scheduleScope.launch {
+            val interval = runCatching {
+                ExamRepository(appContext).readSyncIntervalMinutes()
+            }.getOrDefault(ExamRepository.DEFAULT_SYNC_INTERVAL_MINUTES)
+            schedule(appContext, interval)
+        }
     }
 
     fun syncNow(context: Context) {

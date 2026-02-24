@@ -23,12 +23,16 @@ class TimetableIcalImporter {
     private val schoolZone: ZoneId = ZoneId.of("Europe/Zurich")
 
     suspend fun importFromUrl(url: String): TimetableImportResult = withContext(Dispatchers.IO) {
-        val normalizedUrl = url.trim()
-        require(normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://")) {
-            "Ungültige URL"
-        }
-
+        val normalizedUrl = normalizeAndValidateUrl(url)
         val raw = IcalHttpClient.download(normalizedUrl)
+        importFromRawInternal(raw)
+    }
+
+    internal suspend fun importFromRaw(raw: String): TimetableImportResult = withContext(Dispatchers.Default) {
+        importFromRawInternal(raw)
+    }
+
+    private fun importFromRawInternal(raw: String): TimetableImportResult {
         val windowStart = LocalDate.now()
             .atStartOfDay(schoolZone)
             .toInstant()
@@ -48,7 +52,7 @@ class TimetableIcalImporter {
             .sortedBy { it.startsAtEpochMillis }
 
         if (parsedLessons.isEmpty()) {
-            return@withContext TimetableImportResult(
+            return TimetableImportResult(
                 lessons = emptyList(),
                 message = "Keine Lektionen im iCal gefunden."
             )
@@ -78,10 +82,18 @@ class TimetableIcalImporter {
             )
         }.distinctBy { it.id }
 
-        TimetableImportResult(
+        return TimetableImportResult(
             lessons = lessons,
             message = "${lessons.size} Lektionen synchronisiert."
         )
+    }
+
+    private fun normalizeAndValidateUrl(url: String): String {
+        val normalizedUrl = url.trim()
+        require(normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://")) {
+            "Ungültige URL"
+        }
+        return normalizedUrl
     }
 
     private data class ParsedDateTime(

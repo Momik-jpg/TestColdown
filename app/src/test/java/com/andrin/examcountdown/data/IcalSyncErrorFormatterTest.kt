@@ -21,6 +21,8 @@ class IcalSyncErrorFormatterTest {
         assertTrue(shouldRetrySync(UnknownHostException("offline")))
         assertTrue(shouldRetrySync(SocketTimeoutException("timeout")))
         assertTrue(shouldRetrySync(ConnectException("refused")))
+        assertTrue(shouldRetrySync(IOException("HTTP-500")))
+        assertFalse(shouldRetrySync(IOException("HTTP-401")))
         assertFalse(shouldRetrySync(IllegalArgumentException("bad")))
     }
 }

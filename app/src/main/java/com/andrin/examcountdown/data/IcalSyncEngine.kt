@@ -6,6 +6,8 @@ import com.andrin.examcountdown.model.TimetableChangeEntry
 import com.andrin.examcountdown.model.TimetableChangeType
 import com.andrin.examcountdown.reminder.TimetableSyncNotificationManager
 import com.andrin.examcountdown.widget.WidgetUpdater
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class IcalSyncResult(
     val examsImported: Int,
@@ -38,13 +40,17 @@ class IcalSyncEngine(
         url: String,
         emitChangeNotification: Boolean
     ): IcalSyncResult {
+        val normalizedUrl = normalizeAndValidateUrl(url)
+        val raw = withContext(Dispatchers.IO) { IcalHttpClient.download(normalizedUrl) }
         val previousLessons = repository.readLessonsSnapshot()
 
-        val examResult = examImporter.importFromUrl(url)
-        val timetableResult = timetableImporter.importFromUrl(url)
+        val examResult = examImporter.importFromRaw(raw)
+        val timetableResult = timetableImporter.importFromRaw(raw)
 
-        repository.replaceIcalImportedExams(examResult.exams)
-        repository.replaceSyncedLessons(timetableResult.lessons)
+        repository.replaceIcalSyncSnapshot(
+            importedExams = examResult.exams,
+            importedLessons = timetableResult.lessons
+        )
         WidgetUpdater.updateAll(appContext)
 
         val changes = detectLessonChanges(previousLessons, timetableResult.lessons)
@@ -74,8 +80,10 @@ class IcalSyncEngine(
     }
 
     suspend fun testConnection(url: String): IcalSyncResult {
-        val examResult = examImporter.importFromUrl(url)
-        val timetableResult = timetableImporter.importFromUrl(url)
+        val normalizedUrl = normalizeAndValidateUrl(url)
+        val raw = withContext(Dispatchers.IO) { IcalHttpClient.download(normalizedUrl) }
+        val examResult = examImporter.importFromRaw(raw)
+        val timetableResult = timetableImporter.importFromRaw(raw)
 
         return IcalSyncResult(
             examsImported = examResult.exams.size,
@@ -200,5 +208,13 @@ class IcalSyncEngine(
             .trim()
             .lowercase()
             .replace(Regex("\\s+"), "")
+    }
+
+    private fun normalizeAndValidateUrl(url: String): String {
+        val normalizedUrl = url.trim()
+        require(normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://")) {
+            "Ungültige URL"
+        }
+        return normalizedUrl
     }
 }

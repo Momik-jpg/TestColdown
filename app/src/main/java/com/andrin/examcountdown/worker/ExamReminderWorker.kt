@@ -84,20 +84,8 @@ class ExamReminderWorker(
                 openAppIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-
-            val snoozeIntent = Intent(context, ExamReminderActionReceiver::class.java).apply {
-                action = ExamReminderActionReceiver.ACTION_SNOOZE_10_MIN
-                putExtra(KEY_EXAM_ID, examId)
-                putExtra(KEY_TITLE, title)
-                putExtra(KEY_LOCATION, location)
-                putExtra(KEY_STARTS_AT, startsAtMillis)
-            }
-            val snoozePendingIntent = PendingIntent.getBroadcast(
-                context,
-                "${examId}-snooze10".hashCode(),
-                snoozeIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
+            val now = System.currentTimeMillis()
+            val remainingMillis = startsAtMillis - now
 
             val notification = NotificationCompat.Builder(context, ExamNotificationManager.CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification_exam)
@@ -107,11 +95,64 @@ class ExamReminderWorker(
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
                 .setContentIntent(openAppPendingIntent)
-                .addAction(R.drawable.ic_notification_exam, "In 10 Min", snoozePendingIntent)
-                .build()
+
+            if (remainingMillis > 10L * 60L * 1000L) {
+                notification.addAction(
+                    R.drawable.ic_notification_exam,
+                    "In 10 Min",
+                    createSnoozePendingIntent(
+                        context = context,
+                        examId = examId,
+                        title = title,
+                        location = location,
+                        startsAtMillis = startsAtMillis,
+                        action = ExamReminderActionReceiver.ACTION_SNOOZE_10_MIN,
+                        requestCodeSeed = "${examId}-snooze10".hashCode()
+                    )
+                )
+            }
+            if (remainingMillis > 30L * 60L * 1000L) {
+                notification.addAction(
+                    R.drawable.ic_notification_exam,
+                    "In 30 Min",
+                    createSnoozePendingIntent(
+                        context = context,
+                        examId = examId,
+                        title = title,
+                        location = location,
+                        startsAtMillis = startsAtMillis,
+                        action = ExamReminderActionReceiver.ACTION_SNOOZE_30_MIN,
+                        requestCodeSeed = "${examId}-snooze30".hashCode()
+                    )
+                )
+            }
 
             val manager = context.getSystemService(NotificationManager::class.java)
-            manager.notify(examId.hashCode(), notification)
+            manager.notify(examId.hashCode(), notification.build())
+        }
+
+        private fun createSnoozePendingIntent(
+            context: Context,
+            examId: String,
+            title: String,
+            location: String?,
+            startsAtMillis: Long,
+            action: String,
+            requestCodeSeed: Int
+        ): PendingIntent {
+            val snoozeIntent = Intent(context, ExamReminderActionReceiver::class.java).apply {
+                this.action = action
+                putExtra(KEY_EXAM_ID, examId)
+                putExtra(KEY_TITLE, title)
+                putExtra(KEY_LOCATION, location)
+                putExtra(KEY_STARTS_AT, startsAtMillis)
+            }
+            return PendingIntent.getBroadcast(
+                context,
+                requestCodeSeed,
+                snoozeIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
         }
     }
 }
