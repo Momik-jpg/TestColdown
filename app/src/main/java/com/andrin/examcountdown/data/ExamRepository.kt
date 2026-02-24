@@ -20,9 +20,10 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 class ExamRepository(private val appContext: Context) {
     private val examsKey = stringPreferencesKey("exams_json")
+    private val iCalUrlKey = stringPreferencesKey("ical_url")
     private val json = Json { ignoreUnknownKeys = true }
 
-    val examsFlow: Flow<List<Exam>> = appContext.dataStore.data
+    private val preferencesFlow: Flow<Preferences> = appContext.dataStore.data
         .catch { exception ->
             if (exception is IOException) {
                 emit(emptyPreferences())
@@ -30,10 +31,15 @@ class ExamRepository(private val appContext: Context) {
                 throw exception
             }
         }
+
+    val examsFlow: Flow<List<Exam>> = preferencesFlow
         .map { preferences ->
             decode(preferences[examsKey])
                 .sortedBy { it.startsAtEpochMillis }
         }
+
+    val iCalUrlFlow: Flow<String> = preferencesFlow
+        .map { preferences -> preferences[iCalUrlKey].orEmpty() }
 
     suspend fun addExam(exam: Exam) {
         updateExams { current ->
@@ -56,6 +62,14 @@ class ExamRepository(private val appContext: Context) {
             current.filterNot { it.id == examId }
         }
     }
+
+    suspend fun saveIcalUrl(url: String) {
+        appContext.dataStore.edit { preferences ->
+            preferences[iCalUrlKey] = url.trim()
+        }
+    }
+
+    suspend fun readIcalUrl(): String? = iCalUrlFlow.first().takeIf { it.isNotBlank() }
 
     suspend fun readSnapshot(): List<Exam> = examsFlow.first()
 

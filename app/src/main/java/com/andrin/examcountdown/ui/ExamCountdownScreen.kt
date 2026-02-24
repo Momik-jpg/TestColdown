@@ -79,6 +79,7 @@ private enum class HomeTab(val title: String) {
 @Composable
 fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
     val exams by viewModel.exams.collectAsStateWithLifecycle()
+    val savedIcalUrl by viewModel.savedIcalUrl.collectAsStateWithLifecycle()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
     var iCalUrl by rememberSaveable { mutableStateOf("") }
@@ -142,7 +143,10 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
                         if (selectedTab == HomeTab.EXAMS) {
                             IconButton(
                                 enabled = !isImportingIcal,
-                                onClick = { showIcalDialog = true }
+                                onClick = {
+                                    iCalUrl = savedIcalUrl
+                                    showIcalDialog = true
+                                }
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.CloudDownload,
@@ -225,7 +229,7 @@ private fun IcalImportDialog(
                 )
 
                 Text(
-                    text = "Es werden kommende Termine aus dem iCal geladen und in der App aktualisiert.",
+                    text = "Es werden nur Prüfungen importiert und danach automatisch im Hintergrund synchronisiert.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

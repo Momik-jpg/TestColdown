@@ -2,7 +2,6 @@ package com.andrin.examcountdown.data
 
 import com.andrin.examcountdown.model.Exam
 import java.net.URL
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -30,55 +29,58 @@ class IcalImporter {
             .filter { it.startsAtEpochMillis > System.currentTimeMillis() }
             .sortedBy { it.startsAtEpochMillis }
 
-        if (parsedEvents.isEmpty()) {
+        val examCandidates = parsedEvents.filter { event ->
+            isExamLike(event)
+        }
+
+        if (examCandidates.isEmpty()) {
             return@withContext IcalImportResult(
                 exams = emptyList(),
-                message = "Keine kommenden Termine im iCal gefunden."
+                message = "Keine kommenden Prüfungen im iCal gefunden."
             )
         }
 
-        val examCandidates = parsedEvents.filter {
-            isExamLike(it.summary, it.description, it.location)
-        }
-
-        val selectedEvents = if (examCandidates.isNotEmpty()) {
-            examCandidates
-        } else {
-            parsedEvents.take(120)
-        }
-
-        val exams = selectedEvents.map { event ->
+        val exams = examCandidates.map { event ->
             val stableIdSeed = event.uid?.takeIf { it.isNotBlank() }
                 ?: "${event.summary}|${event.startsAtEpochMillis}|${event.location.orEmpty()}"
 
             Exam(
-                id = "ical:$stableIdSeed",
-                title = event.summary.ifBlank { "Termin" }.take(140),
+                id = "ical:$stableIdSeed".replace("\\s+".toRegex(), "_"),
+                title = event.summary.ifBlank { "Prüfung" }.take(140),
                 location = event.location?.trim()?.takeIf { it.isNotBlank() }?.take(160),
                 startsAtEpochMillis = event.startsAtEpochMillis
             )
         }
 
-        val message = if (examCandidates.isNotEmpty()) {
-            "${exams.size} Prüfungen aus iCal importiert."
-        } else {
-            "${exams.size} Termine importiert (keine klaren Prüfungs-Stichwörter gefunden)."
-        }
-
-        IcalImportResult(exams = exams, message = message)
+        IcalImportResult(
+            exams = exams,
+            message = "${exams.size} Prüfungen aus iCal importiert."
+        )
     }
 
-    private fun isExamLike(summary: String, description: String?, location: String?): Boolean {
-        val text = listOf(summary, description.orEmpty(), location.orEmpty())
+    private fun isExamLike(event: ParsedIcalEvent): Boolean {
+        val text = listOf(
+            event.uid.orEmpty(),
+            event.summary,
+            event.description.orEmpty(),
+            event.location.orEmpty()
+        )
             .joinToString(" ")
             .lowercase(Locale.ROOT)
 
+        val uidLooksLikeExam = event.uid?.let { uid ->
+            uid.contains("etP_", ignoreCase = true) ||
+                uid.contains("pruefung", ignoreCase = true) ||
+                uid.contains("prüfung", ignoreCase = true)
+        } == true
+
         val keywords = listOf(
             "prüfung", "pruefung", "test", "klausur", "exam", "quiz", "lernkontrolle",
-            "matura", "probe", "prüfungstermin", "assessment"
+            "matura", "probe", "prüfungstermin", "assessment", "nachprüfung", "nachpruefung",
+            "aufnahmeprüfung", "aufnahmepruefung", "kurzprüfung", "kurzpruefung", "kontrolle"
         )
 
-        return keywords.any { keyword -> text.contains(keyword) }
+        return uidLooksLikeExam || keywords.any { keyword -> text.contains(keyword) }
     }
 
     private data class ParsedIcalEvent(

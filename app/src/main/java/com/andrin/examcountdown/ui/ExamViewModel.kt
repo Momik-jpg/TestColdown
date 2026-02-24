@@ -7,6 +7,7 @@ import com.andrin.examcountdown.data.IcalImporter
 import com.andrin.examcountdown.data.ExamRepository
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.reminder.ExamReminderScheduler
+import com.andrin.examcountdown.worker.IcalSyncScheduler
 import com.andrin.examcountdown.widget.WidgetUpdater
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
@@ -20,6 +21,11 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList()
+    )
+    val savedIcalUrl = repository.iCalUrlFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = ""
     )
 
     fun addExam(
@@ -61,6 +67,8 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
             val message = runCatching {
                 val importResult = iCalImporter.importFromUrl(trimmedUrl)
                 repository.replaceIcalImportedExams(importResult.exams)
+                repository.saveIcalUrl(trimmedUrl)
+                IcalSyncScheduler.schedule(getApplication())
                 WidgetUpdater.updateAll(getApplication())
                 importResult.message
             }.getOrElse { throwable ->

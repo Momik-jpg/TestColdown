@@ -12,7 +12,8 @@
 2. Tippe oben rechts auf das Wolken-Symbol (`iCal importieren`).
 3. Füge deinen schulNetz-iCal-Link ein.
 4. Tippe auf `Importieren`.
-5. Die kommenden Prüfungen werden automatisch in die Liste übernommen.
+5. Es werden nur Prüfungen importiert.
+6. Danach synchronisiert die App automatisch im Hintergrund (bei Internet).
 
 ## Hinweis
 - Beim erneuten Import werden alte iCal-Einträge aktualisiert, manuell erstellte Prüfungen bleiben erhalten.
