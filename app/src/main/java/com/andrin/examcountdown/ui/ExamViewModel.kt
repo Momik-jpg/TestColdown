@@ -64,10 +64,11 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
+            repository.saveIcalUrl(trimmedUrl)
+
             val message = runCatching {
                 val importResult = iCalImporter.importFromUrl(trimmedUrl)
                 repository.replaceIcalImportedExams(importResult.exams)
-                repository.saveIcalUrl(trimmedUrl)
                 IcalSyncScheduler.schedule(getApplication())
                 WidgetUpdater.updateAll(getApplication())
                 importResult.message

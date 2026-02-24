@@ -59,8 +59,18 @@ class IcalImporter {
     }
 
     private fun isExamLike(event: ParsedIcalEvent): Boolean {
+        val uid = event.uid.orEmpty().lowercase(Locale.ROOT)
+        val isCenterboardEntry = uid.contains("@centerboard.ch")
+        val isCenterboardExam = uid.contains("etp_") || uid.contains("pruefung@centerboard.ch")
+
+        // schulNetz/Centerboard liefert Prüfungen mit etP_.
+        // Alle anderen Centerboard-Typen (z. B. etT_ Termine) werden ausgeschlossen.
+        if (isCenterboardEntry) {
+            return isCenterboardExam
+        }
+
         val text = listOf(
-            event.uid.orEmpty(),
+            uid,
             event.summary,
             event.description.orEmpty(),
             event.location.orEmpty()
@@ -68,19 +78,13 @@ class IcalImporter {
             .joinToString(" ")
             .lowercase(Locale.ROOT)
 
-        val uidLooksLikeExam = event.uid?.let { uid ->
-            uid.contains("etP_", ignoreCase = true) ||
-                uid.contains("pruefung", ignoreCase = true) ||
-                uid.contains("prüfung", ignoreCase = true)
-        } == true
-
         val keywords = listOf(
             "prüfung", "pruefung", "test", "klausur", "exam", "quiz", "lernkontrolle",
             "matura", "probe", "prüfungstermin", "assessment", "nachprüfung", "nachpruefung",
             "aufnahmeprüfung", "aufnahmepruefung", "kurzprüfung", "kurzpruefung", "kontrolle"
         )
 
-        return uidLooksLikeExam || keywords.any { keyword -> text.contains(keyword) }
+        return keywords.any { keyword -> text.contains(keyword) }
     }
 
     private data class ParsedIcalEvent(
