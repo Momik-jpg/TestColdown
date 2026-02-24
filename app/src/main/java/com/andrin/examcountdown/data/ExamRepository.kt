@@ -68,6 +68,9 @@ class ExamRepository(private val appContext: Context) {
     val onboardingPromptSeenFlow: Flow<Boolean> = preferencesFlow
         .map { preferences -> preferences[onboardingPromptSeenKey] ?: false }
 
+    val preferencesLoadedFlow: Flow<Boolean> = preferencesFlow
+        .map { true }
+
     val syncStatusFlow: Flow<SyncStatus> = preferencesFlow
         .map { preferences ->
             SyncStatus(

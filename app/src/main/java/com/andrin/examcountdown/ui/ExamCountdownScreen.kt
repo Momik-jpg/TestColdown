@@ -133,6 +133,7 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
     val savedIcalUrl by viewModel.savedIcalUrl.collectAsStateWithLifecycle()
     val onboardingDone by viewModel.onboardingDone.collectAsStateWithLifecycle()
     val onboardingPromptSeen by viewModel.onboardingPromptSeen.collectAsStateWithLifecycle()
+    val preferencesLoaded by viewModel.preferencesLoaded.collectAsStateWithLifecycle()
     val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
     val isDarkMode = isSystemInDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -147,13 +148,21 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(onboardingDone, onboardingPromptSeen, savedIcalUrl) {
-        if (!onboardingDone && !onboardingPromptSeen && savedIcalUrl.isBlank()) {
+    LaunchedEffect(preferencesLoaded, onboardingDone, onboardingPromptSeen, savedIcalUrl) {
+        if (!preferencesLoaded) return@LaunchedEffect
+
+        val shouldShowOnboarding = !onboardingDone &&
+            !onboardingPromptSeen &&
+            savedIcalUrl.isBlank()
+
+        if (shouldShowOnboarding) {
             showOnboardingDialog = true
             onboardingUrl = savedIcalUrl
             onboardingTestedOk = false
             onboardingInfoMessage = ""
             viewModel.markOnboardingPromptSeen()
+        } else {
+            showOnboardingDialog = false
         }
     }
 
