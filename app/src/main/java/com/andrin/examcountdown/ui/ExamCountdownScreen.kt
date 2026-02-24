@@ -84,6 +84,16 @@ private enum class HomeTab(val title: String) {
     GRADES("Notenrechner")
 }
 
+private data class TimetableLessonBlock(
+    val id: String,
+    val title: String,
+    val location: String?,
+    val startsAtEpochMillis: Long,
+    val endsAtEpochMillis: Long,
+    val isMoved: Boolean,
+    val lessonCount: Int
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
@@ -313,9 +323,10 @@ private fun TimetableContent(
         return
     }
 
+    val mergedLessons = remember(lessons) { mergeConsecutiveLessons(lessons) }
     val schoolZone = remember { ZoneId.of("Europe/Zurich") }
-    val grouped = remember(lessons) {
-        lessons
+    val grouped = remember(mergedLessons) {
+        mergedLessons
             .groupBy { lesson ->
                 Instant.ofEpochMilli(lesson.startsAtEpochMillis)
                     .atZone(schoolZone)
@@ -335,7 +346,7 @@ private fun TimetableContent(
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             ) {
                 Text(
-                    text = "Zeiten im Stundenplan sind in Schweizer Zeit (Europe/Zurich).",
+                    text = "Zeiten sind in Schweizer Zeit. Doppellektionen werden zusammengefasst.",
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface
@@ -367,7 +378,7 @@ private fun TimetableContent(
 }
 
 @Composable
-private fun TimetableLessonCard(lesson: TimetableLesson) {
+private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
@@ -392,17 +403,34 @@ private fun TimetableLessonCard(lesson: TimetableLesson) {
                     modifier = Modifier.weight(1f)
                 )
 
-                if (lesson.isMoved) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = "Verschoben",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (lesson.lessonCount > 1) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            val lessonLabel = if (lesson.lessonCount == 1) "Lektion" else "Lektionen"
+                            Text(
+                                text = "${lesson.lessonCount} $lessonLabel",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    if (lesson.isMoved) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f),
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                text = "Verschoben",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -446,6 +474,58 @@ private fun TimetableLessonCard(lesson: TimetableLesson) {
             }
         }
     }
+}
+
+private fun mergeConsecutiveLessons(
+    lessons: List<TimetableLesson>,
+    maxGapMinutes: Long = 20L
+): List<TimetableLessonBlock> {
+    if (lessons.isEmpty()) return emptyList()
+
+    val maxGapMillis = maxGapMinutes * 60_000L
+    val sorted = lessons.sortedBy { it.startsAtEpochMillis }
+    val result = mutableListOf<TimetableLessonBlock>()
+
+    var current = TimetableLessonBlock(
+        id = sorted.first().id,
+        title = sorted.first().title,
+        location = sorted.first().location,
+        startsAtEpochMillis = sorted.first().startsAtEpochMillis,
+        endsAtEpochMillis = sorted.first().endsAtEpochMillis,
+        isMoved = sorted.first().isMoved,
+        lessonCount = 1
+    )
+
+    sorted.drop(1).forEach { next ->
+        val gap = next.startsAtEpochMillis - current.endsAtEpochMillis
+        val sameTitle = current.title.equals(next.title, ignoreCase = true)
+        val sameLocation = current.location.orEmpty().trim().lowercase() ==
+            next.location.orEmpty().trim().lowercase()
+
+        val shouldMerge = sameTitle && sameLocation && gap in 0..maxGapMillis
+
+        if (shouldMerge) {
+            current = current.copy(
+                endsAtEpochMillis = maxOf(current.endsAtEpochMillis, next.endsAtEpochMillis),
+                isMoved = current.isMoved || next.isMoved,
+                lessonCount = current.lessonCount + 1
+            )
+        } else {
+            result += current
+            current = TimetableLessonBlock(
+                id = next.id,
+                title = next.title,
+                location = next.location,
+                startsAtEpochMillis = next.startsAtEpochMillis,
+                endsAtEpochMillis = next.endsAtEpochMillis,
+                isMoved = next.isMoved,
+                lessonCount = 1
+            )
+        }
+    }
+
+    result += current
+    return result
 }
 
 @Composable
