@@ -8,9 +8,12 @@ import com.andrin.examcountdown.data.ExamRepository
 import com.andrin.examcountdown.data.IcalSyncEngine
 import com.andrin.examcountdown.data.QuietHoursConfig
 import com.andrin.examcountdown.data.SyncStatus
+import com.andrin.examcountdown.data.toSyncErrorMessage
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.reminder.ExamNotificationManager
 import com.andrin.examcountdown.reminder.ExamReminderScheduler
 import com.andrin.examcountdown.worker.IcalSyncScheduler
+import com.andrin.examcountdown.worker.ExamReminderWorker
 import com.andrin.examcountdown.widget.WidgetUpdater
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
@@ -65,8 +68,14 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = SyncStatus()
     )
+    val syncIntervalMinutes = repository.syncIntervalMinutesFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = ExamRepository.DEFAULT_SYNC_INTERVAL_MINUTES
+    )
 
     fun addExam(
+        subject: String?,
         title: String,
         location: String?,
         startsAtMillis: Long,
@@ -82,6 +91,7 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
 
             val exam = Exam(
                 title = title.trim(),
+                subject = subject?.trim()?.takeIf { it.isNotBlank() },
                 location = location?.trim()?.takeIf { it.isNotBlank() },
                 startsAtEpochMillis = startsAtMillis,
                 reminderAtEpochMillis = reminderAtMillis,
@@ -151,7 +161,7 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
             }.onSuccess { message ->
                 onDone(true, message)
             }.onFailure { throwable ->
-                val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+                val error = toSyncErrorMessage(throwable)
                 onDone(false, "Verbindung fehlgeschlagen: $error")
             }
         }
@@ -213,6 +223,7 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
             val result = runCatching {
                 val backup = repository.importBackupJson(raw)
                 ExamReminderScheduler.syncFromStoredExams(getApplication())
+                IcalSyncScheduler.scheduleFromRepository(getApplication())
                 WidgetUpdater.updateAll(getApplication())
                 backup
             }
@@ -229,13 +240,37 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
                 url = url,
                 emitChangeNotification = emitChangeNotification
             )
-            IcalSyncScheduler.schedule(getApplication())
+            IcalSyncScheduler.scheduleFromRepository(getApplication())
             WidgetUpdater.updateAll(getApplication())
             true to result.summaryText()
         }.getOrElse { throwable ->
-            val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+            val error = toSyncErrorMessage(throwable)
             repository.markSyncError("Sync fehlgeschlagen: $error")
             false to "iCal-Sync fehlgeschlagen: $error"
+        }
+    }
+
+    fun saveSyncIntervalMinutes(minutes: Long, onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            val normalized = minutes.coerceIn(15L, 12L * 60L)
+            repository.saveSyncIntervalMinutes(normalized)
+            IcalSyncScheduler.schedule(getApplication(), normalized)
+            onDone("Auto-Sync alle $normalized Minuten gespeichert.")
+        }
+    }
+
+    fun sendTestNotification(onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            ExamNotificationManager.ensureChannel(getApplication())
+            ExamReminderWorker.showImmediateNotification(
+                context = getApplication(),
+                examId = "test-notification",
+                title = "Test-Erinnerung",
+                location = "App-Test",
+                startsAtMillis = System.currentTimeMillis() + 60L * 60L * 1000L,
+                reminderLabel = "Manueller Test"
+            )
+            onDone("Test-Benachrichtigung gesendet.")
         }
     }
 }

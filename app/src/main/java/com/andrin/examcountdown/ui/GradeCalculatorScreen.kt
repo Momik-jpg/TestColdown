@@ -134,7 +134,10 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
     ) {
         Card(
             shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                contentColor = MaterialTheme.colorScheme.onSurface
+            )
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -194,7 +197,10 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
 
         Card(
             shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                contentColor = MaterialTheme.colorScheme.onSurface
+            )
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -246,7 +252,10 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
 
         Card(
             shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                contentColor = MaterialTheme.colorScheme.onSurface
+            )
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),

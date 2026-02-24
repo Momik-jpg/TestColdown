@@ -13,7 +13,7 @@ class ExamCountdownApp : Application() {
         ExamNotificationManager.ensureChannel(this)
         TimetableSyncNotificationManager.ensureChannel(this)
         ExamReminderScheduler.syncFromStoredExams(this)
-        IcalSyncScheduler.schedule(this)
+        IcalSyncScheduler.scheduleFromRepository(this)
         IcalSyncScheduler.syncNow(this)
         WidgetRefreshScheduler.schedule(this)
     }

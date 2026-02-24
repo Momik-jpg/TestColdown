@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -156,11 +158,13 @@ fun ExamCountdownScreen(
     val preferencesLoaded by viewModel.preferencesLoaded.collectAsStateWithLifecycle()
     val quietHours by viewModel.quietHours.collectAsStateWithLifecycle()
     val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
+    val syncIntervalMinutes by viewModel.syncIntervalMinutes.collectAsStateWithLifecycle()
     val isDarkMode = isSystemInDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
     var showOnboardingDialog by rememberSaveable { mutableStateOf(false) }
     var showReminderSettingsDialog by rememberSaveable { mutableStateOf(false) }
+    var showSyncSettingsDialog by rememberSaveable { mutableStateOf(false) }
     var iCalUrl by rememberSaveable { mutableStateOf("") }
     var onboardingUrl by rememberSaveable { mutableStateOf("") }
     var onboardingTestedOk by rememberSaveable { mutableStateOf(false) }
@@ -243,8 +247,9 @@ fun ExamCountdownScreen(
     if (showAddDialog) {
         AddExamDialog(
             onDismiss = { showAddDialog = false },
-            onSave = { title, location, examMillis, reminderAtMillis, reminderLeadTimes ->
+            onSave = { subject, title, location, examMillis, reminderAtMillis, reminderLeadTimes ->
                 viewModel.addExam(
+                    subject = subject,
                     title = title,
                     location = location,
                     startsAtMillis = examMillis,
@@ -317,12 +322,35 @@ fun ExamCountdownScreen(
     if (showReminderSettingsDialog) {
         ReminderSettingsDialog(
             initialConfig = quietHours,
+            syncIntervalMinutes = syncIntervalMinutes,
             onDismiss = { showReminderSettingsDialog = false },
             onSave = { config ->
                 viewModel.saveQuietHours(config) { message ->
                     scope.launch { snackbarHostState.showSnackbar(message) }
                 }
                 showReminderSettingsDialog = false
+            },
+            onSendTestNotification = {
+                viewModel.sendTestNotification { message ->
+                    scope.launch { snackbarHostState.showSnackbar(message) }
+                }
+            },
+            onOpenSyncSettings = {
+                showReminderSettingsDialog = false
+                showSyncSettingsDialog = true
+            }
+        )
+    }
+
+    if (showSyncSettingsDialog) {
+        SyncSettingsDialog(
+            initialIntervalMinutes = syncIntervalMinutes,
+            onDismiss = { showSyncSettingsDialog = false },
+            onSave = { minutes ->
+                viewModel.saveSyncIntervalMinutes(minutes) { message ->
+                    scope.launch { snackbarHostState.showSnackbar(message) }
+                }
+                showSyncSettingsDialog = false
             }
         )
     }
@@ -429,6 +457,7 @@ fun ExamCountdownScreen(
                     onAddClick = { showAddDialog = true },
                     onDelete = { examId -> viewModel.deleteExam(examId) },
                     onOpenReminderSettings = { showReminderSettingsDialog = true },
+                    onOpenSyncSettings = { showSyncSettingsDialog = true },
                     onExportBackup = {
                         viewModel.exportBackupJson { result ->
                             result.onSuccess { json ->
@@ -491,7 +520,7 @@ private fun IcalImportDialog(
                 )
 
                 Text(
-                    text = "iCal-Link einmal eingeben und speichern. Danach reicht oben der Pfeil zum Aktualisieren. Termine/Events werden im Stundenplan ausgeblendet.",
+                    text = "iCal-Link einmal eingeben und speichern. Danach reicht oben der Pfeil zum Aktualisieren. Es werden nur echte Prüfungen importiert (Termine/Events werden ignoriert).",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -585,7 +614,7 @@ private fun OnboardingDialog(
 @Composable
 private fun SyncStatusStrip(syncStatus: SyncStatus) {
     val error = syncStatus.lastSyncError
-    val text = when {
+    val headline = when {
         !error.isNullOrBlank() -> error
         syncStatus.lastSyncAtMillis != null -> {
             val time = formatSyncDateTime(syncStatus.lastSyncAtMillis)
@@ -593,6 +622,8 @@ private fun SyncStatusStrip(syncStatus: SyncStatus) {
         }
         else -> "Noch keine Synchronisierung"
     }
+    val details = syncStatus.lastSyncSummary
+        ?.takeIf { it.isNotBlank() && error.isNullOrBlank() }
 
     val containerColor = when {
         !error.isNullOrBlank() -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
@@ -611,14 +642,24 @@ private fun SyncStatusStrip(syncStatus: SyncStatus) {
         shape = MaterialTheme.shapes.medium,
         color = containerColor
     ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-            style = MaterialTheme.typography.labelMedium,
-            color = textColor,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
+            Text(
+                text = headline,
+                style = MaterialTheme.typography.labelMedium,
+                color = textColor,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            details?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = textColor.copy(alpha = 0.9f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 
@@ -1328,6 +1369,7 @@ private fun ExamListContent(
     onAddClick: () -> Unit,
     onDelete: (String) -> Unit,
     onOpenReminderSettings: () -> Unit,
+    onOpenSyncSettings: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit
 ) {
@@ -1342,6 +1384,7 @@ private fun ExamListContent(
             item {
                 ExamToolsCard(
                     onOpenReminderSettings = onOpenReminderSettings,
+                    onOpenSyncSettings = onOpenSyncSettings,
                     onExportBackup = onExportBackup,
                     onImportBackup = onImportBackup
                 )
@@ -1364,6 +1407,7 @@ private fun ExamListContent(
         item {
             ExamToolsCard(
                 onOpenReminderSettings = onOpenReminderSettings,
+                onOpenSyncSettings = onOpenSyncSettings,
                 onExportBackup = onExportBackup,
                 onImportBackup = onImportBackup
             )
@@ -1386,6 +1430,7 @@ private fun ExamListContent(
 @Composable
 private fun ExamToolsCard(
     onOpenReminderSettings: () -> Unit,
+    onOpenSyncSettings: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit
 ) {
@@ -1406,6 +1451,16 @@ private fun ExamToolsCard(
                 OutlinedButton(onClick = onOpenReminderSettings, modifier = Modifier.weight(1f)) {
                     Text("Benachrichtigungen")
                 }
+                OutlinedButton(onClick = onOpenSyncSettings, modifier = Modifier.weight(1f)) {
+                    Icon(
+                        imageVector = Icons.Outlined.Sync,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text("Auto-Sync")
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onExportBackup, modifier = Modifier.weight(1f)) {
                     Text("Backup Export")
                 }
@@ -1435,6 +1490,19 @@ private fun NextExamHero(exam: Exam) {
                 style = MaterialTheme.typography.labelLarge,
                 color = Color(0xFFD0E4FF)
             )
+            exam.subject?.takeIf { it.isNotBlank() }?.let { subject ->
+                Surface(
+                    color = Color(0x332F6EBA),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        text = "Fach: $subject",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color(0xFFE6F0FF)
+                    )
+                }
+            }
             Text(
                 text = exam.title,
                 style = MaterialTheme.typography.headlineSmall,
@@ -1518,6 +1586,20 @@ private fun ExamCard(exam: Exam, onDelete: () -> Unit) {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            exam.subject?.takeIf { it.isNotBlank() }?.let { subject ->
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        text = "Fach: $subject",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -1601,9 +1683,10 @@ private fun ExamCard(exam: Exam, onDelete: () -> Unit) {
 @Composable
 private fun AddExamDialog(
     onDismiss: () -> Unit,
-    onSave: (String, String?, Long, Long?, List<Long>) -> Unit
+    onSave: (String?, String, String?, Long, Long?, List<Long>) -> Unit
 ) {
     val context = LocalContext.current
+    var subject by rememberSaveable { mutableStateOf("") }
     var title by rememberSaveable { mutableStateOf("") }
     var location by rememberSaveable { mutableStateOf("") }
     var selectedExamMillis by rememberSaveable {
@@ -1632,11 +1715,24 @@ private fun AddExamDialog(
         onDismissRequest = onDismiss,
         title = { Text("Neue Prüfung") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = subject,
+                    onValueChange = { subject = it },
+                    label = { Text("Fach (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Fach / Titel") },
+                    label = { Text("Titel / Prüfung") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1756,6 +1852,7 @@ private fun AddExamDialog(
                 enabled = title.isNotBlank() && reminderValidationError == null,
                 onClick = {
                     onSave(
+                        subject.ifBlank { null },
                         title,
                         location.ifBlank { null },
                         selectedExamMillis,
@@ -1779,8 +1876,11 @@ private fun AddExamDialog(
 @Composable
 private fun ReminderSettingsDialog(
     initialConfig: QuietHoursConfig,
+    syncIntervalMinutes: Long,
     onDismiss: () -> Unit,
-    onSave: (QuietHoursConfig) -> Unit
+    onSave: (QuietHoursConfig) -> Unit,
+    onSendTestNotification: () -> Unit,
+    onOpenSyncSettings: () -> Unit
 ) {
     var enabled by remember(initialConfig) { mutableStateOf(initialConfig.enabled) }
     var startMinutes by remember(initialConfig) { mutableIntStateOf(initialConfig.startMinutesOfDay) }
@@ -1791,7 +1891,12 @@ private fun ReminderSettingsDialog(
         onDismissRequest = onDismiss,
         title = { Text("Benachrichtigungen") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1835,6 +1940,32 @@ private fun ReminderSettingsDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+
+                Surface(
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Text(
+                        text = "Auto-Sync aktuell: alle $syncIntervalMinutes Minuten",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onSendTestNotification,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Test senden")
+                    }
+                    OutlinedButton(
+                        onClick = onOpenSyncSettings,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Sync einstellen")
+                    }
+                }
             }
         },
         confirmButton = {
@@ -1848,6 +1979,72 @@ private fun ReminderSettingsDialog(
                         )
                     )
                 }
+            ) {
+                Text("Speichern")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Abbrechen")
+            }
+        }
+    )
+}
+
+@Composable
+private fun SyncSettingsDialog(
+    initialIntervalMinutes: Long,
+    onDismiss: () -> Unit,
+    onSave: (Long) -> Unit
+) {
+    var intervalRaw by rememberSaveable(initialIntervalMinutes) {
+        mutableStateOf(initialIntervalMinutes.toString())
+    }
+    val parsed = intervalRaw.trim().toLongOrNull()
+    val normalized = parsed?.coerceIn(15L, 12L * 60L)
+    val isValid = normalized != null
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Auto-Synchronisierung") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = intervalRaw,
+                    onValueChange = { intervalRaw = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Intervall in Minuten") },
+                    placeholder = { Text("z. B. 60") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = "Gültig: 15 bis 720 Minuten. Empfohlen: 60 oder 180 Minuten.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(30L, 60L, 180L, 360L).forEach { quick ->
+                        OutlinedButton(
+                            onClick = { intervalRaw = quick.toString() },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("$quick")
+                        }
+                    }
+                }
+                if (!isValid) {
+                    Text(
+                        text = "Bitte eine Zahl zwischen 15 und 720 eingeben.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = isValid,
+                onClick = { onSave(normalized ?: 60L) }
             ) {
                 Text("Speichern")
             }

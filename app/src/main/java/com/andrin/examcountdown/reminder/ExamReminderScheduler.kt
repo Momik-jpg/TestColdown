@@ -21,6 +21,7 @@ import kotlinx.coroutines.runBlocking
 
 object ExamReminderScheduler {
     private const val WORK_PREFIX = "exam-reminder-"
+    private const val SNOOZE_WORK_PREFIX = "exam-reminder-snooze-"
 
     fun scheduleExamReminder(context: Context, exam: Exam) {
         val appContext = context.applicationContext
@@ -68,6 +69,38 @@ object ExamReminderScheduler {
             val exams = ExamRepository(context.applicationContext).readSnapshot()
             exams.forEach { exam -> scheduleExamReminder(context, exam) }
         }
+    }
+
+    fun scheduleSnoozeReminder(
+        context: Context,
+        examId: String,
+        title: String,
+        location: String?,
+        startsAtMillis: Long,
+        delayMinutes: Long = 10L
+    ) {
+        val delay = delayMinutes.coerceIn(1L, 180L)
+        val triggerAtMillis = System.currentTimeMillis() + delay * 60_000L
+        if (triggerAtMillis >= startsAtMillis) return
+
+        val inputData = Data.Builder()
+            .putString(ExamReminderWorker.KEY_EXAM_ID, examId)
+            .putString(ExamReminderWorker.KEY_TITLE, title)
+            .putString(ExamReminderWorker.KEY_LOCATION, location)
+            .putLong(ExamReminderWorker.KEY_STARTS_AT, startsAtMillis)
+            .putString(ExamReminderWorker.KEY_REMINDER_LABEL, "Snooze (${delay} Min)")
+            .build()
+
+        val request = OneTimeWorkRequestBuilder<ExamReminderWorker>()
+            .setInitialDelay(delay, TimeUnit.MINUTES)
+            .setInputData(inputData)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "$SNOOZE_WORK_PREFIX$examId",
+            ExistingWorkPolicy.REPLACE,
+            request
+        )
     }
 
     private data class ReminderTrigger(

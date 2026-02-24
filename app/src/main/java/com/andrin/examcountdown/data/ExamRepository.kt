@@ -38,6 +38,7 @@ class ExamRepository(private val appContext: Context) {
     private val quietHoursEnabledKey = booleanPreferencesKey("quiet_hours_enabled")
     private val quietHoursStartMinutesKey = longPreferencesKey("quiet_hours_start_minutes")
     private val quietHoursEndMinutesKey = longPreferencesKey("quiet_hours_end_minutes")
+    private val syncIntervalMinutesKey = longPreferencesKey("sync_interval_minutes")
     private val lastSyncAtMillisKey = longPreferencesKey("last_sync_at_ms")
     private val lastSyncSummaryKey = stringPreferencesKey("last_sync_summary")
     private val lastSyncErrorKey = stringPreferencesKey("last_sync_error")
@@ -100,6 +101,11 @@ class ExamRepository(private val appContext: Context) {
                 lastSyncSummary = preferences[lastSyncSummaryKey],
                 lastSyncError = preferences[lastSyncErrorKey]
             )
+        }
+
+    val syncIntervalMinutesFlow: Flow<Long> = preferencesFlow
+        .map { preferences ->
+            normalizeSyncIntervalMinutes(preferences[syncIntervalMinutesKey] ?: DEFAULT_SYNC_INTERVAL_MINUTES)
         }
 
     suspend fun addExam(exam: Exam) {
@@ -194,7 +200,14 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun saveSyncIntervalMinutes(minutes: Long) {
+        appContext.dataStore.edit { preferences ->
+            preferences[syncIntervalMinutesKey] = normalizeSyncIntervalMinutes(minutes)
+        }
+    }
+
     suspend fun readIcalUrl(): String? = iCalUrlFlow.first().takeIf { it.isNotBlank() }
+    suspend fun readSyncIntervalMinutes(): Long = syncIntervalMinutesFlow.first()
 
     suspend fun readSnapshot(): List<Exam> = examsFlow.first()
     suspend fun readLessonsSnapshot(): List<TimetableLesson> = lessonsFlow.first()
@@ -209,7 +222,8 @@ class ExamRepository(private val appContext: Context) {
             iCalUrl = readIcalUrl(),
             onboardingDone = onboardingDoneFlow.first(),
             onboardingPromptSeen = onboardingPromptSeenFlow.first(),
-            quietHours = readQuietHoursConfig()
+            quietHours = readQuietHoursConfig(),
+            syncIntervalMinutes = readSyncIntervalMinutes()
         )
         return json.encodeToString(backup)
     }
@@ -241,6 +255,7 @@ class ExamRepository(private val appContext: Context) {
             preferences[quietHoursEnabledKey] = backup.quietHours.enabled
             preferences[quietHoursStartMinutesKey] = backup.quietHours.startMinutesOfDay.toLong()
             preferences[quietHoursEndMinutesKey] = backup.quietHours.endMinutesOfDay.toLong()
+            preferences[syncIntervalMinutesKey] = normalizeSyncIntervalMinutes(backup.syncIntervalMinutes)
         }
         return backup
     }
@@ -268,5 +283,13 @@ class ExamRepository(private val appContext: Context) {
         if (raw.isNullOrBlank()) return emptyList()
         return runCatching { json.decodeFromString<List<TimetableChangeEntry>>(raw) }
             .getOrDefault(emptyList())
+    }
+
+    private fun normalizeSyncIntervalMinutes(value: Long): Long {
+        return value.coerceIn(15L, 12L * 60L)
+    }
+
+    companion object {
+        const val DEFAULT_SYNC_INTERVAL_MINUTES: Long = 6L * 60L
     }
 }

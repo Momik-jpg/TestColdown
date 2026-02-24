@@ -1,7 +1,6 @@
 package com.andrin.examcountdown.data
 
 import com.andrin.examcountdown.model.Exam
-import java.net.URL
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -24,7 +23,7 @@ class IcalImporter {
             "Ungültige URL"
         }
 
-        val raw = URL(normalizedUrl).readText(Charsets.UTF_8)
+        val raw = IcalHttpClient.download(normalizedUrl)
         val parsedEvents = parseIcalEvents(raw)
             .filter { it.startsAtEpochMillis > System.currentTimeMillis() }
             .sortedBy { it.startsAtEpochMillis }
@@ -43,10 +42,12 @@ class IcalImporter {
         val exams = examCandidates.map { event ->
             val stableIdSeed = event.uid?.takeIf { it.isNotBlank() }
                 ?: "${event.summary}|${event.startsAtEpochMillis}|${event.location.orEmpty()}"
+            val summaryInfo = parseExamSummaryForDisplay(event.summary)
 
             Exam(
                 id = "ical:$stableIdSeed".replace("\\s+".toRegex(), "_"),
-                title = formatExamTitle(event.summary).take(140),
+                title = summaryInfo.title.take(140),
+                subject = summaryInfo.subject?.take(40),
                 location = event.location
                     ?.trim()
                     ?.takeIf { it.isNotBlank() }
@@ -66,11 +67,13 @@ class IcalImporter {
         val uid = event.uid.orEmpty().lowercase(Locale.ROOT)
         val isCenterboardEntry = uid.contains("@centerboard.ch")
         val isCenterboardExam = uid.contains("etp_") || uid.contains("pruefung@centerboard.ch")
+        val isCenterboardNonExam = uid.contains("ett_") || uid.contains("termin@centerboard.ch")
 
         // schulNetz/Centerboard liefert Prüfungen mit etP_.
         // Alle anderen Centerboard-Typen (z. B. etT_ Termine) werden ausgeschlossen.
         if (isCenterboardEntry) {
-            return isCenterboardExam
+            if (isCenterboardNonExam) return false
+            if (isCenterboardExam) return true
         }
 
         val text = listOf(
@@ -82,13 +85,19 @@ class IcalImporter {
             .joinToString(" ")
             .lowercase(Locale.ROOT)
 
-        val keywords = listOf(
+        val positiveKeywords = listOf(
             "prüfung", "pruefung", "test", "klausur", "exam", "quiz", "lernkontrolle",
             "matura", "probe", "prüfungstermin", "assessment", "nachprüfung", "nachpruefung",
             "aufnahmeprüfung", "aufnahmepruefung", "kurzprüfung", "kurzpruefung", "kontrolle"
         )
+        val negativeKeywords = listOf(
+            "lektion", "unterricht", "stunde", "stundenplan", "termin", "event", "anlass",
+            "sprechstunde", "abgabe", "ferien", "urlaub", "ausflug", "meeting"
+        )
 
-        return keywords.any { keyword -> text.contains(keyword) }
+        val containsExamKeyword = positiveKeywords.any { keyword -> text.contains(keyword) }
+        val containsExcludedKeyword = negativeKeywords.any { keyword -> text.contains(keyword) }
+        return containsExamKeyword && !containsExcludedKeyword
     }
 
     private data class ParsedIcalEvent(
@@ -226,24 +235,53 @@ class IcalImporter {
         return runCatching { ZoneId.of(tzid) }.getOrDefault(ZoneId.systemDefault())
     }
 
-    private fun formatExamTitle(rawSummary: String): String {
+    internal fun parseExamSummaryForDisplay(rawSummary: String): ExamSummaryInfo {
         val cleaned = normalizeGermanWords(rawSummary.trim())
             .replace(Regex("\\s+"), " ")
             .trim()
-        if (cleaned.isBlank()) return "Prüfung"
+        if (cleaned.isBlank()) {
+            return ExamSummaryInfo(
+                subject = null,
+                title = "Prüfung"
+            )
+        }
 
         val firstToken = cleaned.substringBefore(' ')
         val remaining = cleaned.substringAfter(' ', "").trim()
 
         if (firstToken.contains("_")) {
-            if (remaining.isNotBlank()) return remaining
-            return firstToken.replace('_', ' ')
-                .replace(Regex("\\s+"), " ")
+            val subject = firstToken.substringBefore('_')
                 .trim()
-                .ifBlank { "Prüfung" }
+                .takeIf { it.isNotBlank() }
+                ?.let(::normalizeSubjectCode)
+            val parsedTitle = if (remaining.isNotBlank()) {
+                remaining
+            } else {
+                firstToken.replace('_', ' ')
+                    .replace(Regex("\\s+"), " ")
+                    .trim()
+                    .ifBlank { "Prüfung" }
+            }
+            return ExamSummaryInfo(
+                subject = subject,
+                title = parsedTitle
+            )
         }
 
-        return cleaned
+        val splitByColon = cleaned.split(':', '-', limit = 2)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        if (splitByColon.size == 2 && splitByColon.first().length in 2..24) {
+            return ExamSummaryInfo(
+                subject = splitByColon.first(),
+                title = splitByColon.last()
+            )
+        }
+
+        return ExamSummaryInfo(
+            subject = extractSubjectFromKeywordPattern(cleaned),
+            title = cleaned
+        )
     }
 
     private fun normalizeGermanWords(input: String): String {
@@ -276,4 +314,35 @@ class IcalImporter {
             .replace("\\\\", "\\")
             .trim()
     }
+
+    private fun extractSubjectFromKeywordPattern(text: String): String? {
+        val lowered = text.lowercase(Locale.ROOT)
+        val markers = listOf("prüfung", "pruefung", "test", "klausur", "exam", "quiz")
+        val idx = markers
+            .map { marker -> lowered.indexOf(marker) }
+            .filter { it > 0 }
+            .minOrNull()
+            ?: return null
+
+        return text.substring(0, idx)
+            .trim(' ', '-', ':', ',', ';')
+            .takeIf { it.length in 2..28 }
+    }
+
+    private fun normalizeSubjectCode(raw: String): String {
+        val normalized = raw
+            .trim()
+            .replace(Regex("[^A-Za-zÄÖÜäöü0-9]"), "")
+        if (normalized.isBlank()) return raw.trim()
+        return when {
+            normalized.length <= 4 -> normalized.uppercase(Locale.ROOT)
+            else -> normalized.lowercase(Locale.ROOT)
+                .replaceFirstChar { it.titlecase(Locale.ROOT) }
+        }
+    }
+
+    internal data class ExamSummaryInfo(
+        val subject: String?,
+        val title: String
+    )
 }

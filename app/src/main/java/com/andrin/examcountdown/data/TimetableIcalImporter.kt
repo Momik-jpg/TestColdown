@@ -1,7 +1,6 @@
 package com.andrin.examcountdown.data
 
 import com.andrin.examcountdown.model.TimetableLesson
-import java.net.URL
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -29,15 +28,15 @@ class TimetableIcalImporter {
             "Ungültige URL"
         }
 
-        val raw = URL(normalizedUrl).readText(Charsets.UTF_8)
+        val raw = IcalHttpClient.download(normalizedUrl)
         val windowStart = LocalDate.now()
-            .atStartOfDay(ZoneId.systemDefault())
+            .atStartOfDay(schoolZone)
             .toInstant()
             .toEpochMilli()
         val windowEnd = LocalDate.now()
             .plusDays(35)
             .atTime(23, 59, 59)
-            .atZone(ZoneId.systemDefault())
+            .atZone(schoolZone)
             .toInstant()
             .toEpochMilli()
 
@@ -204,6 +203,15 @@ class TimetableIcalImporter {
         if (uid.contains("etp_") || uid.contains("ett_")) return false
         if (uid.contains("pruefung") || uid.contains("termin")) return false
         if (event.startsAtIsDateOnly || event.endsAtIsDateOnly) return false
+
+        val text = listOf(event.summary, event.description.orEmpty())
+            .joinToString(" ")
+            .lowercase(Locale.ROOT)
+        val excludedKeywords = listOf(
+            "prüfung", "pruefung", "test", "klausur", "exam", "quiz",
+            "ferien", "urlaub", "abgabe", "event", "anlass"
+        )
+        if (excludedKeywords.any { keyword -> text.contains(keyword) }) return false
 
         val duration = event.endsAtEpochMillis - event.startsAtEpochMillis
         if (duration < 10L * 60L * 1000L) return false

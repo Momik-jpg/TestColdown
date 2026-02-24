@@ -74,8 +74,12 @@ class ExamListWidgetProvider : AppWidgetProvider() {
             rowIds.forEachIndexed { index, rowId ->
                 if (index < exams.size) {
                     val exam = exams[index]
+                    val title = exam.subject
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { "$it · ${exam.title}" }
+                        ?: exam.title
                     views.setViewVisibility(rowId, View.VISIBLE)
-                    views.setTextViewText(rowId, "${formatExamDateShort(exam.startsAtEpochMillis)}  •  ${exam.title}")
+                    views.setTextViewText(rowId, "${formatExamDateShort(exam.startsAtEpochMillis)}  •  $title")
                 } else {
                     views.setViewVisibility(rowId, View.GONE)
                 }

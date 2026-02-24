@@ -1,6 +1,7 @@
 package com.andrin.examcountdown.worker
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -12,7 +13,8 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.andrin.examcountdown.data.ExamRepository
 import com.andrin.examcountdown.data.IcalSyncEngine
-import java.io.IOException
+import com.andrin.examcountdown.data.shouldRetrySync
+import com.andrin.examcountdown.data.toSyncErrorMessage
 import java.util.concurrent.TimeUnit
 
 class IcalSyncWorker(
@@ -29,13 +31,10 @@ class IcalSyncWorker(
                 emitChangeNotification = true
             )
             Result.success()
-        } catch (_: IOException) {
-            repository.markSyncError("Sync fehlgeschlagen: Netzwerkfehler.")
-            Result.retry()
         } catch (exception: Exception) {
-            val error = exception.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+            val error = toSyncErrorMessage(exception)
             repository.markSyncError("Sync fehlgeschlagen: $error")
-            Result.success()
+            if (shouldRetrySync(exception)) Result.retry() else Result.success()
         }
     }
 }
@@ -44,9 +43,11 @@ object IcalSyncScheduler {
     private const val PERIODIC_WORK_NAME = "ical-sync-periodic"
     private const val IMMEDIATE_WORK_NAME = "ical-sync-immediate"
 
-    fun schedule(context: Context) {
-        val request = PeriodicWorkRequestBuilder<IcalSyncWorker>(6, TimeUnit.HOURS)
+    fun schedule(context: Context, repeatIntervalMinutes: Long = ExamRepository.DEFAULT_SYNC_INTERVAL_MINUTES) {
+        val interval = repeatIntervalMinutes.coerceIn(15L, 12L * 60L)
+        val request = PeriodicWorkRequestBuilder<IcalSyncWorker>(interval, TimeUnit.MINUTES)
             .setConstraints(networkConstraint())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
@@ -56,9 +57,19 @@ object IcalSyncScheduler {
         )
     }
 
+    fun scheduleFromRepository(context: Context) {
+        val interval = runCatching {
+            kotlinx.coroutines.runBlocking {
+                ExamRepository(context.applicationContext).readSyncIntervalMinutes()
+            }
+        }.getOrDefault(ExamRepository.DEFAULT_SYNC_INTERVAL_MINUTES)
+        schedule(context, interval)
+    }
+
     fun syncNow(context: Context) {
         val request = OneTimeWorkRequestBuilder<IcalSyncWorker>()
             .setConstraints(networkConstraint())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
 
         WorkManager.getInstance(context).enqueueUniqueWork(

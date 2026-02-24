@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 data class Exam(
     val id: String = UUID.randomUUID().toString(),
     val title: String,
+    val subject: String? = null,
     val location: String? = null,
     val startsAtEpochMillis: Long,
     val reminderAtEpochMillis: Long? = null,

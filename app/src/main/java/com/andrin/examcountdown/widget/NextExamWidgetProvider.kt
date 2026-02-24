@@ -48,7 +48,11 @@ class NextExamWidgetProvider : AppWidgetProvider() {
                     views.setTextViewText(R.id.nextExamTime, "Füge eine Prüfung in der App hinzu")
                     views.setTextViewText(R.id.nextExamCountdown, "")
                 } else {
-                    views.setTextViewText(R.id.nextExamTitle, nextExam.title)
+                    val title = nextExam.subject
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { "$it · ${nextExam.title}" }
+                        ?: nextExam.title
+                    views.setTextViewText(R.id.nextExamTitle, title)
                     views.setTextViewText(R.id.nextExamTime, formatExamDateShort(nextExam.startsAtEpochMillis))
                     views.setTextViewText(R.id.nextExamCountdown, formatCountdown(nextExam.startsAtEpochMillis))
                 }
