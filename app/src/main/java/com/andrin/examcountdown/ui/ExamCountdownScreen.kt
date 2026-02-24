@@ -164,6 +164,7 @@ fun ExamCountdownScreen(
     val quietHours by viewModel.quietHours.collectAsStateWithLifecycle()
     val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
     val syncIntervalMinutes by viewModel.syncIntervalMinutes.collectAsStateWithLifecycle()
+    val showSyncStatusStrip by viewModel.showSyncStatusStrip.collectAsStateWithLifecycle()
     val isDarkMode = isSystemInDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
@@ -363,7 +364,11 @@ fun ExamCountdownScreen(
 
     if (showQuickActionsDialog) {
         QuickActionsDialog(
+            showSyncStatusStrip = showSyncStatusStrip,
             onDismiss = { showQuickActionsDialog = false },
+            onShowSyncStatusStripChange = { enabled ->
+                viewModel.setShowSyncStatusStrip(enabled)
+            },
             onOpenReminderSettings = {
                 showQuickActionsDialog = false
                 showReminderSettingsDialog = true
@@ -476,7 +481,9 @@ fun ExamCountdownScreen(
                         )
                     }
                 }
-                SyncStatusStrip(syncStatus = syncStatus)
+                if (showSyncStatusStrip) {
+                    SyncStatusStrip(syncStatus = syncStatus)
+                }
             }
         },
         floatingActionButton = {
@@ -572,7 +579,9 @@ private fun IcalImportDialog(
 
 @Composable
 private fun QuickActionsDialog(
+    showSyncStatusStrip: Boolean,
     onDismiss: () -> Unit,
+    onShowSyncStatusStripChange: (Boolean) -> Unit,
     onOpenReminderSettings: () -> Unit,
     onOpenSyncSettings: () -> Unit,
     onOpenIcalImport: () -> Unit,
@@ -581,11 +590,32 @@ private fun QuickActionsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Aktionen") },
+        title = { Text("Werkzeuge") },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Sync-Balken anzeigen",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Switch(
+                            checked = showSyncStatusStrip,
+                            onCheckedChange = onShowSyncStatusStripChange
+                        )
+                    }
+                }
                 OutlinedButton(
                     onClick = onOpenIcalImport,
                     modifier = Modifier.fillMaxWidth()
@@ -1649,18 +1679,18 @@ private fun ExamListContent(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            ExamInsightsCard(
-                exams = exams,
-                visibleCount = filteredExams.size
-            )
-        }
-        item {
             ExamSearchAndFilterCard(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
                 selectedSubject = selectedSubject,
                 subjects = subjectOptions,
                 onSubjectSelected = { selectedSubject = it }
+            )
+        }
+        item {
+            ExamInsightsCard(
+                exams = exams,
+                visibleCount = filteredExams.size
             )
         }
         item {

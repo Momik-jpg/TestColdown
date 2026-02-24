@@ -14,7 +14,7 @@ data class QuietHoursConfig(
 
 @Serializable
 data class AppBackup(
-    val schemaVersion: Int = 2,
+    val schemaVersion: Int = 3,
     val exportedAtEpochMillis: Long = System.currentTimeMillis(),
     val exams: List<Exam> = emptyList(),
     val lessons: List<TimetableLesson> = emptyList(),
@@ -23,5 +23,6 @@ data class AppBackup(
     val onboardingDone: Boolean = false,
     val onboardingPromptSeen: Boolean = false,
     val quietHours: QuietHoursConfig = QuietHoursConfig(),
-    val syncIntervalMinutes: Long = 6L * 60L
+    val syncIntervalMinutes: Long = 6L * 60L,
+    val showSyncStatusStrip: Boolean = true
 )

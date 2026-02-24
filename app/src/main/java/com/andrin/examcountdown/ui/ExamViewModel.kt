@@ -73,6 +73,11 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = ExamRepository.DEFAULT_SYNC_INTERVAL_MINUTES
     )
+    val showSyncStatusStrip = repository.showSyncStatusStripFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = true
+    )
 
     fun addExam(
         subject: String?,
@@ -271,6 +276,12 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
                 reminderLabel = "Manueller Test"
             )
             onDone("Test-Benachrichtigung gesendet.")
+        }
+    }
+
+    fun setShowSyncStatusStrip(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setShowSyncStatusStrip(enabled)
         }
     }
 }
