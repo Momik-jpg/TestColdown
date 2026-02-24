@@ -12,6 +12,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.andrin.examcountdown.data.ExamRepository
 import com.andrin.examcountdown.data.IcalImporter
+import com.andrin.examcountdown.data.TimetableIcalImporter
 import com.andrin.examcountdown.widget.WidgetUpdater
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -25,8 +26,10 @@ class IcalSyncWorker(
         val iCalUrl = repository.readIcalUrl() ?: return Result.success()
 
         return try {
-            val importResult = IcalImporter().importFromUrl(iCalUrl)
-            repository.replaceIcalImportedExams(importResult.exams)
+            val examResult = IcalImporter().importFromUrl(iCalUrl)
+            val timetableResult = TimetableIcalImporter().importFromUrl(iCalUrl)
+            repository.replaceIcalImportedExams(examResult.exams)
+            repository.replaceSyncedLessons(timetableResult.lessons)
             WidgetUpdater.updateAll(applicationContext)
             Result.success()
         } catch (_: IOException) {

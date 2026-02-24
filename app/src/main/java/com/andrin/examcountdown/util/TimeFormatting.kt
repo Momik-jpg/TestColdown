@@ -10,6 +10,8 @@ private val appLocale: Locale = Locale.GERMANY
 private val fullFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, dd.MM.yyyy · HH:mm", appLocale)
 private val shortFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM. HH:mm", appLocale)
 private val reminderFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy · HH:mm", appLocale)
+private val dayHeaderFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE, dd.MM.yyyy", appLocale)
+private val timeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", appLocale)
 
 fun formatExamDate(epochMillis: Long): String {
     val localDateTime = Instant.ofEpochMilli(epochMillis)
@@ -30,6 +32,23 @@ fun formatReminderDateTime(epochMillis: Long): String {
         .atZone(ZoneId.systemDefault())
         .toLocalDateTime()
     return reminderFormatter.format(localDateTime)
+}
+
+fun formatDayHeader(epochMillis: Long): String {
+    val localDateTime = Instant.ofEpochMilli(epochMillis)
+        .atZone(ZoneId.systemDefault())
+        .toLocalDateTime()
+    return dayHeaderFormatter.format(localDateTime)
+}
+
+fun formatTimeRange(startEpochMillis: Long, endEpochMillis: Long): String {
+    val start = Instant.ofEpochMilli(startEpochMillis)
+        .atZone(ZoneId.systemDefault())
+        .toLocalDateTime()
+    val end = Instant.ofEpochMilli(endEpochMillis)
+        .atZone(ZoneId.systemDefault())
+        .toLocalDateTime()
+    return "${timeFormatter.format(start)} - ${timeFormatter.format(end)}"
 }
 
 fun formatCountdown(epochMillis: Long, nowMillis: Long = System.currentTimeMillis()): String {

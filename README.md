@@ -12,8 +12,15 @@
 2. Tippe oben rechts auf das Wolken-Symbol (`iCal importieren`).
 3. Füge deinen schulNetz-iCal-Link ein.
 4. Tippe auf `Importieren`.
-5. Es werden nur Prüfungen importiert.
-6. Danach synchronisiert die App automatisch im Hintergrund (bei Internet).
+5. Prüfungen und Stundenplan werden synchronisiert.
+6. Im Stundenplan werden nur Lektionen angezeigt (keine `Termin`-Events).
+7. Danach synchronisiert die App automatisch im Hintergrund (bei Internet).
+
+## Stundenplan
+- Neuer Tab `Stundenplan` mit Tagesansicht.
+- Zeigt nur Lektionen (keine `Termin`-Events).
+- Verschobene Lektionen werden markiert.
+- Wird zusammen mit dem iCal-Import automatisch synchronisiert.
 
 ## Hinweis
 - Beim erneuten Import werden alte iCal-Einträge aktualisiert, manuell erstellte Prüfungen bleiben erhalten.

@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrin.examcountdown.data.IcalImporter
 import com.andrin.examcountdown.data.ExamRepository
+import com.andrin.examcountdown.data.TimetableIcalImporter
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.reminder.ExamReminderScheduler
 import com.andrin.examcountdown.worker.IcalSyncScheduler
@@ -16,8 +17,14 @@ import kotlinx.coroutines.launch
 class ExamViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = ExamRepository(application.applicationContext)
     private val iCalImporter = IcalImporter()
+    private val timetableImporter = TimetableIcalImporter()
 
     val exams = repository.examsFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
+    val lessons = repository.lessonsFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList()
@@ -68,10 +75,13 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
 
             val message = runCatching {
                 val importResult = iCalImporter.importFromUrl(trimmedUrl)
+                val timetableResult = timetableImporter.importFromUrl(trimmedUrl)
                 repository.replaceIcalImportedExams(importResult.exams)
+                repository.replaceSyncedLessons(timetableResult.lessons)
                 IcalSyncScheduler.schedule(getApplication())
+                IcalSyncScheduler.syncNow(getApplication())
                 WidgetUpdater.updateAll(getApplication())
-                importResult.message
+                "${importResult.exams.size} Prüfungen und ${timetableResult.lessons.size} Lektionen synchronisiert."
             }.getOrElse { throwable ->
                 "iCal-Import fehlgeschlagen: ${throwable.message ?: "Unbekannter Fehler"}"
             }

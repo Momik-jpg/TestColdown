@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.model.TimetableLesson
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -20,6 +21,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 class ExamRepository(private val appContext: Context) {
     private val examsKey = stringPreferencesKey("exams_json")
+    private val lessonsKey = stringPreferencesKey("lessons_json")
     private val iCalUrlKey = stringPreferencesKey("ical_url")
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -34,7 +36,13 @@ class ExamRepository(private val appContext: Context) {
 
     val examsFlow: Flow<List<Exam>> = preferencesFlow
         .map { preferences ->
-            decode(preferences[examsKey])
+            decodeExams(preferences[examsKey])
+                .sortedBy { it.startsAtEpochMillis }
+        }
+
+    val lessonsFlow: Flow<List<TimetableLesson>> = preferencesFlow
+        .map { preferences ->
+            decodeLessons(preferences[lessonsKey])
                 .sortedBy { it.startsAtEpochMillis }
         }
 
@@ -57,6 +65,13 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun replaceSyncedLessons(imported: List<TimetableLesson>) {
+        appContext.dataStore.edit { preferences ->
+            val updated = imported.sortedBy { it.startsAtEpochMillis }
+            preferences[lessonsKey] = json.encodeToString(updated)
+        }
+    }
+
     suspend fun deleteExam(examId: String) {
         updateExams { current ->
             current.filterNot { it.id == examId }
@@ -75,14 +90,20 @@ class ExamRepository(private val appContext: Context) {
 
     private suspend fun updateExams(transform: (List<Exam>) -> List<Exam>) {
         appContext.dataStore.edit { preferences ->
-            val updated = transform(decode(preferences[examsKey]))
+            val updated = transform(decodeExams(preferences[examsKey]))
             preferences[examsKey] = json.encodeToString(updated)
         }
     }
 
-    private fun decode(raw: String?): List<Exam> {
+    private fun decodeExams(raw: String?): List<Exam> {
         if (raw.isNullOrBlank()) return emptyList()
         return runCatching { json.decodeFromString<List<Exam>>(raw) }
+            .getOrDefault(emptyList())
+    }
+
+    private fun decodeLessons(raw: String?): List<TimetableLesson> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching { json.decodeFromString<List<TimetableLesson>>(raw) }
             .getOrDefault(emptyList())
     }
 }

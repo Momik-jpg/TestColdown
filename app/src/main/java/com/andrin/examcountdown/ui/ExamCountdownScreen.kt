@@ -23,6 +23,8 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -63,15 +65,21 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.model.TimetableLesson
 import com.andrin.examcountdown.util.formatCountdown
+import com.andrin.examcountdown.util.formatDayHeader
 import com.andrin.examcountdown.util.formatExamDate
 import com.andrin.examcountdown.util.formatReminderDateTime
 import com.andrin.examcountdown.util.formatReminderLeadTime
+import com.andrin.examcountdown.util.formatTimeRange
+import java.time.Instant
+import java.time.ZoneId
 import java.util.Calendar
 import kotlinx.coroutines.launch
 
 private enum class HomeTab(val title: String) {
     EXAMS("Prüfungen"),
+    TIMETABLE("Stundenplan"),
     GRADES("Notenrechner")
 }
 
@@ -79,6 +87,7 @@ private enum class HomeTab(val title: String) {
 @Composable
 fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
     val exams by viewModel.exams.collectAsStateWithLifecycle()
+    val lessons by viewModel.lessons.collectAsStateWithLifecycle()
     val savedIcalUrl by viewModel.savedIcalUrl.collectAsStateWithLifecycle()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
@@ -140,7 +149,7 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
                         )
                     },
                     actions = {
-                        if (selectedTab == HomeTab.EXAMS) {
+                        if (selectedTab != HomeTab.GRADES) {
                             IconButton(
                                 enabled = !isImportingIcal,
                                 onClick = {
@@ -196,6 +205,15 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
                     onDelete = { examId -> viewModel.deleteExam(examId) }
                 )
 
+                HomeTab.TIMETABLE -> TimetableContent(
+                    lessons = lessons,
+                    hasIcalUrl = savedIcalUrl.isNotBlank(),
+                    onOpenIcalImport = {
+                        iCalUrl = savedIcalUrl
+                        showIcalDialog = true
+                    }
+                )
+
                 HomeTab.GRADES -> GradeCalculatorScreen(
                     modifier = Modifier
                         .fillMaxSize()
@@ -229,7 +247,7 @@ private fun IcalImportDialog(
                 )
 
                 Text(
-                    text = "Es werden nur Prüfungen importiert und danach automatisch im Hintergrund synchronisiert.",
+                    text = "Synchronisiert Prüfungen und Stundenplan aus schulNetz. Termine/Events werden im Stundenplan nicht angezeigt.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -252,6 +270,196 @@ private fun IcalImportDialog(
             }
         }
     )
+}
+
+@Composable
+private fun TimetableContent(
+    lessons: List<TimetableLesson>,
+    hasIcalUrl: Boolean,
+    onOpenIcalImport: () -> Unit
+) {
+    if (lessons.isEmpty()) {
+        TimetableEmptyState(
+            hasIcalUrl = hasIcalUrl,
+            onOpenIcalImport = onOpenIcalImport,
+            modifier = Modifier.fillMaxSize()
+        )
+        return
+    }
+
+    val grouped = remember(lessons) {
+        lessons
+            .groupBy { lesson ->
+                Instant.ofEpochMilli(lesson.startsAtEpochMillis)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+            }
+            .toSortedMap()
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        grouped.forEach { (date, dayLessons) ->
+            item(key = "header-$date") {
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Text(
+                        text = formatDayHeader(dayLessons.first().startsAtEpochMillis),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            items(items = dayLessons, key = { it.id }) { lesson ->
+                TimetableLessonCard(lesson = lesson)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimetableLessonCard(lesson: TimetableLesson) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Schedule,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Text(
+                        text = formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = lesson.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                if (lesson.isMoved) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.SwapHoriz,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Text(
+                                text = "Verschoben",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
+
+                lesson.location?.let { location ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Outlined.LocationOn,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Text(
+                            text = location,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimetableEmptyState(
+    hasIcalUrl: Boolean,
+    onOpenIcalImport: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = MaterialTheme.shapes.extraLarge
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Noch kein Stundenplan verfügbar",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Text(
+                    text = if (hasIcalUrl) {
+                        "Tippe oben rechts auf iCal-Sync, um neue Lektionen zu laden."
+                    } else {
+                        "Importiere zuerst deinen schulNetz-iCal-Link."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(onClick = onOpenIcalImport) {
+                    Text(if (hasIcalUrl) "iCal synchronisieren" else "iCal hinzufügen")
+                }
+            }
+        }
+    }
 }
 
 @Composable
