@@ -35,7 +35,8 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set +e
-          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+          KEY_PASSWORD_EFFECTIVE="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
             mkdir -p keystore
             echo "$KEYSTORE_BASE64" | base64 --decode > keystore/upload-keystore.jks
             if [ $? -ne 0 ]; then
@@ -45,7 +46,7 @@ jobs:
             fi
 
             printf "storeFile=keystore/upload-keystore.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" \
-              "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
+              "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD_EFFECTIVE" > keystore.properties
             echo "has_signing=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_signing=false" >> "$GITHUB_OUTPUT"
