@@ -43,6 +43,14 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun replaceIcalImportedExams(imported: List<Exam>) {
+        updateExams { current ->
+            val manualExams = current.filterNot { it.id.startsWith("ical:") }
+            (manualExams + imported)
+                .sortedBy { it.startsAtEpochMillis }
+        }
+    }
+
     suspend fun deleteExam(examId: String) {
         updateExams { current ->
             current.filterNot { it.id == examId }

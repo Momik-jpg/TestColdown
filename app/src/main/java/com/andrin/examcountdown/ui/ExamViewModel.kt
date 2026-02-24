@@ -3,6 +3,7 @@ package com.andrin.examcountdown.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.andrin.examcountdown.data.IcalImporter
 import com.andrin.examcountdown.data.ExamRepository
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.reminder.ExamReminderScheduler
@@ -13,6 +14,7 @@ import kotlinx.coroutines.launch
 
 class ExamViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = ExamRepository(application.applicationContext)
+    private val iCalImporter = IcalImporter()
 
     val exams = repository.examsFlow.stateIn(
         scope = viewModelScope,
@@ -45,6 +47,27 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
             repository.deleteExam(examId)
             ExamReminderScheduler.cancelExamReminder(getApplication(), examId)
             WidgetUpdater.updateAll(getApplication())
+        }
+    }
+
+    fun importFromIcal(url: String, onDone: (String) -> Unit) {
+        val trimmedUrl = url.trim()
+        if (trimmedUrl.isBlank()) {
+            onDone("Bitte iCal-URL eingeben.")
+            return
+        }
+
+        viewModelScope.launch {
+            val message = runCatching {
+                val importResult = iCalImporter.importFromUrl(trimmedUrl)
+                repository.replaceIcalImportedExams(importResult.exams)
+                WidgetUpdater.updateAll(getApplication())
+                importResult.message
+            }.getOrElse { throwable ->
+                "iCal-Import fehlgeschlagen: ${throwable.message ?: "Unbekannter Fehler"}"
+            }
+
+            onDone(message)
         }
     }
 }

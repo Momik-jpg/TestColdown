@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.NotificationsActive
@@ -33,6 +34,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
@@ -46,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,6 +68,7 @@ import com.andrin.examcountdown.util.formatExamDate
 import com.andrin.examcountdown.util.formatReminderDateTime
 import com.andrin.examcountdown.util.formatReminderLeadTime
 import java.util.Calendar
+import kotlinx.coroutines.launch
 
 private enum class HomeTab(val title: String) {
     EXAMS("Prüfungen"),
@@ -75,13 +80,39 @@ private enum class HomeTab(val title: String) {
 fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
     val exams by viewModel.exams.collectAsStateWithLifecycle()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
+    var showIcalDialog by rememberSaveable { mutableStateOf(false) }
+    var iCalUrl by rememberSaveable { mutableStateOf("") }
+    var isImportingIcal by rememberSaveable { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(HomeTab.EXAMS) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     if (showAddDialog) {
         AddExamDialog(
             onDismiss = { showAddDialog = false },
             onSave = { title, location, examMillis, reminderAtMillis ->
                 viewModel.addExam(title, location, examMillis, reminderAtMillis)
+            }
+        )
+    }
+
+    if (showIcalDialog) {
+        IcalImportDialog(
+            url = iCalUrl,
+            isImporting = isImportingIcal,
+            onUrlChange = { iCalUrl = it },
+            onDismiss = {
+                if (!isImportingIcal) showIcalDialog = false
+            },
+            onImport = {
+                isImportingIcal = true
+                viewModel.importFromIcal(iCalUrl) { message ->
+                    isImportingIcal = false
+                    showIcalDialog = false
+                    scope.launch {
+                        snackbarHostState.showSnackbar(message)
+                    }
+                }
             }
         )
     }
@@ -106,6 +137,19 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
                             text = "Prüfungs-Planer",
                             fontWeight = FontWeight.SemiBold
                         )
+                    },
+                    actions = {
+                        if (selectedTab == HomeTab.EXAMS) {
+                            IconButton(
+                                enabled = !isImportingIcal,
+                                onClick = { showIcalDialog = true }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.CloudDownload,
+                                    contentDescription = "iCal importieren"
+                                )
+                            }
+                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
@@ -132,7 +176,8 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
                     Icon(imageVector = Icons.Outlined.Add, contentDescription = "Prüfung hinzufügen")
                 }
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -155,6 +200,54 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
             }
         }
     }
+}
+
+@Composable
+private fun IcalImportDialog(
+    url: String,
+    isImporting: Boolean,
+    onUrlChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onImport: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("iCal aus schulNetz importieren") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = onUrlChange,
+                    label = { Text("iCal-URL") },
+                    placeholder = { Text("https://...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text(
+                    text = "Es werden kommende Termine aus dem iCal geladen und in der App aktualisiert.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !isImporting && url.isNotBlank(),
+                onClick = onImport
+            ) {
+                Text(if (isImporting) "Import läuft..." else "Importieren")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                enabled = !isImporting,
+                onClick = onDismiss
+            ) {
+                Text("Abbrechen")
+            }
+        }
+    )
 }
 
 @Composable
