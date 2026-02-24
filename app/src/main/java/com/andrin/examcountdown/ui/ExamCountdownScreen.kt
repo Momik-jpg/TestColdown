@@ -33,6 +33,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.School
@@ -169,6 +170,7 @@ fun ExamCountdownScreen(
     var showOnboardingDialog by rememberSaveable { mutableStateOf(false) }
     var showReminderSettingsDialog by rememberSaveable { mutableStateOf(false) }
     var showSyncSettingsDialog by rememberSaveable { mutableStateOf(false) }
+    var showQuickActionsDialog by rememberSaveable { mutableStateOf(false) }
     var iCalUrl by rememberSaveable { mutableStateOf("") }
     var onboardingUrl by rememberSaveable { mutableStateOf("") }
     var onboardingTestedOk by rememberSaveable { mutableStateOf(false) }
@@ -359,6 +361,45 @@ fun ExamCountdownScreen(
         )
     }
 
+    if (showQuickActionsDialog) {
+        QuickActionsDialog(
+            onDismiss = { showQuickActionsDialog = false },
+            onOpenReminderSettings = {
+                showQuickActionsDialog = false
+                showReminderSettingsDialog = true
+            },
+            onOpenSyncSettings = {
+                showQuickActionsDialog = false
+                showSyncSettingsDialog = true
+            },
+            onOpenIcalImport = {
+                iCalUrl = savedIcalUrl
+                showQuickActionsDialog = false
+                showIcalDialog = true
+            },
+            onExportBackup = {
+                showQuickActionsDialog = false
+                viewModel.exportBackupJson { result ->
+                    result.onSuccess { json ->
+                        pendingBackupJson = json
+                        exportBackupLauncher.launch(
+                            "examcountdown-backup-${System.currentTimeMillis()}.json"
+                        )
+                    }.onFailure { throwable ->
+                        val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Backup fehlgeschlagen: $error")
+                        }
+                    }
+                }
+            },
+            onImportBackup = {
+                showQuickActionsDialog = false
+                importBackupLauncher.launch(arrayOf("application/json", "text/plain"))
+            }
+        )
+    }
+
     val backgroundBrush = remember(isDarkMode) {
         val colors = if (isDarkMode) {
             listOf(
@@ -407,15 +448,13 @@ fun ExamCountdownScreen(
                                 )
                             }
                             IconButton(
-                                enabled = !isSyncingIcal,
                                 onClick = {
-                                    iCalUrl = savedIcalUrl
-                                    showIcalDialog = true
+                                    showQuickActionsDialog = true
                                 }
                             ) {
                                 Icon(
-                                    imageVector = Icons.Outlined.CloudDownload,
-                                    contentDescription = "iCal importieren"
+                                    imageVector = Icons.Outlined.MoreVert,
+                                    contentDescription = "Mehr Aktionen"
                                 )
                             }
                         }
@@ -459,25 +498,7 @@ fun ExamCountdownScreen(
                 HomeTab.EXAMS -> ExamListContent(
                     exams = exams,
                     onAddClick = { showAddDialog = true },
-                    onDelete = { examId -> viewModel.deleteExam(examId) },
-                    onOpenReminderSettings = { showReminderSettingsDialog = true },
-                    onOpenSyncSettings = { showSyncSettingsDialog = true },
-                    onExportBackup = {
-                        viewModel.exportBackupJson { result ->
-                            result.onSuccess { json ->
-                                pendingBackupJson = json
-                                exportBackupLauncher.launch(
-                                    "examcountdown-backup-${System.currentTimeMillis()}.json"
-                                )
-                            }.onFailure { throwable ->
-                                val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Backup fehlgeschlagen: $error")
-                                }
-                            }
-                        }
-                    },
-                    onImportBackup = { importBackupLauncher.launch(arrayOf("application/json", "text/plain")) }
+                    onDelete = { examId -> viewModel.deleteExam(examId) }
                 )
 
                 HomeTab.TIMETABLE -> TimetableContent(
@@ -544,6 +565,79 @@ private fun IcalImportDialog(
                 onClick = onDismiss
             ) {
                 Text("Abbrechen")
+            }
+        }
+    )
+}
+
+@Composable
+private fun QuickActionsDialog(
+    onDismiss: () -> Unit,
+    onOpenReminderSettings: () -> Unit,
+    onOpenSyncSettings: () -> Unit,
+    onOpenIcalImport: () -> Unit,
+    onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Aktionen") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onOpenIcalImport,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.CloudDownload,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text("iCal-Link verwalten")
+                }
+                OutlinedButton(
+                    onClick = onOpenReminderSettings,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.NotificationsActive,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text("Benachrichtigungen")
+                }
+                OutlinedButton(
+                    onClick = onOpenSyncSettings,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Sync,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text("Auto-Sync")
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onExportBackup,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Backup Export")
+                    }
+                    OutlinedButton(
+                        onClick = onImportBackup,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Backup Import")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Schließen")
             }
         }
     )
@@ -1497,11 +1591,7 @@ private fun TimetableEmptyState(
 private fun ExamListContent(
     exams: List<Exam>,
     onAddClick: () -> Unit,
-    onDelete: (String) -> Unit,
-    onOpenReminderSettings: () -> Unit,
-    onOpenSyncSettings: () -> Unit,
-    onExportBackup: () -> Unit,
-    onImportBackup: () -> Unit
+    onDelete: (String) -> Unit
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedSubject by rememberSaveable { mutableStateOf(SUBJECT_FILTER_ALL) }
@@ -1544,14 +1634,6 @@ private fun ExamListContent(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                ExamToolsCard(
-                    onOpenReminderSettings = onOpenReminderSettings,
-                    onOpenSyncSettings = onOpenSyncSettings,
-                    onExportBackup = onExportBackup,
-                    onImportBackup = onImportBackup
-                )
-            }
-            item {
                 EmptyState(
                     onAddClick = onAddClick,
                     modifier = Modifier.fillMaxWidth()
@@ -1566,14 +1648,6 @@ private fun ExamListContent(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item {
-            ExamToolsCard(
-                onOpenReminderSettings = onOpenReminderSettings,
-                onOpenSyncSettings = onOpenSyncSettings,
-                onExportBackup = onExportBackup,
-                onImportBackup = onImportBackup
-            )
-        }
         item {
             ExamInsightsCard(
                 exams = exams,
@@ -1610,51 +1684,6 @@ private fun ExamListContent(
                     exam = exam,
                     onDelete = { onDelete(exam.id) }
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExamToolsCard(
-    onOpenReminderSettings: () -> Unit,
-    onOpenSyncSettings: () -> Unit,
-    onExportBackup: () -> Unit,
-    onImportBackup: () -> Unit
-) {
-    Card(
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f))
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Werkzeuge",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onOpenReminderSettings, modifier = Modifier.weight(1f)) {
-                    Text("Benachrichtigungen")
-                }
-                OutlinedButton(onClick = onOpenSyncSettings, modifier = Modifier.weight(1f)) {
-                    Icon(
-                        imageVector = Icons.Outlined.Sync,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text("Auto-Sync")
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onExportBackup, modifier = Modifier.weight(1f)) {
-                    Text("Backup Export")
-                }
-                OutlinedButton(onClick = onImportBackup, modifier = Modifier.weight(1f)) {
-                    Text("Backup Import")
-                }
             }
         }
     }
