@@ -61,15 +61,19 @@ class TimetableIcalImporter {
             val seed = event.uid?.takeIf { it.isNotBlank() }
                 ?: "${event.summary}|${event.startsAtEpochMillis}|${event.endsAtEpochMillis}|${event.location.orEmpty()}"
             val isMoved = movementHints.movedIds.contains(uniqueKey) || hasShiftKeyword(event)
+            val isLocationChanged = movementHints.locationChangedIds.contains(uniqueKey)
             val originalSlot = movementHints.originalSlotByEventId[uniqueKey]
+            val originalLocation = movementHints.originalLocationByEventId[uniqueKey]
 
             TimetableLesson(
                 id = "lesson:$seed".replace("\\s+".toRegex(), "_"),
-                title = event.summary.take(140),
+                title = formatLessonTitle(event.summary).take(140),
                 location = event.location?.trim()?.takeIf { it.isNotBlank() }?.take(160),
                 startsAtEpochMillis = event.startsAtEpochMillis,
                 endsAtEpochMillis = event.endsAtEpochMillis,
                 isMoved = isMoved,
+                isLocationChanged = isLocationChanged,
+                originalLocation = originalLocation,
                 originalStartsAtEpochMillis = if (isMoved) originalSlot?.first else null,
                 originalEndsAtEpochMillis = if (isMoved) originalSlot?.second else null
             )
@@ -235,14 +239,24 @@ class TimetableIcalImporter {
         val durationMillis: Long
     )
 
+    private data class DominantLocation(
+        val normalized: String,
+        val display: String,
+        val count: Int
+    )
+
     private data class MovementHints(
         val movedIds: Set<String>,
-        val originalSlotByEventId: Map<String, Pair<Long, Long>>
+        val originalSlotByEventId: Map<String, Pair<Long, Long>>,
+        val locationChangedIds: Set<String>,
+        val originalLocationByEventId: Map<String, String>
     )
 
     private fun detectMovedLessonHints(events: List<ParsedIcalEvent>): MovementHints {
         val moved = mutableSetOf<String>()
         val originalSlot = mutableMapOf<String, Pair<Long, Long>>()
+        val locationChanged = mutableSetOf<String>()
+        val originalLocation = mutableMapOf<String, String>()
         val bySubject = events.groupBy { subjectKey(it.summary) }
 
         bySubject.forEach { (_, lessons) ->
@@ -259,23 +273,67 @@ class TimetableIcalImporter {
                 ?.key
                 ?: return@forEach
 
-            lessons.forEach { lesson ->
+            val dominantLocationBySlot = lessons
+                .groupBy { slotSignature(it) }
+                .mapValues { (_, slotLessons) ->
+                    val groupedLocations = slotLessons
+                        .mapNotNull { it.location?.trim()?.takeIf(String::isNotBlank) }
+                        .groupBy { normalizeLocation(it) }
+
+                    groupedLocations
+                        .maxByOrNull { it.value.size }
+                        ?.let { (normalized, values) ->
+                            DominantLocation(
+                                normalized = normalized,
+                                display = values.first(),
+                                count = values.size
+                            )
+                        }
+                }
+
+            for (lesson in lessons) {
+                val eventId = lesson.uniqueKey()
                 val slot = slotSignature(lesson)
                 val isMoved = slot != dominantSlot && (slotCounts[slot] ?: 0) == 1
                 if (isMoved) {
-                    val eventId = lesson.uniqueKey()
                     moved += eventId
                     originalSlot[eventId] = expectedOriginalSlotForWeek(
                         lessonStartsAtEpochMillis = lesson.startsAtEpochMillis,
                         dominantSlot = dominantSlot
                     )
+                    val dominantLocation = dominantLocationBySlot[dominantSlot]
+                    if (dominantLocation != null && dominantLocation.display.isNotBlank()) {
+                        originalLocation[eventId] = dominantLocation.display
+                        val currentLocation = lesson.location?.trim().orEmpty()
+                        if (
+                            currentLocation.isNotBlank() &&
+                            normalizeLocation(currentLocation) != dominantLocation.normalized
+                        ) {
+                            locationChanged += eventId
+                        }
+                    }
+                    continue
+                }
+
+                val dominantLocation = dominantLocationBySlot[slot] ?: continue
+                if (dominantLocation.count < 2) continue
+
+                val currentLocation = lesson.location?.trim().orEmpty()
+                if (currentLocation.isBlank()) continue
+
+                val isLocationChanged = normalizeLocation(currentLocation) != dominantLocation.normalized
+                if (isLocationChanged) {
+                    locationChanged += eventId
+                    originalLocation[eventId] = dominantLocation.display
                 }
             }
         }
 
         return MovementHints(
             movedIds = moved,
-            originalSlotByEventId = originalSlot
+            originalSlotByEventId = originalSlot,
+            locationChangedIds = locationChanged,
+            originalLocationByEventId = originalLocation
         )
     }
 
@@ -284,6 +342,34 @@ class TimetableIcalImporter {
             .trim()
             .lowercase(Locale.ROOT)
             .substringBefore(' ')
+    }
+
+    private fun formatLessonTitle(rawSummary: String): String {
+        val raw = rawSummary.trim()
+        if (raw.isBlank()) return "Lektion"
+
+        val parts = raw.split('_')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+        if (parts.size < 2) {
+            return raw.replace('_', ' ')
+                .replace(Regex("\\s+"), " ")
+        }
+
+        val subject = parts.first().uppercase(Locale.ROOT)
+        val className = parts.getOrNull(1).orEmpty()
+        val teacher = parts.getOrNull(2).orEmpty()
+
+        return listOf(subject, className, teacher)
+            .filter { it.isNotBlank() }
+            .joinToString(" · ")
+    }
+
+    private fun normalizeLocation(value: String): String {
+        return value.trim()
+            .lowercase(Locale.ROOT)
+            .replace(Regex("\\s+"), "")
     }
 
     private fun slotSignature(event: ParsedIcalEvent): SlotSignature {

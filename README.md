@@ -21,6 +21,8 @@
 - Neuer Tab `Stundenplan` mit Tagesansicht.
 - Zeigt nur Lektionen (keine `Termin`-Events).
 - Verschobene Lektionen werden markiert.
+- Alte Zeitfenster bei Verschiebungen werden durchgestrichen angezeigt.
+- Raumänderungen werden als `alter Raum -> neuer Raum` angezeigt.
 - Zeiten werden in `Europe/Zurich` angezeigt.
 - Wird zusammen mit dem iCal-Import automatisch synchronisiert.
 

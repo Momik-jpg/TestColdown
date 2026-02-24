@@ -89,9 +89,11 @@ private data class TimetableLessonBlock(
     val id: String,
     val title: String,
     val location: String?,
+    val originalLocation: String?,
     val startsAtEpochMillis: Long,
     val endsAtEpochMillis: Long,
     val isMoved: Boolean,
+    val isLocationChanged: Boolean,
     val isCancelledSlot: Boolean,
     val lessonCount: Int
 )
@@ -351,7 +353,7 @@ private fun TimetableContent(
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             ) {
                 Text(
-                    text = "Zeiten sind in Schweizer Zeit. Verschobene Lektionen werden einzeln gezeigt; der alte Slot ist durchgestrichen.",
+                    text = "Zeiten sind in Schweizer Zeit. Verschobene Lektionen werden einzeln gezeigt; alter Slot und alte Räume werden markiert.",
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface
@@ -462,6 +464,20 @@ private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                             )
                         }
                     }
+
+                    if (!isCancelled && lesson.isLocationChanged) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                text = "Raum geändert",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -488,7 +504,9 @@ private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                 }
             }
 
-            lesson.location?.let { location ->
+            val currentLocation = lesson.location?.trim().orEmpty()
+            val previousLocation = lesson.originalLocation?.trim().orEmpty()
+            if (currentLocation.isNotBlank() || previousLocation.isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Outlined.LocationOn,
@@ -496,11 +514,32 @@ private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(end = 6.dp)
                     )
-                    Text(
-                        text = location,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+
+                    if (!isCancelled && lesson.isLocationChanged && previousLocation.isNotBlank()) {
+                        Text(
+                            text = previousLocation,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textDecoration = TextDecoration.LineThrough
+                        )
+                        Text(
+                            text = "  ->  ",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = currentLocation.ifBlank { "unbekannt" },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    } else {
+                        Text(
+                            text = currentLocation.ifBlank { previousLocation },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textDecoration = if (isCancelled) TextDecoration.LineThrough else TextDecoration.None
+                        )
+                    }
                 }
             }
         }
@@ -520,7 +559,7 @@ private fun addCancelledSlotEntries(lessons: List<TimetableLesson>): List<Timeta
         TimetableLesson(
             id = "cancelled:${lesson.id}",
             title = lesson.title,
-            location = lesson.location,
+            location = lesson.originalLocation ?: lesson.location,
             startsAtEpochMillis = originalStart,
             endsAtEpochMillis = originalEnd,
             isCancelledSlot = true
@@ -546,9 +585,11 @@ private fun mergeConsecutiveLessons(
         id = sorted.first().id,
         title = sorted.first().title,
         location = sorted.first().location,
+        originalLocation = sorted.first().originalLocation,
         startsAtEpochMillis = sorted.first().startsAtEpochMillis,
         endsAtEpochMillis = sorted.first().endsAtEpochMillis,
         isMoved = sorted.first().isMoved,
+        isLocationChanged = sorted.first().isLocationChanged,
         isCancelledSlot = sorted.first().isCancelledSlot,
         lessonCount = 1
     )
@@ -560,6 +601,8 @@ private fun mergeConsecutiveLessons(
             next.location.orEmpty().trim().lowercase()
         val canMergeType = !current.isMoved &&
             !next.isMoved &&
+            !current.isLocationChanged &&
+            !next.isLocationChanged &&
             !current.isCancelledSlot &&
             !next.isCancelledSlot
 
@@ -569,6 +612,7 @@ private fun mergeConsecutiveLessons(
             current = current.copy(
                 endsAtEpochMillis = maxOf(current.endsAtEpochMillis, next.endsAtEpochMillis),
                 isMoved = current.isMoved || next.isMoved,
+                isLocationChanged = current.isLocationChanged || next.isLocationChanged,
                 isCancelledSlot = current.isCancelledSlot || next.isCancelledSlot,
                 lessonCount = current.lessonCount + 1
             )
@@ -578,9 +622,11 @@ private fun mergeConsecutiveLessons(
                 id = next.id,
                 title = next.title,
                 location = next.location,
+                originalLocation = next.originalLocation,
                 startsAtEpochMillis = next.startsAtEpochMillis,
                 endsAtEpochMillis = next.endsAtEpochMillis,
                 isMoved = next.isMoved,
+                isLocationChanged = next.isLocationChanged,
                 isCancelledSlot = next.isCancelledSlot,
                 lessonCount = 1
             )
