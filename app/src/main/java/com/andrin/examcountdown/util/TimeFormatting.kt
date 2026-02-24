@@ -7,6 +7,7 @@ import java.util.Locale
 import kotlin.math.max
 
 private val appLocale: Locale = Locale.GERMANY
+private val schoolZone: ZoneId = ZoneId.of("Europe/Zurich")
 private val fullFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, dd.MM.yyyy · HH:mm", appLocale)
 private val shortFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM. HH:mm", appLocale)
 private val reminderFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy · HH:mm", appLocale)
@@ -36,17 +37,17 @@ fun formatReminderDateTime(epochMillis: Long): String {
 
 fun formatDayHeader(epochMillis: Long): String {
     val localDateTime = Instant.ofEpochMilli(epochMillis)
-        .atZone(ZoneId.systemDefault())
+        .atZone(schoolZone)
         .toLocalDateTime()
     return dayHeaderFormatter.format(localDateTime)
 }
 
 fun formatTimeRange(startEpochMillis: Long, endEpochMillis: Long): String {
     val start = Instant.ofEpochMilli(startEpochMillis)
-        .atZone(ZoneId.systemDefault())
+        .atZone(schoolZone)
         .toLocalDateTime()
     val end = Instant.ofEpochMilli(endEpochMillis)
-        .atZone(ZoneId.systemDefault())
+        .atZone(schoolZone)
         .toLocalDateTime()
     return "${timeFormatter.format(start)} - ${timeFormatter.format(end)}"
 }

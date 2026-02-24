@@ -21,7 +21,11 @@
 - Neuer Tab `Stundenplan` mit Tagesansicht.
 - Zeigt nur Lektionen (keine `Termin`-Events).
 - Verschobene Lektionen werden markiert.
+- Zeiten werden in `Europe/Zurich` angezeigt.
 - Wird zusammen mit dem iCal-Import automatisch synchronisiert.
+
+## Design
+- Die App unterstützt Hell- und Dunkelmodus (abhängig vom Gerätemodus).
 
 ## Hinweis
 - Beim erneuten Import werden alte iCal-Einträge aktualisiert, manuell erstellte Prüfungen bleiben erhalten.
