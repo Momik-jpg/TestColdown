@@ -1,6 +1,7 @@
 package com.andrin.examcountdown.util
 
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -12,7 +13,9 @@ private val fullFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE,
 private val shortFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM. HH:mm", appLocale)
 private val reminderFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy · HH:mm", appLocale)
 private val dayHeaderFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE, dd.MM.yyyy", appLocale)
+private val dayCompactFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE dd.MM", appLocale)
 private val timeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", appLocale)
+private val syncFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM. HH:mm", appLocale)
 
 fun formatExamDate(epochMillis: Long): String {
     val localDateTime = Instant.ofEpochMilli(epochMillis)
@@ -51,6 +54,15 @@ fun formatTimeRange(startEpochMillis: Long, endEpochMillis: Long): String {
         .toLocalDateTime()
     return "${timeFormatter.format(start)} - ${timeFormatter.format(end)}"
 }
+
+fun formatSyncDateTime(epochMillis: Long): String {
+    val localDateTime = Instant.ofEpochMilli(epochMillis)
+        .atZone(schoolZone)
+        .toLocalDateTime()
+    return syncFormatter.format(localDateTime)
+}
+
+fun formatCompactDay(date: LocalDate): String = dayCompactFormatter.format(date)
 
 fun formatCountdown(epochMillis: Long, nowMillis: Long = System.currentTimeMillis()): String {
     val diffMillis = epochMillis - nowMillis

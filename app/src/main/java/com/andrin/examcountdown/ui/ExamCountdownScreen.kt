@@ -4,16 +4,20 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -21,6 +25,8 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.KeyboardArrowLeft
+import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Refresh
@@ -30,6 +36,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,7 +55,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,16 +75,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.andrin.examcountdown.data.SyncStatus
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.model.TimetableLesson
 import com.andrin.examcountdown.util.formatCountdown
+import com.andrin.examcountdown.util.formatCompactDay
 import com.andrin.examcountdown.util.formatDayHeader
 import com.andrin.examcountdown.util.formatExamDate
 import com.andrin.examcountdown.util.formatReminderDateTime
 import com.andrin.examcountdown.util.formatReminderLeadTime
+import com.andrin.examcountdown.util.formatSyncDateTime
 import com.andrin.examcountdown.util.formatTimeRange
+import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
 import java.util.Calendar
 import kotlinx.coroutines.launch
 
@@ -83,6 +98,18 @@ private enum class HomeTab(val title: String) {
     EXAMS("Prüfungen"),
     TIMETABLE("Stundenplan"),
     GRADES("Notenrechner")
+}
+
+private enum class TimetableViewMode(val title: String) {
+    LIST("Liste"),
+    WEEK("Woche")
+}
+
+private enum class TimetableFilter(val title: String) {
+    ALL("Alle"),
+    ONLY_TODAY("Nur heute"),
+    ONLY_MOVED("Nur verschoben"),
+    ONLY_ROOM_CHANGED("Nur Raum geändert")
 }
 
 private data class TimetableLessonBlock(
@@ -104,14 +131,29 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
     val exams by viewModel.exams.collectAsStateWithLifecycle()
     val lessons by viewModel.lessons.collectAsStateWithLifecycle()
     val savedIcalUrl by viewModel.savedIcalUrl.collectAsStateWithLifecycle()
+    val onboardingDone by viewModel.onboardingDone.collectAsStateWithLifecycle()
+    val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
     val isDarkMode = isSystemInDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
+    var showOnboardingDialog by rememberSaveable { mutableStateOf(false) }
     var iCalUrl by rememberSaveable { mutableStateOf("") }
+    var onboardingUrl by rememberSaveable { mutableStateOf("") }
+    var onboardingTestedOk by rememberSaveable { mutableStateOf(false) }
+    var onboardingInfoMessage by rememberSaveable { mutableStateOf("") }
     var isSyncingIcal by rememberSaveable { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(HomeTab.EXAMS) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(onboardingDone, savedIcalUrl) {
+        if (!onboardingDone && savedIcalUrl.isBlank()) {
+            showOnboardingDialog = true
+            onboardingUrl = savedIcalUrl
+            onboardingTestedOk = false
+            onboardingInfoMessage = ""
+        }
+    }
 
     if (showAddDialog) {
         AddExamDialog(
@@ -140,6 +182,41 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
                     }
                 }
             }
+        )
+    }
+
+    if (showOnboardingDialog) {
+        OnboardingDialog(
+            url = onboardingUrl,
+            statusMessage = onboardingInfoMessage,
+            isBusy = isSyncingIcal,
+            canFinish = onboardingTestedOk && onboardingUrl.isNotBlank(),
+            onUrlChange = { newUrl ->
+                onboardingUrl = newUrl
+                onboardingTestedOk = false
+            },
+            onTest = {
+                isSyncingIcal = true
+                viewModel.testIcalConnection(onboardingUrl) { ok, message ->
+                    isSyncingIcal = false
+                    onboardingTestedOk = ok
+                    onboardingInfoMessage = message
+                }
+            },
+            onFinish = {
+                isSyncingIcal = true
+                viewModel.completeOnboarding(onboardingUrl) { success, message ->
+                    isSyncingIcal = false
+                    onboardingInfoMessage = message
+                    scope.launch {
+                        snackbarHostState.showSnackbar(message)
+                    }
+                    if (success) {
+                        showOnboardingDialog = false
+                    }
+                }
+            },
+            onDismiss = { showOnboardingDialog = false }
         )
     }
 
@@ -221,6 +298,7 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
                         )
                     }
                 }
+                SyncStatusStrip(syncStatus = syncStatus)
             }
         },
         floatingActionButton = {
@@ -313,6 +391,112 @@ private fun IcalImportDialog(
 }
 
 @Composable
+private fun OnboardingDialog(
+    url: String,
+    statusMessage: String,
+    isBusy: Boolean,
+    canFinish: Boolean,
+    onUrlChange: (String) -> Unit,
+    onTest: () -> Unit,
+    onFinish: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Erststart: iCal verbinden") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "1) iCal-Link einfügen  2) Verbindung testen  3) Fertig.\nDer Link bleibt gespeichert.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = onUrlChange,
+                    label = { Text("schulNetz iCal-URL") },
+                    placeholder = { Text("https://...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (statusMessage.isNotBlank()) {
+                    Text(
+                        text = statusMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (canFinish) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    enabled = !isBusy && url.isNotBlank(),
+                    onClick = onTest
+                ) {
+                    Text(if (isBusy) "Prüfe..." else "Verbindung testen")
+                }
+                TextButton(
+                    enabled = !isBusy && canFinish,
+                    onClick = onFinish
+                ) {
+                    Text(if (isBusy) "Sync..." else "Fertig")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(enabled = !isBusy, onClick = onDismiss) {
+                Text("Später")
+            }
+        }
+    )
+}
+
+@Composable
+private fun SyncStatusStrip(syncStatus: SyncStatus) {
+    val error = syncStatus.lastSyncError
+    val text = when {
+        !error.isNullOrBlank() -> error
+        syncStatus.lastSyncAtMillis != null -> {
+            val time = formatSyncDateTime(syncStatus.lastSyncAtMillis)
+            "Zuletzt synchronisiert: $time"
+        }
+        else -> "Noch keine Synchronisierung"
+    }
+
+    val containerColor = when {
+        !error.isNullOrBlank() -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
+        else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+    }
+
+    val textColor = when {
+        !error.isNullOrBlank() -> MaterialTheme.colorScheme.onErrorContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        shape = MaterialTheme.shapes.medium,
+        color = containerColor
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = textColor,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
 private fun TimetableContent(
     lessons: List<TimetableLesson>,
     hasIcalUrl: Boolean,
@@ -327,13 +511,24 @@ private fun TimetableContent(
         return
     }
 
+    var selectedFilter by rememberSaveable { mutableStateOf(TimetableFilter.ALL) }
+    var viewMode by rememberSaveable { mutableStateOf(TimetableViewMode.LIST) }
+    var weekOffset by rememberSaveable { mutableIntStateOf(0) }
+
     val lessonsWithCancelledSlots = remember(lessons) { addCancelledSlotEntries(lessons) }
     val mergedLessons = remember(lessonsWithCancelledSlots) {
         mergeConsecutiveLessons(lessonsWithCancelledSlots)
     }
     val schoolZone = remember { ZoneId.of("Europe/Zurich") }
-    val grouped = remember(mergedLessons) {
-        mergedLessons
+    val filteredLessons = remember(mergedLessons, selectedFilter) {
+        filterTimetableBlocks(
+            lessons = mergedLessons,
+            filter = selectedFilter,
+            schoolZone = schoolZone
+        )
+    }
+    val grouped = remember(filteredLessons) {
+        filteredLessons
             .groupBy { lesson ->
                 Instant.ofEpochMilli(lesson.startsAtEpochMillis)
                     .atZone(schoolZone)
@@ -353,7 +548,7 @@ private fun TimetableContent(
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             ) {
                 Text(
-                    text = "Zeiten sind in Schweizer Zeit. Verschobene Lektionen werden einzeln gezeigt; alter Slot und alte Räume werden markiert.",
+                    text = "Zeiten sind in Schweizer Zeit. Filter und Wochenansicht verfügbar.",
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface
@@ -361,26 +556,190 @@ private fun TimetableContent(
             }
         }
 
-        grouped.forEach { (date, dayLessons) ->
-            item(key = "header-$date") {
+        item(key = "timetable-controls") {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TimetableViewMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = viewMode == mode,
+                            onClick = { viewMode = mode },
+                            label = { Text(mode.title) }
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TimetableFilter.entries.forEach { filter ->
+                        FilterChip(
+                            selected = selectedFilter == filter,
+                            onClick = { selectedFilter = filter },
+                            label = { Text(filter.title) }
+                        )
+                    }
+                }
+            }
+        }
+
+        if (viewMode == TimetableViewMode.WEEK) {
+            item(key = "week-grid") {
+                TimetableWeekGrid(
+                    groupedLessons = grouped,
+                    weekOffset = weekOffset,
+                    onWeekOffsetChange = { weekOffset = it }
+                )
+            }
+        } else if (grouped.isEmpty()) {
+            item(key = "no-filter-results") {
                 Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.primaryContainer
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surface
                 ) {
                     Text(
-                        text = formatDayHeader(dayLessons.first().startsAtEpochMillis),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontWeight = FontWeight.SemiBold
+                        text = "Keine Lektionen für den gewählten Filter.",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
+        } else {
+            grouped.forEach { (date, dayLessons) ->
+                item(key = "header-$date") {
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text(
+                            text = formatDayHeader(dayLessons.first().startsAtEpochMillis),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
 
-            items(items = dayLessons, key = { it.id }) { lesson ->
-                TimetableLessonCard(lesson = lesson)
+                items(items = dayLessons, key = { it.id }) { lesson ->
+                    TimetableLessonCard(lesson = lesson)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun TimetableWeekGrid(
+    groupedLessons: Map<LocalDate, List<TimetableLessonBlock>>,
+    weekOffset: Int,
+    onWeekOffsetChange: (Int) -> Unit
+) {
+    val schoolZone = remember { ZoneId.of("Europe/Zurich") }
+    val weekStart = remember(weekOffset) {
+        LocalDate.now(schoolZone)
+            .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            .plusWeeks(weekOffset.toLong())
+    }
+    val weekdays = remember(weekStart) {
+        (0..4).map { index -> weekStart.plusDays(index.toLong()) }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { onWeekOffsetChange(weekOffset - 1) }) {
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowLeft,
+                    contentDescription = "Vorherige Woche"
+                )
+            }
+            Text(
+                text = "Woche ab ${formatCompactDay(weekStart)}",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            IconButton(onClick = { onWeekOffsetChange(weekOffset + 1) }) {
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowRight,
+                    contentDescription = "Nächste Woche"
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            weekdays.forEach { day ->
+                val dayLessons = groupedLessons[day].orEmpty()
+                Card(
+                    modifier = Modifier.width(240.dp),
+                    shape = MaterialTheme.shapes.large,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = formatCompactDay(day),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (dayLessons.isEmpty()) {
+                            Text(
+                                text = "Keine Lektionen",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            dayLessons.forEach { lesson ->
+                                WeekGridLessonRow(lesson)
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.width(2.dp))
+        }
+    }
+}
+
+@Composable
+private fun WeekGridLessonRow(lesson: TimetableLessonBlock) {
+    val titleColor = when {
+        lesson.isCancelledSlot -> MaterialTheme.colorScheme.onSurfaceVariant
+        lesson.isMoved -> MaterialTheme.colorScheme.tertiary
+        lesson.isLocationChanged -> MaterialTheme.colorScheme.secondary
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = lesson.title,
+            style = MaterialTheme.typography.labelLarge,
+            color = titleColor,
+            textDecoration = if (lesson.isCancelledSlot) TextDecoration.LineThrough else TextDecoration.None
+        )
+        Text(
+            text = formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textDecoration = if (lesson.isCancelledSlot) TextDecoration.LineThrough else TextDecoration.None
+        )
     }
 }
 
@@ -635,6 +994,29 @@ private fun mergeConsecutiveLessons(
 
     result += current
     return result
+}
+
+private fun filterTimetableBlocks(
+    lessons: List<TimetableLessonBlock>,
+    filter: TimetableFilter,
+    schoolZone: ZoneId
+): List<TimetableLessonBlock> {
+    if (lessons.isEmpty()) return emptyList()
+
+    val today = LocalDate.now(schoolZone)
+    return lessons.filter { lesson ->
+        when (filter) {
+            TimetableFilter.ALL -> true
+            TimetableFilter.ONLY_TODAY -> {
+                val lessonDay = Instant.ofEpochMilli(lesson.startsAtEpochMillis)
+                    .atZone(schoolZone)
+                    .toLocalDate()
+                lessonDay == today
+            }
+            TimetableFilter.ONLY_MOVED -> lesson.isMoved || lesson.isCancelledSlot
+            TimetableFilter.ONLY_ROOM_CHANGED -> lesson.isLocationChanged
+        }
+    }
 }
 
 @Composable

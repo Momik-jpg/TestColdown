@@ -3,9 +3,9 @@ package com.andrin.examcountdown.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.andrin.examcountdown.data.IcalImporter
 import com.andrin.examcountdown.data.ExamRepository
-import com.andrin.examcountdown.data.TimetableIcalImporter
+import com.andrin.examcountdown.data.IcalSyncEngine
+import com.andrin.examcountdown.data.SyncStatus
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.reminder.ExamReminderScheduler
 import com.andrin.examcountdown.worker.IcalSyncScheduler
@@ -16,8 +16,7 @@ import kotlinx.coroutines.launch
 
 class ExamViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = ExamRepository(application.applicationContext)
-    private val iCalImporter = IcalImporter()
-    private val timetableImporter = TimetableIcalImporter()
+    private val syncEngine = IcalSyncEngine(application.applicationContext)
 
     val exams = repository.examsFlow.stateIn(
         scope = viewModelScope,
@@ -33,6 +32,16 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = ""
+    )
+    val onboardingDone = repository.onboardingDoneFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false
+    )
+    val syncStatus = repository.syncStatusFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = SyncStatus()
     )
 
     fun addExam(
@@ -72,7 +81,14 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             repository.saveIcalUrl(trimmedUrl)
-            onDone(syncFromIcalUrl(trimmedUrl))
+            val (success, message) = syncFromIcalUrl(
+                url = trimmedUrl,
+                emitChangeNotification = false
+            )
+            if (success) {
+                repository.setOnboardingDone(true)
+            }
+            onDone(message)
         }
     }
 
@@ -84,21 +100,70 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
-            onDone(syncFromIcalUrl(savedUrl))
+            val (_, message) = syncFromIcalUrl(
+                url = savedUrl,
+                emitChangeNotification = false
+            )
+            onDone(message)
         }
     }
 
-    private suspend fun syncFromIcalUrl(url: String): String {
+    fun testIcalConnection(url: String, onDone: (Boolean, String) -> Unit) {
+        val trimmedUrl = url.trim()
+        if (trimmedUrl.isBlank()) {
+            onDone(false, "Bitte iCal-URL eingeben.")
+            return
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                val result = syncEngine.testConnection(trimmedUrl)
+                "Verbindung erfolgreich. ${result.examsImported} Prüfungen und ${result.lessonsImported} Lektionen gefunden."
+            }.onSuccess { message ->
+                onDone(true, message)
+            }.onFailure { throwable ->
+                val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+                onDone(false, "Verbindung fehlgeschlagen: $error")
+            }
+        }
+    }
+
+    fun completeOnboarding(url: String, onDone: (Boolean, String) -> Unit) {
+        val trimmedUrl = url.trim()
+        if (trimmedUrl.isBlank()) {
+            onDone(false, "Bitte iCal-URL eingeben.")
+            return
+        }
+
+        viewModelScope.launch {
+            repository.saveIcalUrl(trimmedUrl)
+            val (success, message) = syncFromIcalUrl(
+                url = trimmedUrl,
+                emitChangeNotification = false
+            )
+            if (success) {
+                repository.setOnboardingDone(true)
+            }
+            onDone(success, message)
+        }
+    }
+
+    private suspend fun syncFromIcalUrl(
+        url: String,
+        emitChangeNotification: Boolean
+    ): Pair<Boolean, String> {
         return runCatching {
-            val importResult = iCalImporter.importFromUrl(url)
-            val timetableResult = timetableImporter.importFromUrl(url)
-            repository.replaceIcalImportedExams(importResult.exams)
-            repository.replaceSyncedLessons(timetableResult.lessons)
+            val result = syncEngine.syncFromUrl(
+                url = url,
+                emitChangeNotification = emitChangeNotification
+            )
             IcalSyncScheduler.schedule(getApplication())
             WidgetUpdater.updateAll(getApplication())
-            "${importResult.exams.size} Prüfungen und ${timetableResult.lessons.size} Lektionen synchronisiert."
+            true to result.summaryText()
         }.getOrElse { throwable ->
-            "iCal-Sync fehlgeschlagen: ${throwable.message ?: "Unbekannter Fehler"}"
+            val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+            repository.markSyncError("Sync fehlgeschlagen: $error")
+            false to "iCal-Sync fehlgeschlagen: $error"
         }
     }
 }

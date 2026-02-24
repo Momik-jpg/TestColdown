@@ -3,8 +3,10 @@ package com.andrin.examcountdown.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.andrin.examcountdown.model.Exam
@@ -19,10 +21,20 @@ import kotlinx.serialization.json.Json
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "exam_store")
 
+data class SyncStatus(
+    val lastSyncAtMillis: Long? = null,
+    val lastSyncSummary: String? = null,
+    val lastSyncError: String? = null
+)
+
 class ExamRepository(private val appContext: Context) {
     private val examsKey = stringPreferencesKey("exams_json")
     private val lessonsKey = stringPreferencesKey("lessons_json")
     private val iCalUrlKey = stringPreferencesKey("ical_url")
+    private val onboardingDoneKey = booleanPreferencesKey("onboarding_done")
+    private val lastSyncAtMillisKey = longPreferencesKey("last_sync_at_ms")
+    private val lastSyncSummaryKey = stringPreferencesKey("last_sync_summary")
+    private val lastSyncErrorKey = stringPreferencesKey("last_sync_error")
     private val json = Json { ignoreUnknownKeys = true }
 
     private val preferencesFlow: Flow<Preferences> = appContext.dataStore.data
@@ -48,6 +60,18 @@ class ExamRepository(private val appContext: Context) {
 
     val iCalUrlFlow: Flow<String> = preferencesFlow
         .map { preferences -> preferences[iCalUrlKey].orEmpty() }
+
+    val onboardingDoneFlow: Flow<Boolean> = preferencesFlow
+        .map { preferences -> preferences[onboardingDoneKey] ?: false }
+
+    val syncStatusFlow: Flow<SyncStatus> = preferencesFlow
+        .map { preferences ->
+            SyncStatus(
+                lastSyncAtMillis = preferences[lastSyncAtMillisKey],
+                lastSyncSummary = preferences[lastSyncSummaryKey],
+                lastSyncError = preferences[lastSyncErrorKey]
+            )
+        }
 
     suspend fun addExam(exam: Exam) {
         updateExams { current ->
@@ -84,9 +108,30 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun setOnboardingDone(done: Boolean) {
+        appContext.dataStore.edit { preferences ->
+            preferences[onboardingDoneKey] = done
+        }
+    }
+
+    suspend fun markSyncSuccess(summary: String) {
+        appContext.dataStore.edit { preferences ->
+            preferences[lastSyncAtMillisKey] = System.currentTimeMillis()
+            preferences[lastSyncSummaryKey] = summary.trim()
+            preferences.remove(lastSyncErrorKey)
+        }
+    }
+
+    suspend fun markSyncError(error: String) {
+        appContext.dataStore.edit { preferences ->
+            preferences[lastSyncErrorKey] = error.trim()
+        }
+    }
+
     suspend fun readIcalUrl(): String? = iCalUrlFlow.first().takeIf { it.isNotBlank() }
 
     suspend fun readSnapshot(): List<Exam> = examsFlow.first()
+    suspend fun readLessonsSnapshot(): List<TimetableLesson> = lessonsFlow.first()
 
     private suspend fun updateExams(transform: (List<Exam>) -> List<Exam>) {
         appContext.dataStore.edit { preferences ->

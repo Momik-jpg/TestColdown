@@ -11,9 +11,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.andrin.examcountdown.data.ExamRepository
-import com.andrin.examcountdown.data.IcalImporter
-import com.andrin.examcountdown.data.TimetableIcalImporter
-import com.andrin.examcountdown.widget.WidgetUpdater
+import com.andrin.examcountdown.data.IcalSyncEngine
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -26,15 +24,17 @@ class IcalSyncWorker(
         val iCalUrl = repository.readIcalUrl() ?: return Result.success()
 
         return try {
-            val examResult = IcalImporter().importFromUrl(iCalUrl)
-            val timetableResult = TimetableIcalImporter().importFromUrl(iCalUrl)
-            repository.replaceIcalImportedExams(examResult.exams)
-            repository.replaceSyncedLessons(timetableResult.lessons)
-            WidgetUpdater.updateAll(applicationContext)
+            IcalSyncEngine(applicationContext).syncFromUrl(
+                url = iCalUrl,
+                emitChangeNotification = true
+            )
             Result.success()
         } catch (_: IOException) {
+            repository.markSyncError("Sync fehlgeschlagen: Netzwerkfehler.")
             Result.retry()
-        } catch (_: Exception) {
+        } catch (exception: Exception) {
+            val error = exception.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+            repository.markSyncError("Sync fehlgeschlagen: $error")
             Result.success()
         }
     }
