@@ -10,5 +10,6 @@ data class Exam(
     val location: String? = null,
     val startsAtEpochMillis: Long,
     val reminderAtEpochMillis: Long? = null,
-    val reminderMinutesBefore: Long? = null
+    val reminderMinutesBefore: Long? = null,
+    val reminderLeadTimesMinutes: List<Long> = emptyList()
 )

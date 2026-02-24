@@ -35,15 +35,16 @@ import kotlin.math.roundToInt
 private data class GradeRow(
     val id: Int,
     val grade: String,
-    val weight: String
+    val weight: String,
+    val category: String
 )
 
 @Composable
 fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
     val rows = remember {
         mutableStateListOf(
-            GradeRow(id = 1, grade = "", weight = "1"),
-            GradeRow(id = 2, grade = "", weight = "1")
+            GradeRow(id = 1, grade = "", weight = "1", category = "Prüfungen"),
+            GradeRow(id = 2, grade = "", weight = "1", category = "Tests")
         )
     }
     var nextId by remember { mutableIntStateOf(3) }
@@ -58,12 +59,25 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
     val parsedRows = rows.mapNotNull { row ->
         val grade = parseNumber(row.grade)
         val weight = parseNumber(row.weight)
-        if (grade == null || weight == null || weight <= 0.0) null else grade to weight
+        val category = row.category.trim().ifBlank { "Allgemein" }
+        if (grade == null || weight == null || weight <= 0.0) {
+            null
+        } else {
+            Triple(grade, weight, category)
+        }
     }
 
     val totalWeight = parsedRows.sumOf { it.second }
     val weightedSum = parsedRows.sumOf { it.first * it.second }
     val average = if (totalWeight > 0.0) weightedSum / totalWeight else null
+    val categoryAverages = parsedRows
+        .groupBy { it.third }
+        .mapValues { (_, items) ->
+            val categoryWeight = items.sumOf { it.second }
+            val categorySum = items.sumOf { it.first * it.second }
+            if (categoryWeight > 0.0) categorySum / categoryWeight else 0.0
+        }
+        .toSortedMap()
 
     val targetAverage = parseNumber(targetAverageText)
     val nextWeight = parseNumber(nextWeightText)
@@ -143,13 +157,14 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                         canDelete = rows.size > 1,
                         onGradeChange = { newGrade -> rows[index] = row.copy(grade = newGrade) },
                         onWeightChange = { newWeight -> rows[index] = row.copy(weight = newWeight) },
+                        onCategoryChange = { newCategory -> rows[index] = row.copy(category = newCategory) },
                         onDelete = { rows.removeAll { it.id == row.id } }
                     )
                 }
 
                 OutlinedButton(
                     onClick = {
-                        rows.add(GradeRow(id = nextId, grade = "", weight = "1"))
+                        rows.add(GradeRow(id = nextId, grade = "", weight = "1", category = "Allgemein"))
                         nextId += 1
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -159,6 +174,21 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                 }
 
                 ResultPill(average = average)
+
+                if (categoryAverages.isNotEmpty()) {
+                    Text(
+                        text = "Kategorien",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    categoryAverages.forEach { (category, value) ->
+                        Text(
+                            text = "$category: ${formatNumber(value)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
             }
         }
 
@@ -325,34 +355,49 @@ private fun GradeRowEditor(
     canDelete: Boolean,
     onGradeChange: (String) -> Unit,
     onWeightChange: (String) -> Unit,
+    onCategoryChange: (String) -> Unit,
     onDelete: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        OutlinedTextField(
-            value = row.grade,
-            onValueChange = onGradeChange,
-            modifier = Modifier.weight(1f),
-            singleLine = true,
-            label = { Text("Note") },
-            placeholder = { Text("z. B. 5.25") }
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = row.grade,
+                onValueChange = onGradeChange,
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                label = { Text("Note") },
+                placeholder = { Text("z. B. 5.25") }
+            )
 
-        OutlinedTextField(
-            value = row.weight,
-            onValueChange = onWeightChange,
-            modifier = Modifier.weight(0.7f),
-            singleLine = true,
-            label = { Text("Gewicht") },
-            placeholder = { Text("1") }
-        )
+            OutlinedTextField(
+                value = row.weight,
+                onValueChange = onWeightChange,
+                modifier = Modifier.weight(0.7f),
+                singleLine = true,
+                label = { Text("Gewicht") },
+                placeholder = { Text("1") }
+            )
 
-        IconButton(onClick = onDelete, enabled = canDelete) {
-            Icon(Icons.Outlined.Delete, contentDescription = "Zeile löschen")
+            IconButton(onClick = onDelete, enabled = canDelete) {
+                Icon(Icons.Outlined.Delete, contentDescription = "Zeile löschen")
+            }
         }
+
+        OutlinedTextField(
+            value = row.category,
+            onValueChange = onCategoryChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Kategorie") },
+            placeholder = { Text("z. B. Prüfungen, Tests, Mitarbeit") }
+        )
     }
 }
 

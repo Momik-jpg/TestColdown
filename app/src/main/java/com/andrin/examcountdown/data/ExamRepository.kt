@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.model.TimetableChangeEntry
 import com.andrin.examcountdown.model.TimetableLesson
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
@@ -30,9 +31,13 @@ data class SyncStatus(
 class ExamRepository(private val appContext: Context) {
     private val examsKey = stringPreferencesKey("exams_json")
     private val lessonsKey = stringPreferencesKey("lessons_json")
+    private val timetableChangesKey = stringPreferencesKey("timetable_changes_json")
     private val iCalUrlKey = stringPreferencesKey("ical_url")
     private val onboardingDoneKey = booleanPreferencesKey("onboarding_done")
     private val onboardingPromptSeenKey = booleanPreferencesKey("onboarding_prompt_seen")
+    private val quietHoursEnabledKey = booleanPreferencesKey("quiet_hours_enabled")
+    private val quietHoursStartMinutesKey = longPreferencesKey("quiet_hours_start_minutes")
+    private val quietHoursEndMinutesKey = longPreferencesKey("quiet_hours_end_minutes")
     private val lastSyncAtMillisKey = longPreferencesKey("last_sync_at_ms")
     private val lastSyncSummaryKey = stringPreferencesKey("last_sync_summary")
     private val lastSyncErrorKey = stringPreferencesKey("last_sync_error")
@@ -59,6 +64,12 @@ class ExamRepository(private val appContext: Context) {
                 .sortedBy { it.startsAtEpochMillis }
         }
 
+    val timetableChangesFlow: Flow<List<TimetableChangeEntry>> = preferencesFlow
+        .map { preferences ->
+            decodeTimetableChanges(preferences[timetableChangesKey])
+                .sortedByDescending { it.changedAtEpochMillis }
+        }
+
     val iCalUrlFlow: Flow<String> = preferencesFlow
         .map { preferences -> preferences[iCalUrlKey].orEmpty() }
 
@@ -70,6 +81,17 @@ class ExamRepository(private val appContext: Context) {
 
     val preferencesLoadedFlow: Flow<Boolean> = preferencesFlow
         .map { true }
+
+    val quietHoursFlow: Flow<QuietHoursConfig> = preferencesFlow
+        .map { preferences ->
+            val start = preferences[quietHoursStartMinutesKey]?.toInt() ?: (22 * 60)
+            val end = preferences[quietHoursEndMinutesKey]?.toInt() ?: (7 * 60)
+            QuietHoursConfig(
+                enabled = preferences[quietHoursEnabledKey] ?: false,
+                startMinutesOfDay = start.coerceIn(0, 24 * 60 - 1),
+                endMinutesOfDay = end.coerceIn(0, 24 * 60 - 1)
+            )
+        }
 
     val syncStatusFlow: Flow<SyncStatus> = preferencesFlow
         .map { preferences ->
@@ -103,6 +125,29 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun appendTimetableChanges(
+        changes: List<TimetableChangeEntry>,
+        maxEntries: Int = 120
+    ) {
+        if (changes.isEmpty()) return
+        appContext.dataStore.edit { preferences ->
+            val current = decodeTimetableChanges(preferences[timetableChangesKey])
+            val merged = (changes + current)
+                .sortedByDescending { it.changedAtEpochMillis }
+                .distinctBy { entry ->
+                    "${entry.lessonId}|${entry.changeType}|${entry.startsAtEpochMillis}|${entry.oldValue.orEmpty()}|${entry.newValue.orEmpty()}|${entry.changedAtEpochMillis}"
+                }
+                .take(maxEntries)
+            preferences[timetableChangesKey] = json.encodeToString(merged)
+        }
+    }
+
+    suspend fun clearTimetableChanges() {
+        appContext.dataStore.edit { preferences ->
+            preferences.remove(timetableChangesKey)
+        }
+    }
+
     suspend fun deleteExam(examId: String) {
         updateExams { current ->
             current.filterNot { it.id == examId }
@@ -127,6 +172,14 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun saveQuietHours(config: QuietHoursConfig) {
+        appContext.dataStore.edit { preferences ->
+            preferences[quietHoursEnabledKey] = config.enabled
+            preferences[quietHoursStartMinutesKey] = config.startMinutesOfDay.toLong()
+            preferences[quietHoursEndMinutesKey] = config.endMinutesOfDay.toLong()
+        }
+    }
+
     suspend fun markSyncSuccess(summary: String) {
         appContext.dataStore.edit { preferences ->
             preferences[lastSyncAtMillisKey] = System.currentTimeMillis()
@@ -145,6 +198,52 @@ class ExamRepository(private val appContext: Context) {
 
     suspend fun readSnapshot(): List<Exam> = examsFlow.first()
     suspend fun readLessonsSnapshot(): List<TimetableLesson> = lessonsFlow.first()
+    suspend fun readTimetableChangesSnapshot(): List<TimetableChangeEntry> = timetableChangesFlow.first()
+    suspend fun readQuietHoursConfig(): QuietHoursConfig = quietHoursFlow.first()
+
+    suspend fun exportBackupJson(): String {
+        val backup = AppBackup(
+            exams = readSnapshot(),
+            lessons = readLessonsSnapshot(),
+            timetableChanges = readTimetableChangesSnapshot(),
+            iCalUrl = readIcalUrl(),
+            onboardingDone = onboardingDoneFlow.first(),
+            onboardingPromptSeen = onboardingPromptSeenFlow.first(),
+            quietHours = readQuietHoursConfig()
+        )
+        return json.encodeToString(backup)
+    }
+
+    suspend fun importBackupJson(raw: String): AppBackup {
+        val backup = json.decodeFromString<AppBackup>(raw)
+        appContext.dataStore.edit { preferences ->
+            preferences[examsKey] = json.encodeToString(
+                backup.exams.sortedBy { it.startsAtEpochMillis }
+            )
+            preferences[lessonsKey] = json.encodeToString(
+                backup.lessons.sortedBy { it.startsAtEpochMillis }
+            )
+            preferences[timetableChangesKey] = json.encodeToString(
+                backup.timetableChanges
+                    .sortedByDescending { it.changedAtEpochMillis }
+                    .take(120)
+            )
+
+            val url = backup.iCalUrl?.trim().orEmpty()
+            if (url.isBlank()) {
+                preferences.remove(iCalUrlKey)
+            } else {
+                preferences[iCalUrlKey] = url
+            }
+
+            preferences[onboardingDoneKey] = backup.onboardingDone
+            preferences[onboardingPromptSeenKey] = backup.onboardingPromptSeen
+            preferences[quietHoursEnabledKey] = backup.quietHours.enabled
+            preferences[quietHoursStartMinutesKey] = backup.quietHours.startMinutesOfDay.toLong()
+            preferences[quietHoursEndMinutesKey] = backup.quietHours.endMinutesOfDay.toLong()
+        }
+        return backup
+    }
 
     private suspend fun updateExams(transform: (List<Exam>) -> List<Exam>) {
         appContext.dataStore.edit { preferences ->
@@ -162,6 +261,12 @@ class ExamRepository(private val appContext: Context) {
     private fun decodeLessons(raw: String?): List<TimetableLesson> {
         if (raw.isNullOrBlank()) return emptyList()
         return runCatching { json.decodeFromString<List<TimetableLesson>>(raw) }
+            .getOrDefault(emptyList())
+    }
+
+    private fun decodeTimetableChanges(raw: String?): List<TimetableChangeEntry> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching { json.decodeFromString<List<TimetableChangeEntry>>(raw) }
             .getOrDefault(emptyList())
     }
 }

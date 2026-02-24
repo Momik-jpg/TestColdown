@@ -2,6 +2,8 @@ package com.andrin.examcountdown.data
 
 import android.content.Context
 import com.andrin.examcountdown.model.TimetableLesson
+import com.andrin.examcountdown.model.TimetableChangeEntry
+import com.andrin.examcountdown.model.TimetableChangeType
 import com.andrin.examcountdown.reminder.TimetableSyncNotificationManager
 import com.andrin.examcountdown.widget.WidgetUpdater
 
@@ -55,6 +57,9 @@ class IcalSyncEngine(
         )
 
         repository.markSyncSuccess(result.summaryText())
+        if (!changes.isFirstSync && changes.entries.isNotEmpty()) {
+            repository.appendTimetableChanges(changes.entries)
+        }
 
         if (emitChangeNotification && !changes.isFirstSync && changes.total > 0) {
             TimetableSyncNotificationManager.showChangedLessons(
@@ -85,7 +90,8 @@ class IcalSyncEngine(
         val total: Int,
         val movedCount: Int,
         val roomChangedCount: Int,
-        val isFirstSync: Boolean
+        val isFirstSync: Boolean,
+        val entries: List<TimetableChangeEntry>
     )
 
     private fun detectLessonChanges(
@@ -97,26 +103,42 @@ class IcalSyncEngine(
                 total = 0,
                 movedCount = 0,
                 roomChangedCount = 0,
-                isFirstSync = true
+                isFirstSync = true,
+                entries = emptyList()
             )
         }
 
         val oldById = oldLessons.associateBy { it.id }
         val newById = newLessons.associateBy { it.id }
 
-        var changed = 0
+        val changedLessonIds = mutableSetOf<String>()
         var moved = 0
         var roomChanged = 0
+        val entries = mutableListOf<TimetableChangeEntry>()
 
-        val removedCount = oldById.keys.count { it !in newById }
-        changed += removedCount
+        oldById.forEach { (id, oldLesson) ->
+            if (id in newById) return@forEach
+            changedLessonIds += id
+            entries += TimetableChangeEntry(
+                lessonId = id,
+                title = oldLesson.title,
+                startsAtEpochMillis = oldLesson.startsAtEpochMillis,
+                changeType = TimetableChangeType.REMOVED
+            )
+        }
 
         newById.forEach { (id, newLesson) ->
             val oldLesson = oldById[id]
             if (oldLesson == null) {
-                changed += 1
+                changedLessonIds += id
                 if (newLesson.isMoved) moved += 1
                 if (newLesson.isLocationChanged) roomChanged += 1
+                entries += TimetableChangeEntry(
+                    lessonId = id,
+                    title = newLesson.title,
+                    startsAtEpochMillis = newLesson.startsAtEpochMillis,
+                    changeType = TimetableChangeType.ADDED
+                )
                 return@forEach
             }
 
@@ -127,21 +149,49 @@ class IcalSyncEngine(
             val roomChangedFlagChanged = oldLesson.isLocationChanged != newLesson.isLocationChanged
 
             if (timeChanged || locationChanged || movedChanged || roomChangedFlagChanged) {
-                changed += 1
+                changedLessonIds += id
             }
             if (newLesson.isMoved && (timeChanged || movedChanged)) {
                 moved += 1
+                entries += TimetableChangeEntry(
+                    lessonId = id,
+                    title = newLesson.title,
+                    startsAtEpochMillis = newLesson.startsAtEpochMillis,
+                    changeType = TimetableChangeType.MOVED,
+                    oldValue = "${oldLesson.startsAtEpochMillis}",
+                    newValue = "${newLesson.startsAtEpochMillis}"
+                )
+            } else if (timeChanged) {
+                entries += TimetableChangeEntry(
+                    lessonId = id,
+                    title = newLesson.title,
+                    startsAtEpochMillis = newLesson.startsAtEpochMillis,
+                    changeType = TimetableChangeType.TIME_CHANGED,
+                    oldValue = "${oldLesson.startsAtEpochMillis}",
+                    newValue = "${newLesson.startsAtEpochMillis}"
+                )
             }
             if (newLesson.isLocationChanged && (locationChanged || roomChangedFlagChanged)) {
                 roomChanged += 1
+                entries += TimetableChangeEntry(
+                    lessonId = id,
+                    title = newLesson.title,
+                    startsAtEpochMillis = newLesson.startsAtEpochMillis,
+                    changeType = TimetableChangeType.ROOM_CHANGED,
+                    oldValue = oldLesson.location,
+                    newValue = newLesson.location
+                )
             }
         }
 
         return LessonChangeCounters(
-            total = changed,
+            total = changedLessonIds.size,
             movedCount = moved,
             roomChangedCount = roomChanged,
-            isFirstSync = false
+            isFirstSync = false,
+            entries = entries
+                .sortedByDescending { it.changedAtEpochMillis }
+                .take(40)
         )
     }
 

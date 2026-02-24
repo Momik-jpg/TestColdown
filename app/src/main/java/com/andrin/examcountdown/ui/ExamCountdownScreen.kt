@@ -3,6 +3,8 @@ package com.andrin.examcountdown.ui
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -75,29 +78,42 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.andrin.examcountdown.data.QuietHoursConfig
 import com.andrin.examcountdown.data.SyncStatus
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.model.TimetableChangeEntry
+import com.andrin.examcountdown.model.TimetableChangeType
 import com.andrin.examcountdown.model.TimetableLesson
 import com.andrin.examcountdown.util.formatCountdown
 import com.andrin.examcountdown.util.formatCompactDay
 import com.andrin.examcountdown.util.formatDayHeader
 import com.andrin.examcountdown.util.formatExamDate
+import com.andrin.examcountdown.util.formatExamDateShort
 import com.andrin.examcountdown.util.formatReminderDateTime
 import com.andrin.examcountdown.util.formatReminderLeadTime
 import com.andrin.examcountdown.util.formatSyncDateTime
 import com.andrin.examcountdown.util.formatTimeRange
+import java.io.BufferedReader
+import java.time.LocalTime
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
+import java.time.format.DateTimeFormatter
 import java.util.Calendar
 import kotlinx.coroutines.launch
 
-private enum class HomeTab(val title: String) {
-    EXAMS("Prüfungen"),
-    TIMETABLE("Stundenplan"),
-    GRADES("Notenrechner")
+enum class HomeTab(val title: String, val route: String) {
+    EXAMS("Prüfungen", "exams"),
+    TIMETABLE("Stundenplan", "timetable"),
+    GRADES("Notenrechner", "grades");
+
+    companion object {
+        fun fromRoute(route: String?): HomeTab {
+            return entries.firstOrNull { it.route == route } ?: EXAMS
+        }
+    }
 }
 
 private enum class TimetableViewMode(val title: String) {
@@ -127,26 +143,84 @@ private data class TimetableLessonBlock(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
+fun ExamCountdownScreen(
+    initialTab: HomeTab = HomeTab.EXAMS,
+    viewModel: ExamViewModel = viewModel()
+) {
     val exams by viewModel.exams.collectAsStateWithLifecycle()
     val lessons by viewModel.lessons.collectAsStateWithLifecycle()
+    val timetableChanges by viewModel.timetableChanges.collectAsStateWithLifecycle()
     val savedIcalUrl by viewModel.savedIcalUrl.collectAsStateWithLifecycle()
     val onboardingDone by viewModel.onboardingDone.collectAsStateWithLifecycle()
     val onboardingPromptSeen by viewModel.onboardingPromptSeen.collectAsStateWithLifecycle()
     val preferencesLoaded by viewModel.preferencesLoaded.collectAsStateWithLifecycle()
+    val quietHours by viewModel.quietHours.collectAsStateWithLifecycle()
     val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
     val isDarkMode = isSystemInDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
     var showOnboardingDialog by rememberSaveable { mutableStateOf(false) }
+    var showReminderSettingsDialog by rememberSaveable { mutableStateOf(false) }
     var iCalUrl by rememberSaveable { mutableStateOf("") }
     var onboardingUrl by rememberSaveable { mutableStateOf("") }
     var onboardingTestedOk by rememberSaveable { mutableStateOf(false) }
     var onboardingInfoMessage by rememberSaveable { mutableStateOf("") }
     var isSyncingIcal by rememberSaveable { mutableStateOf(false) }
-    var selectedTab by rememberSaveable { mutableStateOf(HomeTab.EXAMS) }
+    var selectedTab by rememberSaveable { mutableStateOf(initialTab) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var pendingBackupJson by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(initialTab) {
+        selectedTab = initialTab
+    }
+
+    val exportBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        val backupJson = pendingBackupJson ?: return@rememberLauncherForActivityResult
+        pendingBackupJson = null
+        if (uri == null) return@rememberLauncherForActivityResult
+
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+                writer.write(backupJson)
+            } ?: error("Datei konnte nicht geschrieben werden.")
+        }.onSuccess {
+            scope.launch { snackbarHostState.showSnackbar("Backup exportiert.") }
+        }.onFailure { throwable ->
+            val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+            scope.launch { snackbarHostState.showSnackbar("Backup fehlgeschlagen: $error") }
+        }
+    }
+
+    val importBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                BufferedReader(stream.reader()).readText()
+            } ?: error("Datei konnte nicht gelesen werden.")
+        }.onSuccess { raw ->
+            viewModel.importBackupJson(raw) { result ->
+                result.onSuccess {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Backup importiert.")
+                    }
+                }.onFailure { throwable ->
+                    val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Import fehlgeschlagen: $error")
+                    }
+                }
+            }
+        }.onFailure { throwable ->
+            val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+            scope.launch { snackbarHostState.showSnackbar("Datei konnte nicht gelesen werden: $error") }
+        }
+    }
 
     LaunchedEffect(preferencesLoaded, onboardingDone, onboardingPromptSeen, savedIcalUrl) {
         if (!preferencesLoaded) return@LaunchedEffect
@@ -169,8 +243,14 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
     if (showAddDialog) {
         AddExamDialog(
             onDismiss = { showAddDialog = false },
-            onSave = { title, location, examMillis, reminderAtMillis ->
-                viewModel.addExam(title, location, examMillis, reminderAtMillis)
+            onSave = { title, location, examMillis, reminderAtMillis, reminderLeadTimes ->
+                viewModel.addExam(
+                    title = title,
+                    location = location,
+                    startsAtMillis = examMillis,
+                    reminderAtMillis = reminderAtMillis,
+                    reminderLeadTimesMinutes = reminderLeadTimes
+                )
             }
         )
     }
@@ -230,6 +310,19 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
             onDismiss = {
                 showOnboardingDialog = false
                 viewModel.dismissOnboardingPrompt()
+            }
+        )
+    }
+
+    if (showReminderSettingsDialog) {
+        ReminderSettingsDialog(
+            initialConfig = quietHours,
+            onDismiss = { showReminderSettingsDialog = false },
+            onSave = { config ->
+                viewModel.saveQuietHours(config) { message ->
+                    scope.launch { snackbarHostState.showSnackbar(message) }
+                }
+                showReminderSettingsDialog = false
             }
         )
     }
@@ -334,16 +427,35 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
                 HomeTab.EXAMS -> ExamListContent(
                     exams = exams,
                     onAddClick = { showAddDialog = true },
-                    onDelete = { examId -> viewModel.deleteExam(examId) }
+                    onDelete = { examId -> viewModel.deleteExam(examId) },
+                    onOpenReminderSettings = { showReminderSettingsDialog = true },
+                    onExportBackup = {
+                        viewModel.exportBackupJson { result ->
+                            result.onSuccess { json ->
+                                pendingBackupJson = json
+                                exportBackupLauncher.launch(
+                                    "examcountdown-backup-${System.currentTimeMillis()}.json"
+                                )
+                            }.onFailure { throwable ->
+                                val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Backup fehlgeschlagen: $error")
+                                }
+                            }
+                        }
+                    },
+                    onImportBackup = { importBackupLauncher.launch(arrayOf("application/json", "text/plain")) }
                 )
 
                 HomeTab.TIMETABLE -> TimetableContent(
                     lessons = lessons,
+                    changes = timetableChanges,
                     hasIcalUrl = savedIcalUrl.isNotBlank(),
                     onOpenIcalImport = {
                         iCalUrl = savedIcalUrl
                         showIcalDialog = true
-                    }
+                    },
+                    onClearChanges = { viewModel.clearTimetableChanges() }
                 )
 
                 HomeTab.GRADES -> GradeCalculatorScreen(
@@ -511,17 +623,130 @@ private fun SyncStatusStrip(syncStatus: SyncStatus) {
 }
 
 @Composable
+private fun TimetableChangesCard(
+    changes: List<TimetableChangeEntry>,
+    onClear: () -> Unit
+) {
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Heute geändert",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                TextButton(onClick = onClear) {
+                    Text("Leeren")
+                }
+            }
+
+            changes.take(6).forEach { change ->
+                TimetableChangeRow(change)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimetableChangeRow(change: TimetableChangeEntry) {
+    val color = when (change.changeType) {
+        TimetableChangeType.MOVED -> MaterialTheme.colorScheme.tertiary
+        TimetableChangeType.ROOM_CHANGED -> MaterialTheme.colorScheme.secondary
+        TimetableChangeType.ADDED -> MaterialTheme.colorScheme.primary
+        TimetableChangeType.REMOVED -> MaterialTheme.colorScheme.error
+        TimetableChangeType.TIME_CHANGED -> MaterialTheme.colorScheme.primary
+    }
+
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = color.copy(alpha = 0.12f)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = change.title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = formatTimetableChangeDescription(change),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun formatTimetableChangeDescription(change: TimetableChangeEntry): String {
+    val oldText = change.oldValue.orEmpty()
+    val newText = change.newValue.orEmpty()
+
+    val oldTime = oldText.toLongOrNull()?.let { formatExamDateShort(it) }
+    val newTime = newText.toLongOrNull()?.let { formatExamDateShort(it) }
+
+    return when (change.changeType) {
+        TimetableChangeType.MOVED -> "Verschoben: ${oldTime.orEmpty()} -> ${newTime.orEmpty()}".trim()
+        TimetableChangeType.TIME_CHANGED -> "Zeit geändert: ${oldTime.orEmpty()} -> ${newTime.orEmpty()}".trim()
+        TimetableChangeType.ROOM_CHANGED -> {
+            val from = oldText.ifBlank { "unbekannt" }
+            val to = newText.ifBlank { "unbekannt" }
+            "Raum: $from -> $to"
+        }
+        TimetableChangeType.ADDED -> "Neue Lektion im Stundenplan"
+        TimetableChangeType.REMOVED -> "Lektion entfernt/entfallen"
+    }
+}
+
+@Composable
 private fun TimetableContent(
     lessons: List<TimetableLesson>,
+    changes: List<TimetableChangeEntry>,
     hasIcalUrl: Boolean,
-    onOpenIcalImport: () -> Unit
+    onOpenIcalImport: () -> Unit,
+    onClearChanges: () -> Unit
 ) {
     if (lessons.isEmpty()) {
-        TimetableEmptyState(
-            hasIcalUrl = hasIcalUrl,
-            onOpenIcalImport = onOpenIcalImport,
-            modifier = Modifier.fillMaxSize()
-        )
+        if (changes.isNotEmpty()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                item("today-changes-feed-empty") {
+                    TimetableChangesCard(
+                        changes = changes.take(6),
+                        onClear = onClearChanges
+                    )
+                }
+                item("timetable-empty-state") {
+                    TimetableEmptyState(
+                        hasIcalUrl = hasIcalUrl,
+                        onOpenIcalImport = onOpenIcalImport,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        } else {
+            TimetableEmptyState(
+                hasIcalUrl = hasIcalUrl,
+                onOpenIcalImport = onOpenIcalImport,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
         return
     }
 
@@ -550,12 +775,29 @@ private fun TimetableContent(
             }
             .toSortedMap()
     }
+    val todayChanges = remember(changes) {
+        val today = LocalDate.now(schoolZone)
+        changes.filter { entry ->
+            Instant.ofEpochMilli(entry.changedAtEpochMillis)
+                .atZone(schoolZone)
+                .toLocalDate() == today
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        if (todayChanges.isNotEmpty()) {
+            item(key = "today-changes-feed") {
+                TimetableChangesCard(
+                    changes = todayChanges,
+                    onClear = onClearChanges
+                )
+            }
+        }
+
         item(key = "timezone-note") {
             Surface(
                 shape = MaterialTheme.shapes.large,
@@ -1084,15 +1326,33 @@ private fun TimetableEmptyState(
 private fun ExamListContent(
     exams: List<Exam>,
     onAddClick: () -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    onOpenReminderSettings: () -> Unit,
+    onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit
 ) {
     val nextExam = exams.firstOrNull()
 
     if (exams.isEmpty()) {
-        EmptyState(
-            onAddClick = onAddClick,
-            modifier = Modifier.fillMaxSize()
-        )
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                ExamToolsCard(
+                    onOpenReminderSettings = onOpenReminderSettings,
+                    onExportBackup = onExportBackup,
+                    onImportBackup = onImportBackup
+                )
+            }
+            item {
+                EmptyState(
+                    onAddClick = onAddClick,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
         return
     }
 
@@ -1101,6 +1361,13 @@ private fun ExamListContent(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item {
+            ExamToolsCard(
+                onOpenReminderSettings = onOpenReminderSettings,
+                onExportBackup = onExportBackup,
+                onImportBackup = onImportBackup
+            )
+        }
         item {
             nextExam?.let { exam ->
                 NextExamHero(exam = exam)
@@ -1112,6 +1379,40 @@ private fun ExamListContent(
                 exam = exam,
                 onDelete = { onDelete(exam.id) }
             )
+        }
+    }
+}
+
+@Composable
+private fun ExamToolsCard(
+    onOpenReminderSettings: () -> Unit,
+    onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit
+) {
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f))
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Werkzeuge",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onOpenReminderSettings, modifier = Modifier.weight(1f)) {
+                    Text("Benachrichtigungen")
+                }
+                OutlinedButton(onClick = onExportBackup, modifier = Modifier.weight(1f)) {
+                    Text("Backup Export")
+                }
+                OutlinedButton(onClick = onImportBackup, modifier = Modifier.weight(1f)) {
+                    Text("Backup Import")
+                }
+            }
         }
     }
 }
@@ -1264,7 +1565,20 @@ private fun ExamCard(exam: Exam, onDelete: () -> Unit) {
             }
 
             val reminderText = when {
+                exam.reminderAtEpochMillis != null && exam.reminderLeadTimesMinutes.isNotEmpty() -> {
+                    val leads = exam.reminderLeadTimesMinutes
+                        .take(3)
+                        .joinToString(", ") { formatReminderLeadTime(it) }
+                    "Erinnerung: fix ${formatReminderDateTime(exam.reminderAtEpochMillis)} + $leads"
+                }
                 exam.reminderAtEpochMillis != null -> "Erinnerung: ${formatReminderDateTime(exam.reminderAtEpochMillis)}"
+                exam.reminderLeadTimesMinutes.isNotEmpty() -> {
+                    val leads = exam.reminderLeadTimesMinutes
+                        .take(3)
+                        .joinToString(", ") { formatReminderLeadTime(it) }
+                    val suffix = if (exam.reminderLeadTimesMinutes.size > 3) ", ..." else ""
+                    "Erinnerung: $leads$suffix"
+                }
                 exam.reminderMinutesBefore != null -> "Erinnerung: ${formatReminderLeadTime(exam.reminderMinutesBefore)}"
                 else -> null
             }
@@ -1287,7 +1601,7 @@ private fun ExamCard(exam: Exam, onDelete: () -> Unit) {
 @Composable
 private fun AddExamDialog(
     onDismiss: () -> Unit,
-    onSave: (String, String?, Long, Long?) -> Unit
+    onSave: (String, String?, Long, Long?, List<Long>) -> Unit
 ) {
     val context = LocalContext.current
     var title by rememberSaveable { mutableStateOf("") }
@@ -1296,15 +1610,21 @@ private fun AddExamDialog(
         mutableLongStateOf(System.currentTimeMillis() + 24L * 60L * 60L * 1000L)
     }
     var reminderEnabled by rememberSaveable { mutableStateOf(true) }
+    var leadTimesRaw by rememberSaveable { mutableStateOf("30, 1440") }
+    var exactReminderEnabled by rememberSaveable { mutableStateOf(false) }
     var reminderManuallySet by rememberSaveable { mutableStateOf(false) }
     var selectedReminderMillis by rememberSaveable {
         mutableLongStateOf(System.currentTimeMillis() + 24L * 60L * 60L * 1000L - 30L * 60L * 1000L)
     }
 
+    val parsedLeadTimes = remember(leadTimesRaw) { parseLeadTimesMinutes(leadTimesRaw) }
+    val leadTimesInvalid = reminderEnabled && leadTimesRaw.isNotBlank() && parsedLeadTimes.isEmpty()
+
     val reminderValidationError = when {
         !reminderEnabled -> null
-        selectedReminderMillis <= System.currentTimeMillis() -> "Erinnerungszeit liegt in der Vergangenheit"
-        selectedReminderMillis >= selectedExamMillis -> "Erinnerung muss vor Prüfungsbeginn liegen"
+        leadTimesInvalid -> "Vorlaufzeiten ungültig (z. B. 30, 120, 1440)"
+        exactReminderEnabled && selectedReminderMillis <= System.currentTimeMillis() -> "Erinnerungszeit liegt in der Vergangenheit"
+        exactReminderEnabled && selectedReminderMillis >= selectedExamMillis -> "Erinnerung muss vor Prüfungsbeginn liegen"
         else -> null
     }
 
@@ -1368,6 +1688,38 @@ private fun AddExamDialog(
                 }
 
                 if (reminderEnabled) {
+                    OutlinedTextField(
+                        value = leadTimesRaw,
+                        onValueChange = { leadTimesRaw = it },
+                        label = { Text("Vorlaufzeiten in Minuten") },
+                        placeholder = { Text("z. B. 30, 120, 1440") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        text = "Mehrere Erinnerungen möglich. Beispiel: 30, 120, 1440.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Exakte Erinnerungszeit",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Switch(
+                            checked = exactReminderEnabled,
+                            onCheckedChange = { checked -> exactReminderEnabled = checked }
+                        )
+                    }
+
+                }
+
+                if (reminderEnabled && exactReminderEnabled) {
                     OutlinedButton(
                         onClick = {
                             openDateTimePicker(
@@ -1407,7 +1759,8 @@ private fun AddExamDialog(
                         title,
                         location.ifBlank { null },
                         selectedExamMillis,
-                        if (reminderEnabled) selectedReminderMillis else null
+                        if (reminderEnabled && exactReminderEnabled) selectedReminderMillis else null,
+                        if (reminderEnabled) parsedLeadTimes else emptyList()
                     )
                     onDismiss()
                 }
@@ -1421,6 +1774,124 @@ private fun AddExamDialog(
             }
         }
     )
+}
+
+@Composable
+private fun ReminderSettingsDialog(
+    initialConfig: QuietHoursConfig,
+    onDismiss: () -> Unit,
+    onSave: (QuietHoursConfig) -> Unit
+) {
+    var enabled by remember(initialConfig) { mutableStateOf(initialConfig.enabled) }
+    var startMinutes by remember(initialConfig) { mutableIntStateOf(initialConfig.startMinutesOfDay) }
+    var endMinutes by remember(initialConfig) { mutableIntStateOf(initialConfig.endMinutesOfDay) }
+    val context = LocalContext.current
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Benachrichtigungen") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Stille Zeiten aktiv")
+                    Switch(
+                        checked = enabled,
+                        onCheckedChange = { enabled = it }
+                    )
+                }
+
+                if (enabled) {
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            openTimePicker(
+                                context = context,
+                                initialMinutesOfDay = startMinutes,
+                                onPicked = { picked -> startMinutes = picked }
+                            )
+                        }
+                    ) {
+                        Text("Stille Zeit ab: ${formatMinutesOfDay(startMinutes)}")
+                    }
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            openTimePicker(
+                                context = context,
+                                initialMinutesOfDay = endMinutes,
+                                onPicked = { picked -> endMinutes = picked }
+                            )
+                        }
+                    ) {
+                        Text("Stille Zeit bis: ${formatMinutesOfDay(endMinutes)}")
+                    }
+                    Text(
+                        text = "Erinnerungen in stiller Zeit werden auf das Ende der stillen Zeit verschoben.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onSave(
+                        QuietHoursConfig(
+                            enabled = enabled,
+                            startMinutesOfDay = startMinutes,
+                            endMinutesOfDay = endMinutes
+                        )
+                    )
+                }
+            ) {
+                Text("Speichern")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Abbrechen")
+            }
+        }
+    )
+}
+
+private fun parseLeadTimesMinutes(raw: String): List<Long> {
+    return raw.split(',', ';', ' ')
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .mapNotNull { it.toLongOrNull() }
+        .filter { it in 1L..(14L * 24L * 60L) }
+        .distinct()
+        .sorted()
+}
+
+private fun formatMinutesOfDay(minutesOfDay: Int): String {
+    val normalized = minutesOfDay.coerceIn(0, 24 * 60 - 1)
+    val time = LocalTime.of(normalized / 60, normalized % 60)
+    return time.format(DateTimeFormatter.ofPattern("HH:mm"))
+}
+
+private fun openTimePicker(
+    context: Context,
+    initialMinutesOfDay: Int,
+    onPicked: (Int) -> Unit
+) {
+    val hour = (initialMinutesOfDay / 60).coerceIn(0, 23)
+    val minute = (initialMinutesOfDay % 60).coerceIn(0, 59)
+    TimePickerDialog(
+        context,
+        { _, pickedHour, pickedMinute ->
+            onPicked(pickedHour * 60 + pickedMinute)
+        },
+        hour,
+        minute,
+        true
+    ).show()
 }
 
 private fun openDateTimePicker(

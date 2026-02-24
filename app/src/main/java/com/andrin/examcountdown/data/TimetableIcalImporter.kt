@@ -77,7 +77,7 @@ class TimetableIcalImporter {
                 originalStartsAtEpochMillis = if (isMoved) originalSlot?.first else null,
                 originalEndsAtEpochMillis = if (isMoved) originalSlot?.second else null
             )
-        }
+        }.distinctBy { it.id }
 
         TimetableImportResult(
             lessons = lessons,

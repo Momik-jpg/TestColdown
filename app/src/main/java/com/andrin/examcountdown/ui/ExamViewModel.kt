@@ -3,8 +3,10 @@ package com.andrin.examcountdown.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.andrin.examcountdown.data.AppBackup
 import com.andrin.examcountdown.data.ExamRepository
 import com.andrin.examcountdown.data.IcalSyncEngine
+import com.andrin.examcountdown.data.QuietHoursConfig
 import com.andrin.examcountdown.data.SyncStatus
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.reminder.ExamReminderScheduler
@@ -24,6 +26,11 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         initialValue = emptyList()
     )
     val lessons = repository.lessonsFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
+    val timetableChanges = repository.timetableChangesFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList()
@@ -48,6 +55,11 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = false
     )
+    val quietHours = repository.quietHoursFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = QuietHoursConfig()
+    )
     val syncStatus = repository.syncStatusFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -58,15 +70,22 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         title: String,
         location: String?,
         startsAtMillis: Long,
-        reminderAtMillis: Long?
+        reminderAtMillis: Long?,
+        reminderLeadTimesMinutes: List<Long> = emptyList()
     ) {
         if (title.isBlank()) return
         viewModelScope.launch {
+            val normalizedLeadTimes = reminderLeadTimesMinutes
+                .map { it.coerceAtLeast(1L) }
+                .distinct()
+                .sorted()
+
             val exam = Exam(
                 title = title.trim(),
                 location = location?.trim()?.takeIf { it.isNotBlank() },
                 startsAtEpochMillis = startsAtMillis,
-                reminderAtEpochMillis = reminderAtMillis
+                reminderAtEpochMillis = reminderAtMillis,
+                reminderLeadTimesMinutes = normalizedLeadTimes
             )
             repository.addExam(exam)
             ExamReminderScheduler.scheduleExamReminder(getApplication(), exam)
@@ -166,6 +185,39 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun markOnboardingPromptSeen() {
         repository.setOnboardingPromptSeen(true)
+    }
+
+    fun saveQuietHours(config: QuietHoursConfig, onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            repository.saveQuietHours(config)
+            ExamReminderScheduler.syncFromStoredExams(getApplication())
+            onDone("Benachrichtigungszeiten gespeichert.")
+        }
+    }
+
+    fun clearTimetableChanges() {
+        viewModelScope.launch {
+            repository.clearTimetableChanges()
+        }
+    }
+
+    fun exportBackupJson(onDone: (Result<String>) -> Unit) {
+        viewModelScope.launch {
+            val result = runCatching { repository.exportBackupJson() }
+            onDone(result)
+        }
+    }
+
+    fun importBackupJson(raw: String, onDone: (Result<AppBackup>) -> Unit) {
+        viewModelScope.launch {
+            val result = runCatching {
+                val backup = repository.importBackupJson(raw)
+                ExamReminderScheduler.syncFromStoredExams(getApplication())
+                WidgetUpdater.updateAll(getApplication())
+                backup
+            }
+            onDone(result)
+        }
     }
 
     private suspend fun syncFromIcalUrl(

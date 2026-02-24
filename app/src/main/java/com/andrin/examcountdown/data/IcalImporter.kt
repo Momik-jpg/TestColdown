@@ -54,7 +54,7 @@ class IcalImporter {
                     ?.take(160),
                 startsAtEpochMillis = event.startsAtEpochMillis
             )
-        }
+        }.distinctBy { it.id }
 
         IcalImportResult(
             exams = exams,

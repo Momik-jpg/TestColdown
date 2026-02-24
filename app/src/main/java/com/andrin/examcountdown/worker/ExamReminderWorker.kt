@@ -24,6 +24,7 @@ class ExamReminderWorker(
     override suspend fun doWork(): Result {
         val examId = inputData.getString(KEY_EXAM_ID) ?: return Result.failure()
         val title = inputData.getString(KEY_TITLE) ?: return Result.failure()
+        val reminderLabel = inputData.getString(KEY_REMINDER_LABEL)
         val startsAt = inputData.getLong(KEY_STARTS_AT, -1L)
         if (startsAt <= 0L) return Result.failure()
 
@@ -38,10 +39,15 @@ class ExamReminderWorker(
         ExamNotificationManager.ensureChannel(applicationContext)
 
         val location = inputData.getString(KEY_LOCATION)
-        val contentText = if (location.isNullOrBlank()) {
+        val baseText = if (location.isNullOrBlank()) {
             "Start: ${formatExamDate(startsAt)}"
         } else {
             "Start: ${formatExamDate(startsAt)} · $location"
+        }
+        val contentText = if (reminderLabel.isNullOrBlank()) {
+            baseText
+        } else {
+            "$baseText · $reminderLabel"
         }
 
         val openAppIntent = Intent(applicationContext, MainActivity::class.java)
@@ -72,5 +78,6 @@ class ExamReminderWorker(
         const val KEY_TITLE = "title"
         const val KEY_LOCATION = "location"
         const val KEY_STARTS_AT = "starts_at"
+        const val KEY_REMINDER_LABEL = "reminder_label"
     }
 }
