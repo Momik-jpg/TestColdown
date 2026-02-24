@@ -3,10 +3,12 @@ package com.andrin.examcountdown.data
 import com.andrin.examcountdown.model.TimetableLesson
 import java.net.URL
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.temporal.TemporalAdjusters
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeFormatterBuilder
 import java.util.Locale
@@ -19,6 +21,8 @@ data class TimetableImportResult(
 )
 
 class TimetableIcalImporter {
+    private val schoolZone: ZoneId = ZoneId.of("Europe/Zurich")
+
     suspend fun importFromUrl(url: String): TimetableImportResult = withContext(Dispatchers.IO) {
         val normalizedUrl = url.trim()
         require(normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://")) {
@@ -51,17 +55,23 @@ class TimetableIcalImporter {
             )
         }
 
-        val movedIds = detectMovedLessonIds(parsedLessons)
+        val movementHints = detectMovedLessonHints(parsedLessons)
         val lessons = parsedLessons.map { event ->
+            val uniqueKey = event.uniqueKey()
             val seed = event.uid?.takeIf { it.isNotBlank() }
                 ?: "${event.summary}|${event.startsAtEpochMillis}|${event.endsAtEpochMillis}|${event.location.orEmpty()}"
+            val isMoved = movementHints.movedIds.contains(uniqueKey) || hasShiftKeyword(event)
+            val originalSlot = movementHints.originalSlotByEventId[uniqueKey]
+
             TimetableLesson(
                 id = "lesson:$seed".replace("\\s+".toRegex(), "_"),
                 title = event.summary.take(140),
                 location = event.location?.trim()?.takeIf { it.isNotBlank() }?.take(160),
                 startsAtEpochMillis = event.startsAtEpochMillis,
                 endsAtEpochMillis = event.endsAtEpochMillis,
-                isMoved = movedIds.contains(event.uniqueKey()) || hasShiftKeyword(event)
+                isMoved = isMoved,
+                originalStartsAtEpochMillis = if (isMoved) originalSlot?.first else null,
+                originalEndsAtEpochMillis = if (isMoved) originalSlot?.second else null
             )
         }
 
@@ -218,29 +228,55 @@ class TimetableIcalImporter {
         return keywords.any { keyword -> text.contains(keyword) }
     }
 
-    private fun detectMovedLessonIds(events: List<ParsedIcalEvent>): Set<String> {
+    private data class SlotSignature(
+        val dayOfWeek: Int,
+        val hour: Int,
+        val minute: Int,
+        val durationMillis: Long
+    )
+
+    private data class MovementHints(
+        val movedIds: Set<String>,
+        val originalSlotByEventId: Map<String, Pair<Long, Long>>
+    )
+
+    private fun detectMovedLessonHints(events: List<ParsedIcalEvent>): MovementHints {
         val moved = mutableSetOf<String>()
+        val originalSlot = mutableMapOf<String, Pair<Long, Long>>()
         val bySubject = events.groupBy { subjectKey(it.summary) }
 
         bySubject.forEach { (_, lessons) ->
-            if (lessons.size < 6) return@forEach
+            if (lessons.size < 5) return@forEach
 
             val slotCounts = lessons
-                .groupingBy { slotKey(it.startsAtEpochMillis) }
+                .groupingBy { slotSignature(it) }
                 .eachCount()
 
-            val hasRepeatedSlot = slotCounts.values.any { it >= 2 }
-            if (!hasRepeatedSlot) return@forEach
+            val dominantSlot = slotCounts
+                .entries
+                .maxByOrNull { it.value }
+                ?.takeIf { it.value >= 2 }
+                ?.key
+                ?: return@forEach
 
             lessons.forEach { lesson ->
-                val slot = slotKey(lesson.startsAtEpochMillis)
-                if ((slotCounts[slot] ?: 0) == 1) {
-                    moved += lesson.uniqueKey()
+                val slot = slotSignature(lesson)
+                val isMoved = slot != dominantSlot && (slotCounts[slot] ?: 0) == 1
+                if (isMoved) {
+                    val eventId = lesson.uniqueKey()
+                    moved += eventId
+                    originalSlot[eventId] = expectedOriginalSlotForWeek(
+                        lessonStartsAtEpochMillis = lesson.startsAtEpochMillis,
+                        dominantSlot = dominantSlot
+                    )
                 }
             }
         }
 
-        return moved
+        return MovementHints(
+            movedIds = moved,
+            originalSlotByEventId = originalSlot
+        )
     }
 
     private fun subjectKey(summary: String): String {
@@ -250,14 +286,36 @@ class TimetableIcalImporter {
             .substringBefore(' ')
     }
 
-    private fun slotKey(startsAtMillis: Long): String {
-        val dateTime = LocalDateTime.ofEpochSecond(
-            startsAtMillis / 1000L,
-            0,
-            ZoneOffset.UTC
-        ).atZone(ZoneOffset.UTC).withZoneSameInstant(ZoneId.systemDefault())
+    private fun slotSignature(event: ParsedIcalEvent): SlotSignature {
+        val startsAt = Instant.ofEpochMilli(event.startsAtEpochMillis)
+            .atZone(schoolZone)
+        val durationMillis = (event.endsAtEpochMillis - event.startsAtEpochMillis)
+            .coerceAtLeast(1L)
 
-        return "${dateTime.dayOfWeek.value}-${dateTime.hour}:${dateTime.minute}"
+        return SlotSignature(
+            dayOfWeek = startsAt.dayOfWeek.value,
+            hour = startsAt.hour,
+            minute = startsAt.minute,
+            durationMillis = durationMillis
+        )
+    }
+
+    private fun expectedOriginalSlotForWeek(
+        lessonStartsAtEpochMillis: Long,
+        dominantSlot: SlotSignature
+    ): Pair<Long, Long> {
+        val lessonDate = Instant.ofEpochMilli(lessonStartsAtEpochMillis)
+            .atZone(schoolZone)
+            .toLocalDate()
+        val weekStart = lessonDate.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+        val targetDate = weekStart.plusDays((dominantSlot.dayOfWeek - 1).toLong())
+        val targetStart = targetDate
+            .atTime(dominantSlot.hour, dominantSlot.minute)
+            .atZone(schoolZone)
+            .toInstant()
+            .toEpochMilli()
+        val targetEnd = targetStart + dominantSlot.durationMillis
+        return targetStart to targetEnd
     }
 
     private fun unfoldIcalLines(raw: String): List<String> {

@@ -9,5 +9,8 @@ data class TimetableLesson(
     val location: String? = null,
     val startsAtEpochMillis: Long,
     val endsAtEpochMillis: Long,
-    val isMoved: Boolean = false
+    val isMoved: Boolean = false,
+    val isCancelledSlot: Boolean = false,
+    val originalStartsAtEpochMillis: Long? = null,
+    val originalEndsAtEpochMillis: Long? = null
 )

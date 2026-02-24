@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -91,6 +92,7 @@ private data class TimetableLessonBlock(
     val startsAtEpochMillis: Long,
     val endsAtEpochMillis: Long,
     val isMoved: Boolean,
+    val isCancelledSlot: Boolean,
     val lessonCount: Int
 )
 
@@ -323,7 +325,10 @@ private fun TimetableContent(
         return
     }
 
-    val mergedLessons = remember(lessons) { mergeConsecutiveLessons(lessons) }
+    val lessonsWithCancelledSlots = remember(lessons) { addCancelledSlotEntries(lessons) }
+    val mergedLessons = remember(lessonsWithCancelledSlots) {
+        mergeConsecutiveLessons(lessonsWithCancelledSlots)
+    }
     val schoolZone = remember { ZoneId.of("Europe/Zurich") }
     val grouped = remember(mergedLessons) {
         mergedLessons
@@ -346,7 +351,7 @@ private fun TimetableContent(
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
             ) {
                 Text(
-                    text = "Zeiten sind in Schweizer Zeit. Doppellektionen werden zusammengefasst.",
+                    text = "Zeiten sind in Schweizer Zeit. Verschobene Lektionen werden einzeln gezeigt; der alte Slot ist durchgestrichen.",
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface
@@ -379,10 +384,17 @@ private fun TimetableContent(
 
 @Composable
 private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
+    val isCancelled = lesson.isCancelledSlot
+    val cardColor = if (isCancelled) {
+        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.28f)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -400,11 +412,17 @@ private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                     text = lesson.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    textDecoration = if (isCancelled) TextDecoration.LineThrough else TextDecoration.None,
+                    color = if (isCancelled) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (lesson.lessonCount > 1) {
+                    if (!isCancelled && lesson.lessonCount > 1) {
                         Surface(
                             color = MaterialTheme.colorScheme.primaryContainer,
                             shape = MaterialTheme.shapes.small
@@ -419,7 +437,19 @@ private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                         }
                     }
 
-                    if (lesson.isMoved) {
+                    if (isCancelled) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                text = "Ausfall (verschoben)",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    } else if (lesson.isMoved) {
                         Surface(
                             color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f),
                             shape = MaterialTheme.shapes.small
@@ -452,7 +482,8 @@ private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                     Text(
                         text = formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        style = MaterialTheme.typography.labelLarge
+                        style = MaterialTheme.typography.labelLarge,
+                        textDecoration = if (isCancelled) TextDecoration.LineThrough else TextDecoration.None
                     )
                 }
             }
@@ -476,6 +507,31 @@ private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
     }
 }
 
+private fun addCancelledSlotEntries(lessons: List<TimetableLesson>): List<TimetableLesson> {
+    if (lessons.isEmpty()) return emptyList()
+
+    val placeholders = lessons.mapNotNull { lesson ->
+        val originalStart = lesson.originalStartsAtEpochMillis
+        val originalEnd = lesson.originalEndsAtEpochMillis
+        if (!lesson.isMoved || originalStart == null || originalEnd == null) {
+            return@mapNotNull null
+        }
+
+        TimetableLesson(
+            id = "cancelled:${lesson.id}",
+            title = lesson.title,
+            location = lesson.location,
+            startsAtEpochMillis = originalStart,
+            endsAtEpochMillis = originalEnd,
+            isCancelledSlot = true
+        )
+    }
+
+    return (lessons + placeholders)
+        .distinctBy { it.id }
+        .sortedBy { it.startsAtEpochMillis }
+}
+
 private fun mergeConsecutiveLessons(
     lessons: List<TimetableLesson>,
     maxGapMinutes: Long = 20L
@@ -493,6 +549,7 @@ private fun mergeConsecutiveLessons(
         startsAtEpochMillis = sorted.first().startsAtEpochMillis,
         endsAtEpochMillis = sorted.first().endsAtEpochMillis,
         isMoved = sorted.first().isMoved,
+        isCancelledSlot = sorted.first().isCancelledSlot,
         lessonCount = 1
     )
 
@@ -501,13 +558,18 @@ private fun mergeConsecutiveLessons(
         val sameTitle = current.title.equals(next.title, ignoreCase = true)
         val sameLocation = current.location.orEmpty().trim().lowercase() ==
             next.location.orEmpty().trim().lowercase()
+        val canMergeType = !current.isMoved &&
+            !next.isMoved &&
+            !current.isCancelledSlot &&
+            !next.isCancelledSlot
 
-        val shouldMerge = sameTitle && sameLocation && gap in 0..maxGapMillis
+        val shouldMerge = canMergeType && sameTitle && sameLocation && gap in 0..maxGapMillis
 
         if (shouldMerge) {
             current = current.copy(
                 endsAtEpochMillis = maxOf(current.endsAtEpochMillis, next.endsAtEpochMillis),
                 isMoved = current.isMoved || next.isMoved,
+                isCancelledSlot = current.isCancelledSlot || next.isCancelledSlot,
                 lessonCount = current.lessonCount + 1
             )
         } else {
@@ -519,6 +581,7 @@ private fun mergeConsecutiveLessons(
                 startsAtEpochMillis = next.startsAtEpochMillis,
                 endsAtEpochMillis = next.endsAtEpochMillis,
                 isMoved = next.isMoved,
+                isCancelledSlot = next.isCancelledSlot,
                 lessonCount = 1
             )
         }
