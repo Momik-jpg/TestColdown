@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Delete
@@ -112,7 +114,8 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
     }
 
     Column(
-        modifier = modifier,
+        modifier = modifier
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Card(
@@ -195,7 +198,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                 Text(
                     text = "Benötigte nächste Note: $requiredText",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 requiredNextGrade?.let { needed ->
@@ -272,7 +275,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                 Text(
                     text = "Aktuelle Note aus Punkten: $gradeFromPointsText",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Punkte in Prozent: $pointsPercentText",
@@ -293,7 +296,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                 Text(
                     text = "Benötigte Punkte für Zielnote: $neededPointsText / $maxPointsHint",
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 if (!validScale && (minGrade != null || maxGrade != null)) {
