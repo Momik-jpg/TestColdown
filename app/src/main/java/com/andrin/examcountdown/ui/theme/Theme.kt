@@ -42,7 +42,7 @@ fun ExamCountdownTheme(
             val activity = view.context.findActivity() ?: return@SideEffect
             val window = activity.window
             window.statusBarColor = colorScheme.background.toArgb()
-            window.navigationBarColor = colorScheme.surface.toArgb()
+            window.navigationBarColor = colorScheme.background.toArgb()
             val controller = WindowCompat.getInsetsController(window, view)
             controller.isAppearanceLightStatusBars = !darkTheme
             controller.isAppearanceLightNavigationBars = !darkTheme

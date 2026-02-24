@@ -28,11 +28,13 @@ class IcalSyncWorker(
     override suspend fun doWork(): Result {
         val repository = ExamRepository(applicationContext)
         val iCalUrl = repository.readIcalUrl() ?: return Result.success()
+        val importEvents = repository.readImportEventsEnabled()
 
         return try {
             IcalSyncEngine(applicationContext).syncFromUrl(
                 url = iCalUrl,
-                emitChangeNotification = true
+                emitChangeNotification = true,
+                importEvents = importEvents
             )
             Result.success()
         } catch (exception: Exception) {

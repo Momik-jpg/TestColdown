@@ -36,6 +36,7 @@ import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Schedule
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -52,8 +54,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
@@ -86,9 +90,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.andrin.examcountdown.data.QuietHoursConfig
 import com.andrin.examcountdown.data.SyncStatus
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.model.TimetableChangeEntry
 import com.andrin.examcountdown.model.TimetableChangeType
 import com.andrin.examcountdown.model.TimetableLesson
+import com.andrin.examcountdown.util.CollisionSource
+import com.andrin.examcountdown.util.ExamCollision
+import com.andrin.examcountdown.util.collisionsByExam
+import com.andrin.examcountdown.util.detectExamCollisions
 import com.andrin.examcountdown.util.formatCountdown
 import com.andrin.examcountdown.util.formatCompactDay
 import com.andrin.examcountdown.util.formatDayHeader
@@ -112,6 +121,7 @@ import kotlinx.coroutines.launch
 enum class HomeTab(val title: String, val route: String) {
     EXAMS("Prüfungen", "exams"),
     TIMETABLE("Stundenplan", "timetable"),
+    EVENTS("Agenda", "events"),
     GRADES("Notenrechner", "grades");
 
     companion object {
@@ -131,6 +141,20 @@ private enum class TimetableFilter(val title: String) {
     ONLY_TODAY("Nur heute"),
     ONLY_MOVED("Nur verschoben"),
     ONLY_ROOM_CHANGED("Nur Raum geändert")
+}
+
+private enum class ExamWindowFilter(val title: String, val maxDaysAhead: Int?) {
+    ALL("Alle", null),
+    NEXT_7("7 Tage", 7),
+    NEXT_30("30 Tage", 30),
+    NEXT_90("90 Tage", 90)
+}
+
+private enum class ExamSortMode(val title: String) {
+    NEXT_FIRST("Nächste zuerst"),
+    LATEST_FIRST("Späteste zuerst"),
+    SUBJECT_AZ("Fach A-Z"),
+    TITLE_AZ("Titel A-Z")
 }
 
 private data class TimetableLessonBlock(
@@ -156,8 +180,10 @@ fun ExamCountdownScreen(
 ) {
     val exams by viewModel.exams.collectAsStateWithLifecycle()
     val lessons by viewModel.lessons.collectAsStateWithLifecycle()
+    val events by viewModel.events.collectAsStateWithLifecycle()
     val timetableChanges by viewModel.timetableChanges.collectAsStateWithLifecycle()
     val savedIcalUrl by viewModel.savedIcalUrl.collectAsStateWithLifecycle()
+    val importEventsEnabled by viewModel.importEventsEnabled.collectAsStateWithLifecycle()
     val onboardingDone by viewModel.onboardingDone.collectAsStateWithLifecycle()
     val onboardingPromptSeen by viewModel.onboardingPromptSeen.collectAsStateWithLifecycle()
     val preferencesLoaded by viewModel.preferencesLoaded.collectAsStateWithLifecycle()
@@ -165,6 +191,9 @@ fun ExamCountdownScreen(
     val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
     val syncIntervalMinutes by viewModel.syncIntervalMinutes.collectAsStateWithLifecycle()
     val showSyncStatusStrip by viewModel.showSyncStatusStrip.collectAsStateWithLifecycle()
+    val showTimetableTab by viewModel.showTimetableTab.collectAsStateWithLifecycle()
+    val showAgendaTab by viewModel.showAgendaTab.collectAsStateWithLifecycle()
+    val showExamCollisionBadges by viewModel.showExamCollisionBadges.collectAsStateWithLifecycle()
     val isDarkMode = isSystemInDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
@@ -172,8 +201,12 @@ fun ExamCountdownScreen(
     var showReminderSettingsDialog by rememberSaveable { mutableStateOf(false) }
     var showSyncSettingsDialog by rememberSaveable { mutableStateOf(false) }
     var showQuickActionsDialog by rememberSaveable { mutableStateOf(false) }
+    var showPersonalizationDialog by rememberSaveable { mutableStateOf(false) }
+    var showHelpDialog by rememberSaveable { mutableStateOf(false) }
     var iCalUrl by rememberSaveable { mutableStateOf("") }
+    var importEventsToggle by rememberSaveable { mutableStateOf(false) }
     var onboardingUrl by rememberSaveable { mutableStateOf("") }
+    var onboardingImportEvents by rememberSaveable { mutableStateOf(false) }
     var onboardingTestedOk by rememberSaveable { mutableStateOf(false) }
     var onboardingInfoMessage by rememberSaveable { mutableStateOf("") }
     var isSyncingIcal by rememberSaveable { mutableStateOf(false) }
@@ -185,6 +218,26 @@ fun ExamCountdownScreen(
 
     LaunchedEffect(initialTab) {
         selectedTab = initialTab
+    }
+
+    LaunchedEffect(importEventsEnabled) {
+        importEventsToggle = importEventsEnabled
+        onboardingImportEvents = importEventsEnabled
+    }
+
+    val visibleTabs = remember(showTimetableTab, showAgendaTab) {
+        buildList {
+            add(HomeTab.EXAMS)
+            if (showTimetableTab) add(HomeTab.TIMETABLE)
+            if (showAgendaTab) add(HomeTab.EVENTS)
+            add(HomeTab.GRADES)
+        }
+    }
+
+    LaunchedEffect(visibleTabs, selectedTab) {
+        if (selectedTab !in visibleTabs) {
+            selectedTab = visibleTabs.firstOrNull() ?: HomeTab.EXAMS
+        }
     }
 
     val exportBackupLauncher = rememberLauncherForActivityResult(
@@ -243,6 +296,7 @@ fun ExamCountdownScreen(
         if (shouldShowOnboarding) {
             showOnboardingDialog = true
             onboardingUrl = savedIcalUrl
+            onboardingImportEvents = importEventsEnabled
             onboardingTestedOk = false
             onboardingInfoMessage = ""
             viewModel.markOnboardingPromptSeen()
@@ -270,14 +324,22 @@ fun ExamCountdownScreen(
     if (showIcalDialog) {
         IcalImportDialog(
             url = iCalUrl,
+            includeEvents = importEventsToggle,
             isImporting = isSyncingIcal,
             onUrlChange = { iCalUrl = it },
+            onIncludeEventsChange = { enabled ->
+                importEventsToggle = enabled
+                viewModel.setImportEventsEnabled(enabled)
+            },
             onDismiss = {
                 if (!isSyncingIcal) showIcalDialog = false
             },
             onImport = {
                 isSyncingIcal = true
-                viewModel.importFromIcal(iCalUrl) { message ->
+                viewModel.importFromIcal(
+                    url = iCalUrl,
+                    includeEvents = importEventsToggle
+                ) { message ->
                     isSyncingIcal = false
                     showIcalDialog = false
                     scope.launch {
@@ -291,6 +353,7 @@ fun ExamCountdownScreen(
     if (showOnboardingDialog) {
         OnboardingDialog(
             url = onboardingUrl,
+            includeEvents = onboardingImportEvents,
             statusMessage = onboardingInfoMessage,
             isBusy = isSyncingIcal,
             canFinish = onboardingTestedOk && onboardingUrl.isNotBlank(),
@@ -298,9 +361,13 @@ fun ExamCountdownScreen(
                 onboardingUrl = newUrl
                 onboardingTestedOk = false
             },
+            onIncludeEventsChange = { onboardingImportEvents = it },
             onTest = {
                 isSyncingIcal = true
-                viewModel.testIcalConnection(onboardingUrl) { ok, message ->
+                viewModel.testIcalConnection(
+                    url = onboardingUrl,
+                    includeEvents = onboardingImportEvents
+                ) { ok, message ->
                     isSyncingIcal = false
                     onboardingTestedOk = ok
                     onboardingInfoMessage = message
@@ -308,7 +375,10 @@ fun ExamCountdownScreen(
             },
             onFinish = {
                 isSyncingIcal = true
-                viewModel.completeOnboarding(onboardingUrl) { success, message ->
+                viewModel.completeOnboarding(
+                    url = onboardingUrl,
+                    includeEvents = onboardingImportEvents
+                ) { success, message ->
                     isSyncingIcal = false
                     onboardingInfoMessage = message
                     scope.launch {
@@ -379,8 +449,17 @@ fun ExamCountdownScreen(
             },
             onOpenIcalImport = {
                 iCalUrl = savedIcalUrl
+                importEventsToggle = importEventsEnabled
                 showQuickActionsDialog = false
                 showIcalDialog = true
+            },
+            onOpenHelp = {
+                showQuickActionsDialog = false
+                showHelpDialog = true
+            },
+            onOpenPersonalization = {
+                showQuickActionsDialog = false
+                showPersonalizationDialog = true
             },
             onExportBackup = {
                 showQuickActionsDialog = false
@@ -401,6 +480,36 @@ fun ExamCountdownScreen(
             onImportBackup = {
                 showQuickActionsDialog = false
                 importBackupLauncher.launch(arrayOf("application/json", "text/plain"))
+            }
+        )
+    }
+
+    if (showHelpDialog) {
+        HelpDialog(
+            onDismiss = { showHelpDialog = false }
+        )
+    }
+
+    if (showPersonalizationDialog) {
+        PersonalizationDialog(
+            showTimetableTab = showTimetableTab,
+            showAgendaTab = showAgendaTab,
+            showExamCollisionBadges = showExamCollisionBadges,
+            onDismiss = { showPersonalizationDialog = false },
+            onShowTimetableTabChange = { enabled ->
+                if (!enabled && !showAgendaTab) {
+                    viewModel.setShowAgendaTab(true)
+                }
+                viewModel.setShowTimetableTab(enabled)
+            },
+            onShowAgendaTabChange = { enabled ->
+                if (!enabled && !showTimetableTab) {
+                    viewModel.setShowTimetableTab(true)
+                }
+                viewModel.setShowAgendaTab(enabled)
+            },
+            onShowExamCollisionBadgesChange = { enabled ->
+                viewModel.setShowExamCollisionBadges(enabled)
             }
         )
     }
@@ -447,10 +556,17 @@ fun ExamCountdownScreen(
                                     }
                                 }
                             ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Refresh,
-                                    contentDescription = "Jetzt aktualisieren"
-                                )
+                                if (isSyncingIcal) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Refresh,
+                                        contentDescription = "Jetzt aktualisieren"
+                                    )
+                                }
                             }
                             IconButton(
                                 onClick = {
@@ -470,10 +586,10 @@ fun ExamCountdownScreen(
                     )
                 )
                 TabRow(
-                    selectedTabIndex = selectedTab.ordinal,
+                    selectedTabIndex = visibleTabs.indexOf(selectedTab).coerceAtLeast(0),
                     containerColor = Color.Transparent
                 ) {
-                    HomeTab.entries.forEach { tab ->
+                    visibleTabs.forEach { tab ->
                         Tab(
                             selected = selectedTab == tab,
                             onClick = { selectedTab = tab },
@@ -504,8 +620,23 @@ fun ExamCountdownScreen(
             when (selectedTab) {
                 HomeTab.EXAMS -> ExamListContent(
                     exams = exams,
+                    lessons = lessons,
+                    showCollisionBadges = showExamCollisionBadges,
                     onAddClick = { showAddDialog = true },
-                    onDelete = { examId -> viewModel.deleteExam(examId) }
+                    onDelete = { exam ->
+                        viewModel.deleteExam(exam.id)
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "\"${exam.title}\" gelöscht",
+                                actionLabel = "Rückgängig",
+                                duration = SnackbarDuration.Long
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                viewModel.restoreExam(exam)
+                                snackbarHostState.showSnackbar("Prüfung wiederhergestellt.")
+                            }
+                        }
+                    }
                 )
 
                 HomeTab.TIMETABLE -> TimetableContent(
@@ -514,9 +645,32 @@ fun ExamCountdownScreen(
                     hasIcalUrl = savedIcalUrl.isNotBlank(),
                     onOpenIcalImport = {
                         iCalUrl = savedIcalUrl
+                        importEventsToggle = importEventsEnabled
                         showIcalDialog = true
                     },
                     onClearChanges = { viewModel.clearTimetableChanges() }
+                )
+
+                HomeTab.EVENTS -> EventsTimelineContent(
+                    exams = exams,
+                    lessons = lessons,
+                    events = events,
+                    hasIcalUrl = savedIcalUrl.isNotBlank(),
+                    importEventsEnabled = importEventsEnabled,
+                    onOpenIcalImport = {
+                        iCalUrl = savedIcalUrl
+                        importEventsToggle = importEventsEnabled
+                        showIcalDialog = true
+                    },
+                    onEnableEventsImportAndSync = {
+                        isSyncingIcal = true
+                        viewModel.enableEventsImportAndRefresh { message ->
+                            isSyncingIcal = false
+                            scope.launch {
+                                snackbarHostState.showSnackbar(message)
+                            }
+                        }
+                    }
                 )
 
                 HomeTab.GRADES -> GradeCalculatorScreen(
@@ -532,8 +686,10 @@ fun ExamCountdownScreen(
 @Composable
 private fun IcalImportDialog(
     url: String,
+    includeEvents: Boolean,
     isImporting: Boolean,
     onUrlChange: (String) -> Unit,
+    onIncludeEventsChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     onImport: () -> Unit
 ) {
@@ -551,8 +707,27 @@ private fun IcalImportDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Events zusätzlich importieren",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Switch(
+                        checked = includeEvents,
+                        onCheckedChange = onIncludeEventsChange
+                    )
+                }
+
                 Text(
-                    text = "iCal-Link einmal eingeben und speichern. Danach reicht oben der Pfeil zum Aktualisieren. Es werden nur echte Prüfungen importiert (Termine/Events werden ignoriert).",
+                    text = if (includeEvents) {
+                        "iCal-Link bleibt gespeichert. Es werden Prüfungen, Lektionen und Events importiert."
+                    } else {
+                        "iCal-Link bleibt gespeichert. Standard: nur Prüfungen und Lektionen (ohne Events)."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -585,6 +760,8 @@ private fun QuickActionsDialog(
     onOpenReminderSettings: () -> Unit,
     onOpenSyncSettings: () -> Unit,
     onOpenIcalImport: () -> Unit,
+    onOpenHelp: () -> Unit,
+    onOpenPersonalization: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit
 ) {
@@ -649,6 +826,28 @@ private fun QuickActionsDialog(
                     )
                     Text("Auto-Sync")
                 }
+                OutlinedButton(
+                    onClick = onOpenHelp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.HelpOutline,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text("Hilfe / Troubleshooting")
+                }
+                OutlinedButton(
+                    onClick = onOpenPersonalization,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.MoreVert,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text("Personalisieren")
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
                         onClick = onExportBackup,
@@ -676,32 +875,126 @@ private fun QuickActionsDialog(
 @Composable
 private fun OnboardingDialog(
     url: String,
+    includeEvents: Boolean,
     statusMessage: String,
     isBusy: Boolean,
     canFinish: Boolean,
     onUrlChange: (String) -> Unit,
+    onIncludeEventsChange: (Boolean) -> Unit,
     onTest: () -> Unit,
     onFinish: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var step by rememberSaveable { mutableIntStateOf(1) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Erststart: iCal verbinden") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "1) iCal-Link einfügen  2) Verbindung testen  3) Fertig.\nDer Link bleibt gespeichert.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = onUrlChange,
-                    label = { Text("schulNetz iCal-URL") },
-                    placeholder = { Text("https://...") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(1, 2, 3).forEach { number ->
+                        FilterChip(
+                            selected = step == number,
+                            onClick = { step = number },
+                            label = { Text("Schritt $number") }
+                        )
+                    }
+                }
+
+                if (step == 1) {
+                    Text(
+                        text = "Schritt 1/3: iCal-Link einfügen. Der Link bleibt gespeichert.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = url,
+                        onValueChange = onUrlChange,
+                        label = { Text("schulNetz iCal-URL") },
+                        placeholder = { Text("https://...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Events zusätzlich importieren",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Switch(
+                            checked = includeEvents,
+                            onCheckedChange = onIncludeEventsChange
+                        )
+                    }
+                }
+
+                if (step == 2) {
+                    Text(
+                        text = "Schritt 2/3: Verbindung testen. Erst bei Erfolg wird 'Fertig' aktiv.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = if (includeEvents) {
+                                    "Import-Modus: Prüfungen + Lektionen + Events"
+                                } else {
+                                    "Import-Modus: Prüfungen + Lektionen"
+                                },
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                text = if (url.isBlank()) "Kein Link eingegeben" else url.take(64),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                if (step == 3) {
+                    Text(
+                        text = "Schritt 3/3: Fertigstellen. Danach kannst du oben mit dem Pfeil jederzeit aktualisieren.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = if (canFinish) "Verbindung geprüft. Bereit für ersten Sync." else "Bitte zuerst Verbindung testen.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                text = if (includeEvents) "Events-Import ist aktiviert." else "Events-Import ist deaktiviert.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
                 if (statusMessage.isNotBlank()) {
                     Text(
                         text = statusMessage,
@@ -718,13 +1011,25 @@ private fun OnboardingDialog(
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(
+                    enabled = !isBusy && step > 1,
+                    onClick = { step -= 1 }
+                ) {
+                    Text("Zurück")
+                }
+                TextButton(
+                    enabled = !isBusy && step < 3,
+                    onClick = { step += 1 }
+                ) {
+                    Text("Weiter")
+                }
+                TextButton(
                     enabled = !isBusy && url.isNotBlank(),
                     onClick = onTest
                 ) {
                     Text(if (isBusy) "Prüfe..." else "Verbindung testen")
                 }
                 TextButton(
-                    enabled = !isBusy && canFinish,
+                    enabled = !isBusy && canFinish && step == 3,
                     onClick = onFinish
                 ) {
                     Text(if (isBusy) "Sync..." else "Fertig")
@@ -734,6 +1039,137 @@ private fun OnboardingDialog(
         dismissButton = {
             TextButton(enabled = !isBusy, onClick = onDismiss) {
                 Text("Später")
+            }
+        }
+    )
+}
+
+@Composable
+private fun HelpDialog(
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Hilfe & Troubleshooting") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Schnellstart",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "1) iCal-Link einfügen 2) Verbindung testen 3) Fertig. Danach oben mit dem Pfeil aktualisieren.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Text(
+                    text = "Typische Probleme",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Schwarzer Emulator: AVD kalt neu starten (Cold Boot) und GPU auf Software stellen.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = "Sync-Fehler: Link prüfen, Internet prüfen, bei HTTP 410 einen neuen iCal-Link in schulNetz erzeugen.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = "Keine Events: In iCal-Einstellungen den Event-Import aktivieren und erneut synchronisieren.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = "Daten sichern: Unter Werkzeuge Backup Export/Import verwenden.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Schließen")
+            }
+        }
+    )
+}
+
+@Composable
+private fun PersonalizationDialog(
+    showTimetableTab: Boolean,
+    showAgendaTab: Boolean,
+    showExamCollisionBadges: Boolean,
+    onDismiss: () -> Unit,
+    onShowTimetableTabChange: (Boolean) -> Unit,
+    onShowAgendaTabChange: (Boolean) -> Unit,
+    onShowExamCollisionBadgesChange: (Boolean) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Personalisieren") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Stundenplan-Tab anzeigen")
+                            Switch(
+                                checked = showTimetableTab,
+                                onCheckedChange = onShowTimetableTabChange
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Agenda-Tab anzeigen")
+                            Switch(
+                                checked = showAgendaTab,
+                                onCheckedChange = onShowAgendaTabChange
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Kollisions-Badges anzeigen")
+                            Switch(
+                                checked = showExamCollisionBadges,
+                                onCheckedChange = onShowExamCollisionBadgesChange
+                            )
+                        }
+                    }
+                }
+
+                Text(
+                    text = "Agenda zeigt Prüfungen, Lektionen und Events kombiniert. Du kannst sie statt Stundenplan nutzen.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Fertig")
             }
         }
     )
@@ -1634,11 +2070,15 @@ private fun TimetableEmptyState(
 @Composable
 private fun ExamListContent(
     exams: List<Exam>,
+    lessons: List<TimetableLesson>,
+    showCollisionBadges: Boolean,
     onAddClick: () -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (Exam) -> Unit
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedSubject by rememberSaveable { mutableStateOf(SUBJECT_FILTER_ALL) }
+    var selectedWindow by rememberSaveable { mutableStateOf(ExamWindowFilter.ALL) }
+    var selectedSortMode by rememberSaveable { mutableStateOf(ExamSortMode.NEXT_FIRST) }
     val subjectOptions = remember(exams) {
         val subjects = exams.mapNotNull { exam ->
             exam.subject?.trim()?.takeIf { it.isNotBlank() }
@@ -1653,9 +2093,14 @@ private fun ExamListContent(
         }
     }
 
-    val filteredExams = remember(exams, searchQuery, selectedSubject) {
+    val filteredExams = remember(exams, searchQuery, selectedSubject, selectedWindow, selectedSortMode) {
         val query = searchQuery.trim().lowercase()
-        exams.filter { exam ->
+        val now = System.currentTimeMillis()
+        val windowEnd = selectedWindow.maxDaysAhead?.let { days ->
+            now + days * 24L * 60L * 60L * 1000L
+        }
+
+        val filtered = exams.filter { exam ->
             val matchesSubject = selectedSubject == SUBJECT_FILTER_ALL ||
                 exam.subject?.equals(selectedSubject, ignoreCase = true) == true
             val matchesQuery = query.isBlank() || listOf(
@@ -1666,10 +2111,48 @@ private fun ExamListContent(
                 .joinToString(" ")
                 .lowercase()
                 .contains(query)
-            matchesSubject && matchesQuery
+            val matchesWindow = windowEnd == null || exam.startsAtEpochMillis in now..windowEnd
+            matchesSubject && matchesQuery && matchesWindow
+        }
+
+        when (selectedSortMode) {
+            ExamSortMode.NEXT_FIRST -> filtered.sortedBy { it.startsAtEpochMillis }
+            ExamSortMode.LATEST_FIRST -> filtered.sortedByDescending { it.startsAtEpochMillis }
+            ExamSortMode.SUBJECT_AZ -> filtered.sortedWith(
+                compareBy<Exam>(
+                    { it.subject.orEmpty().lowercase() },
+                    { it.title.lowercase() },
+                    { it.startsAtEpochMillis }
+                )
+            )
+            ExamSortMode.TITLE_AZ -> filtered.sortedWith(
+                compareBy<Exam>(
+                    { it.title.lowercase() },
+                    { it.subject.orEmpty().lowercase() },
+                    { it.startsAtEpochMillis }
+                )
+            )
         }
     }
-    val nextExam = filteredExams.firstOrNull()
+    val nextExam = remember(filteredExams) {
+        val now = System.currentTimeMillis()
+        filteredExams.firstOrNull { it.startsAtEpochMillis >= now } ?: filteredExams.firstOrNull()
+    }
+    val collisionMap = remember(exams, lessons, showCollisionBadges) {
+        if (!showCollisionBadges) {
+            emptyMap()
+        } else {
+            val collisions = detectExamCollisions(
+                exams = exams,
+                lessons = lessons,
+                events = emptyList()
+            )
+            collisionsByExam(collisions)
+        }
+    }
+    val collisionCount = remember(collisionMap) {
+        collisionMap.values.flatten().size
+    }
 
     if (exams.isEmpty()) {
         LazyColumn(
@@ -1698,7 +2181,11 @@ private fun ExamListContent(
                 onQueryChange = { searchQuery = it },
                 selectedSubject = selectedSubject,
                 subjects = subjectOptions,
-                onSubjectSelected = { selectedSubject = it }
+                onSubjectSelected = { selectedSubject = it },
+                selectedWindow = selectedWindow,
+                onWindowSelected = { selectedWindow = it },
+                selectedSortMode = selectedSortMode,
+                onSortModeSelected = { selectedSortMode = it }
             )
         }
         item {
@@ -1706,6 +2193,13 @@ private fun ExamListContent(
                 exams = exams,
                 visibleCount = filteredExams.size
             )
+        }
+        if (collisionCount > 0) {
+            item {
+                ExamCollisionOverviewCard(
+                    collisionMap = collisionMap
+                )
+            }
         }
         item {
             nextExam?.let { exam ->
@@ -1726,7 +2220,8 @@ private fun ExamListContent(
             items(items = filteredExams, key = { it.id }) { exam ->
                 ExamCard(
                     exam = exam,
-                    onDelete = { onDelete(exam.id) }
+                    collisions = collisionMap[exam.id].orEmpty(),
+                    onDelete = { onDelete(exam) }
                 )
             }
         }
@@ -1816,12 +2311,62 @@ private fun InsightPill(
 }
 
 @Composable
+private fun ExamCollisionOverviewCard(
+    collisionMap: Map<String, List<ExamCollision>>
+) {
+    val totalCount = remember(collisionMap) { collisionMap.values.sumOf { it.size } }
+    val entries = remember(collisionMap) {
+        collisionMap.values.flatten()
+            .sortedBy { it.examStartsAtEpochMillis }
+            .take(5)
+    }
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.28f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Kollisionen erkannt",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Text(
+                text = "$totalCount Kollisionen erkannt. Prüfe betroffene Prüfungen unten.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            entries.forEach { collision ->
+                val sourceText = when (collision.source) {
+                    CollisionSource.LESSON -> "Lektion"
+                    CollisionSource.EVENT -> "Event"
+                }
+                Text(
+                    text = "• ${collision.examTitle} ↔ $sourceText: ${collision.sourceTitle}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ExamSearchAndFilterCard(
     query: String,
     onQueryChange: (String) -> Unit,
     selectedSubject: String,
     subjects: List<String>,
-    onSubjectSelected: (String) -> Unit
+    onSubjectSelected: (String) -> Unit,
+    selectedWindow: ExamWindowFilter,
+    onWindowSelected: (ExamWindowFilter) -> Unit,
+    selectedSortMode: ExamSortMode,
+    onSortModeSelected: (ExamSortMode) -> Unit
 ) {
     Card(
         shape = MaterialTheme.shapes.large,
@@ -1869,6 +2414,34 @@ private fun ExamSearchAndFilterCard(
                             label = { Text(subject) }
                         )
                     }
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ExamWindowFilter.entries.forEach { window ->
+                    FilterChip(
+                        selected = selectedWindow == window,
+                        onClick = { onWindowSelected(window) },
+                        label = { Text(window.title) }
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ExamSortMode.entries.forEach { mode ->
+                    FilterChip(
+                        selected = selectedSortMode == mode,
+                        onClick = { onSortModeSelected(mode) },
+                        label = { Text(mode.title) }
+                    )
                 }
             }
         }
@@ -2001,7 +2574,11 @@ private fun EmptyState(
 }
 
 @Composable
-private fun ExamCard(exam: Exam, onDelete: () -> Unit) {
+private fun ExamCard(
+    exam: Exam,
+    collisions: List<ExamCollision>,
+    onDelete: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
@@ -2024,6 +2601,23 @@ private fun ExamCard(exam: Exam, onDelete: () -> Unit) {
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+            if (collisions.isNotEmpty()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.9f),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        text = if (collisions.size == 1) {
+                            "Kollision mit ${collisionSourceLabel(collisions.first().source)}"
+                        } else {
+                            "${collisions.size} Kollisionen"
+                        },
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer
                     )
                 }
             }
@@ -2102,6 +2696,17 @@ private fun ExamCard(exam: Exam, onDelete: () -> Unit) {
                         modifier = Modifier.padding(end = 6.dp)
                     )
                     Text(text = text, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+
+            if (collisions.isNotEmpty()) {
+                collisions.take(2).forEach { collision ->
+                    val source = collisionSourceLabel(collision.source)
+                    Text(
+                        text = "Kollision $source: ${collision.sourceTitle}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }
@@ -2493,6 +3098,13 @@ private fun parseLeadTimesMinutes(raw: String): List<Long> {
         .filter { it in 1L..(14L * 24L * 60L) }
         .distinct()
         .sorted()
+}
+
+private fun collisionSourceLabel(source: CollisionSource): String {
+    return when (source) {
+        CollisionSource.LESSON -> "Lektion"
+        CollisionSource.EVENT -> "Event"
+    }
 }
 
 private fun formatMinutesOfDay(minutesOfDay: Int): String {

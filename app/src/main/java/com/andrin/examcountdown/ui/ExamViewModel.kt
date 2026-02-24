@@ -33,6 +33,11 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList()
     )
+    val events = repository.eventsFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
     val timetableChanges = repository.timetableChangesFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -42,6 +47,11 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = ""
+    )
+    val importEventsEnabled = repository.importEventsEnabledFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false
     )
     val onboardingDone = repository.onboardingDoneFlow.stateIn(
         scope = viewModelScope,
@@ -77,6 +87,21 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = true
+    )
+    val showTimetableTab = repository.showTimetableTabFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = true
+    )
+    val showAgendaTab = repository.showAgendaTabFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = true
+    )
+    val showExamCollisionBadges = repository.showExamCollisionBadgesFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false
     )
 
     fun addExam(
@@ -116,7 +141,15 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun importFromIcal(url: String, onDone: (String) -> Unit) {
+    fun restoreExam(exam: Exam) {
+        viewModelScope.launch {
+            repository.addExam(exam)
+            ExamReminderScheduler.scheduleExamReminder(getApplication(), exam)
+            WidgetUpdater.updateAll(getApplication())
+        }
+    }
+
+    fun importFromIcal(url: String, includeEvents: Boolean, onDone: (String) -> Unit) {
         val trimmedUrl = url.trim()
         if (trimmedUrl.isBlank()) {
             onDone("Bitte iCal-URL eingeben.")
@@ -125,9 +158,11 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             repository.saveIcalUrl(trimmedUrl)
+            repository.setImportEventsEnabled(includeEvents)
             val (success, message) = syncFromIcalUrl(
                 url = trimmedUrl,
-                emitChangeNotification = false
+                emitChangeNotification = false,
+                includeEvents = includeEvents
             )
             if (success) {
                 repository.setOnboardingDone(true)
@@ -143,16 +178,18 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
                 onDone("Bitte zuerst einmal eine iCal-URL eingeben.")
                 return@launch
             }
+            val includeEvents = repository.readImportEventsEnabled()
 
             val (_, message) = syncFromIcalUrl(
                 url = savedUrl,
-                emitChangeNotification = false
+                emitChangeNotification = false,
+                includeEvents = includeEvents
             )
             onDone(message)
         }
     }
 
-    fun testIcalConnection(url: String, onDone: (Boolean, String) -> Unit) {
+    fun testIcalConnection(url: String, includeEvents: Boolean, onDone: (Boolean, String) -> Unit) {
         val trimmedUrl = url.trim()
         if (trimmedUrl.isBlank()) {
             onDone(false, "Bitte iCal-URL eingeben.")
@@ -161,8 +198,12 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             runCatching {
-                val result = syncEngine.testConnection(trimmedUrl)
-                "Verbindung erfolgreich. ${result.examsImported} Prüfungen und ${result.lessonsImported} Lektionen gefunden."
+                val result = syncEngine.testConnection(
+                    url = trimmedUrl,
+                    importEvents = includeEvents
+                )
+                val eventsInfo = if (includeEvents) " und ${result.eventsImported} Events" else ""
+                "Verbindung erfolgreich. ${result.examsImported} Prüfungen, ${result.lessonsImported} Lektionen$eventsInfo gefunden."
             }.onSuccess { message ->
                 onDone(true, message)
             }.onFailure { throwable ->
@@ -172,7 +213,7 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun completeOnboarding(url: String, onDone: (Boolean, String) -> Unit) {
+    fun completeOnboarding(url: String, includeEvents: Boolean, onDone: (Boolean, String) -> Unit) {
         val trimmedUrl = url.trim()
         if (trimmedUrl.isBlank()) {
             onDone(false, "Bitte iCal-URL eingeben.")
@@ -181,9 +222,11 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             repository.saveIcalUrl(trimmedUrl)
+            repository.setImportEventsEnabled(includeEvents)
             val (success, message) = syncFromIcalUrl(
                 url = trimmedUrl,
-                emitChangeNotification = false
+                emitChangeNotification = false,
+                includeEvents = includeEvents
             )
             if (success) {
                 repository.setOnboardingDone(true)
@@ -238,12 +281,14 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun syncFromIcalUrl(
         url: String,
-        emitChangeNotification: Boolean
+        emitChangeNotification: Boolean,
+        includeEvents: Boolean
     ): Pair<Boolean, String> {
         return runCatching {
             val result = syncEngine.syncFromUrl(
                 url = url,
-                emitChangeNotification = emitChangeNotification
+                emitChangeNotification = emitChangeNotification,
+                importEvents = includeEvents
             )
             IcalSyncScheduler.scheduleFromRepository(getApplication())
             WidgetUpdater.updateAll(getApplication())
@@ -282,6 +327,47 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
     fun setShowSyncStatusStrip(enabled: Boolean) {
         viewModelScope.launch {
             repository.setShowSyncStatusStrip(enabled)
+        }
+    }
+
+    fun setImportEventsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setImportEventsEnabled(enabled)
+        }
+    }
+
+    fun enableEventsImportAndRefresh(onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            repository.setImportEventsEnabled(true)
+            val savedUrl = repository.readIcalUrl()
+            if (savedUrl.isNullOrBlank()) {
+                onDone("Events-Import aktiviert. Bitte zuerst iCal-Link eingeben.")
+                return@launch
+            }
+            val (_, message) = syncFromIcalUrl(
+                url = savedUrl,
+                emitChangeNotification = false,
+                includeEvents = true
+            )
+            onDone(message)
+        }
+    }
+
+    fun setShowTimetableTab(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setShowTimetableTab(enabled)
+        }
+    }
+
+    fun setShowAgendaTab(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setShowAgendaTab(enabled)
+        }
+    }
+
+    fun setShowExamCollisionBadges(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setShowExamCollisionBadges(enabled)
         }
     }
 }

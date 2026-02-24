@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 data class IcalSyncResult(
     val examsImported: Int,
     val lessonsImported: Int,
+    val eventsImported: Int,
     val changedLessons: Int,
     val movedLessons: Int,
     val roomChangedLessons: Int
@@ -19,6 +20,9 @@ data class IcalSyncResult(
     fun summaryText(): String {
         return buildString {
             append("$examsImported Prüfungen und $lessonsImported Lektionen synchronisiert.")
+            if (eventsImported > 0) {
+                append(" $eventsImported Events synchronisiert.")
+            }
             if (changedLessons > 0) {
                 append(" $changedLessons Änderung")
                 if (changedLessons != 1) append("en")
@@ -35,21 +39,30 @@ class IcalSyncEngine(
     private val repository = ExamRepository(appContext)
     private val examImporter = IcalImporter()
     private val timetableImporter = TimetableIcalImporter()
+    private val eventImporter = SchoolEventIcalImporter()
 
     suspend fun syncFromUrl(
         url: String,
-        emitChangeNotification: Boolean
+        emitChangeNotification: Boolean,
+        importEvents: Boolean? = null
     ): IcalSyncResult {
         val normalizedUrl = normalizeAndValidateUrl(url)
         val raw = withContext(Dispatchers.IO) { IcalHttpClient.download(normalizedUrl) }
         val previousLessons = repository.readLessonsSnapshot()
+        val shouldImportEvents = importEvents ?: repository.readImportEventsEnabled()
 
         val examResult = examImporter.importFromRaw(raw)
         val timetableResult = timetableImporter.importFromRaw(raw)
+        val eventsResult = if (shouldImportEvents) {
+            eventImporter.importFromRaw(raw)
+        } else {
+            SchoolEventImportResult(events = emptyList(), message = "Event-Import deaktiviert.")
+        }
 
         repository.replaceIcalSyncSnapshot(
             importedExams = examResult.exams,
-            importedLessons = timetableResult.lessons
+            importedLessons = timetableResult.lessons,
+            importedEvents = eventsResult.events
         )
         WidgetUpdater.updateAll(appContext)
 
@@ -57,6 +70,7 @@ class IcalSyncEngine(
         val result = IcalSyncResult(
             examsImported = examResult.exams.size,
             lessonsImported = timetableResult.lessons.size,
+            eventsImported = eventsResult.events.size,
             changedLessons = changes.total,
             movedLessons = changes.movedCount,
             roomChangedLessons = changes.roomChangedCount
@@ -79,15 +93,22 @@ class IcalSyncEngine(
         return result
     }
 
-    suspend fun testConnection(url: String): IcalSyncResult {
+    suspend fun testConnection(url: String, importEvents: Boolean? = null): IcalSyncResult {
         val normalizedUrl = normalizeAndValidateUrl(url)
         val raw = withContext(Dispatchers.IO) { IcalHttpClient.download(normalizedUrl) }
+        val shouldImportEvents = importEvents ?: repository.readImportEventsEnabled()
         val examResult = examImporter.importFromRaw(raw)
         val timetableResult = timetableImporter.importFromRaw(raw)
+        val eventsResult = if (shouldImportEvents) {
+            eventImporter.importFromRaw(raw)
+        } else {
+            SchoolEventImportResult(events = emptyList(), message = "Event-Import deaktiviert.")
+        }
 
         return IcalSyncResult(
             examsImported = examResult.exams.size,
             lessonsImported = timetableResult.lessons.size,
+            eventsImported = eventsResult.events.size,
             changedLessons = 0,
             movedLessons = 0,
             roomChangedLessons = 0

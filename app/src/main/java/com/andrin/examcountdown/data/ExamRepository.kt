@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.model.TimetableChangeEntry
 import com.andrin.examcountdown.model.TimetableLesson
 import java.io.IOException
@@ -31,8 +32,10 @@ data class SyncStatus(
 class ExamRepository(private val appContext: Context) {
     private val examsKey = stringPreferencesKey("exams_json")
     private val lessonsKey = stringPreferencesKey("lessons_json")
+    private val eventsKey = stringPreferencesKey("events_json")
     private val timetableChangesKey = stringPreferencesKey("timetable_changes_json")
     private val iCalUrlKey = stringPreferencesKey("ical_url")
+    private val importEventsEnabledKey = booleanPreferencesKey("import_events_enabled")
     private val onboardingDoneKey = booleanPreferencesKey("onboarding_done")
     private val onboardingPromptSeenKey = booleanPreferencesKey("onboarding_prompt_seen")
     private val quietHoursEnabledKey = booleanPreferencesKey("quiet_hours_enabled")
@@ -40,6 +43,9 @@ class ExamRepository(private val appContext: Context) {
     private val quietHoursEndMinutesKey = longPreferencesKey("quiet_hours_end_minutes")
     private val syncIntervalMinutesKey = longPreferencesKey("sync_interval_minutes")
     private val showSyncStatusStripKey = booleanPreferencesKey("show_sync_status_strip")
+    private val showTimetableTabKey = booleanPreferencesKey("show_timetable_tab")
+    private val showAgendaTabKey = booleanPreferencesKey("show_agenda_tab")
+    private val showExamCollisionBadgesKey = booleanPreferencesKey("show_exam_collision_badges")
     private val lastSyncAtMillisKey = longPreferencesKey("last_sync_at_ms")
     private val lastSyncSummaryKey = stringPreferencesKey("last_sync_summary")
     private val lastSyncErrorKey = stringPreferencesKey("last_sync_error")
@@ -66,6 +72,12 @@ class ExamRepository(private val appContext: Context) {
                 .sortedBy { it.startsAtEpochMillis }
         }
 
+    val eventsFlow: Flow<List<SchoolEvent>> = preferencesFlow
+        .map { preferences ->
+            decodeEvents(preferences[eventsKey])
+                .sortedBy { it.startsAtEpochMillis }
+        }
+
     val timetableChangesFlow: Flow<List<TimetableChangeEntry>> = preferencesFlow
         .map { preferences ->
             decodeTimetableChanges(preferences[timetableChangesKey])
@@ -74,6 +86,9 @@ class ExamRepository(private val appContext: Context) {
 
     val iCalUrlFlow: Flow<String> = preferencesFlow
         .map { preferences -> preferences[iCalUrlKey].orEmpty() }
+
+    val importEventsEnabledFlow: Flow<Boolean> = preferencesFlow
+        .map { preferences -> preferences[importEventsEnabledKey] ?: false }
 
     val onboardingDoneFlow: Flow<Boolean> = preferencesFlow
         .map { preferences -> preferences[onboardingDoneKey] ?: false }
@@ -114,6 +129,21 @@ class ExamRepository(private val appContext: Context) {
             preferences[showSyncStatusStripKey] ?: true
         }
 
+    val showTimetableTabFlow: Flow<Boolean> = preferencesFlow
+        .map { preferences ->
+            preferences[showTimetableTabKey] ?: true
+        }
+
+    val showAgendaTabFlow: Flow<Boolean> = preferencesFlow
+        .map { preferences ->
+            preferences[showAgendaTabKey] ?: true
+        }
+
+    val showExamCollisionBadgesFlow: Flow<Boolean> = preferencesFlow
+        .map { preferences ->
+            preferences[showExamCollisionBadgesKey] ?: false
+        }
+
     suspend fun addExam(exam: Exam) {
         updateExams { current ->
             (current + exam)
@@ -130,7 +160,11 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
-    suspend fun replaceIcalSyncSnapshot(importedExams: List<Exam>, importedLessons: List<TimetableLesson>) {
+    suspend fun replaceIcalSyncSnapshot(
+        importedExams: List<Exam>,
+        importedLessons: List<TimetableLesson>,
+        importedEvents: List<SchoolEvent>
+    ) {
         appContext.dataStore.edit { preferences ->
             val currentExams = decodeExams(preferences[examsKey])
             val manualExams = currentExams.filterNot { it.id.startsWith("ical:") }
@@ -140,9 +174,13 @@ class ExamRepository(private val appContext: Context) {
             val mergedLessons = importedLessons
                 .distinctBy { it.id }
                 .sortedBy { it.startsAtEpochMillis }
+            val mergedEvents = importedEvents
+                .distinctBy { it.id }
+                .sortedBy { it.startsAtEpochMillis }
 
             preferences[examsKey] = json.encodeToString(mergedExams)
             preferences[lessonsKey] = json.encodeToString(mergedLessons)
+            preferences[eventsKey] = json.encodeToString(mergedEvents)
         }
     }
 
@@ -150,6 +188,15 @@ class ExamRepository(private val appContext: Context) {
         appContext.dataStore.edit { preferences ->
             val updated = imported.sortedBy { it.startsAtEpochMillis }
             preferences[lessonsKey] = json.encodeToString(updated)
+        }
+    }
+
+    suspend fun replaceSyncedEvents(imported: List<SchoolEvent>) {
+        appContext.dataStore.edit { preferences ->
+            val updated = imported
+                .distinctBy { it.id }
+                .sortedBy { it.startsAtEpochMillis }
+            preferences[eventsKey] = json.encodeToString(updated)
         }
     }
 
@@ -185,6 +232,12 @@ class ExamRepository(private val appContext: Context) {
     suspend fun saveIcalUrl(url: String) {
         appContext.dataStore.edit { preferences ->
             preferences[iCalUrlKey] = url.trim()
+        }
+    }
+
+    suspend fun setImportEventsEnabled(enabled: Boolean) {
+        appContext.dataStore.edit { preferences ->
+            preferences[importEventsEnabledKey] = enabled
         }
     }
 
@@ -234,11 +287,31 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun setShowTimetableTab(enabled: Boolean) {
+        appContext.dataStore.edit { preferences ->
+            preferences[showTimetableTabKey] = enabled
+        }
+    }
+
+    suspend fun setShowAgendaTab(enabled: Boolean) {
+        appContext.dataStore.edit { preferences ->
+            preferences[showAgendaTabKey] = enabled
+        }
+    }
+
+    suspend fun setShowExamCollisionBadges(enabled: Boolean) {
+        appContext.dataStore.edit { preferences ->
+            preferences[showExamCollisionBadgesKey] = enabled
+        }
+    }
+
     suspend fun readIcalUrl(): String? = iCalUrlFlow.first().takeIf { it.isNotBlank() }
+    suspend fun readImportEventsEnabled(): Boolean = importEventsEnabledFlow.first()
     suspend fun readSyncIntervalMinutes(): Long = syncIntervalMinutesFlow.first()
 
     suspend fun readSnapshot(): List<Exam> = examsFlow.first()
     suspend fun readLessonsSnapshot(): List<TimetableLesson> = lessonsFlow.first()
+    suspend fun readEventsSnapshot(): List<SchoolEvent> = eventsFlow.first()
     suspend fun readTimetableChangesSnapshot(): List<TimetableChangeEntry> = timetableChangesFlow.first()
     suspend fun readQuietHoursConfig(): QuietHoursConfig = quietHoursFlow.first()
 
@@ -246,8 +319,13 @@ class ExamRepository(private val appContext: Context) {
         val backup = AppBackup(
             exams = readSnapshot(),
             lessons = readLessonsSnapshot(),
+            events = readEventsSnapshot(),
             timetableChanges = readTimetableChangesSnapshot(),
             iCalUrl = readIcalUrl(),
+            importEventsEnabled = readImportEventsEnabled(),
+            showTimetableTab = showTimetableTabFlow.first(),
+            showAgendaTab = showAgendaTabFlow.first(),
+            showExamCollisionBadges = showExamCollisionBadgesFlow.first(),
             onboardingDone = onboardingDoneFlow.first(),
             onboardingPromptSeen = onboardingPromptSeenFlow.first(),
             quietHours = readQuietHoursConfig(),
@@ -283,6 +361,11 @@ class ExamRepository(private val appContext: Context) {
             .take(MAX_BACKUP_LESSONS)
             .sortedBy { it.startsAtEpochMillis }
 
+        val sanitizedEvents = backup.events
+            .distinctBy { it.id }
+            .take(MAX_BACKUP_EVENTS)
+            .sortedBy { it.startsAtEpochMillis }
+
         val sanitizedChanges = backup.timetableChanges
             .sortedByDescending { it.changedAtEpochMillis }
             .distinctBy { entry ->
@@ -304,6 +387,9 @@ class ExamRepository(private val appContext: Context) {
             preferences[lessonsKey] = json.encodeToString(
                 sanitizedLessons
             )
+            preferences[eventsKey] = json.encodeToString(
+                sanitizedEvents
+            )
             preferences[timetableChangesKey] = json.encodeToString(
                 sanitizedChanges
             )
@@ -314,6 +400,10 @@ class ExamRepository(private val appContext: Context) {
                 preferences[iCalUrlKey] = sanitizedUrl
             }
 
+            preferences[importEventsEnabledKey] = backup.importEventsEnabled
+            preferences[showTimetableTabKey] = backup.showTimetableTab
+            preferences[showAgendaTabKey] = backup.showAgendaTab
+            preferences[showExamCollisionBadgesKey] = backup.showExamCollisionBadges
             preferences[onboardingDoneKey] = backup.onboardingDone
             preferences[onboardingPromptSeenKey] = backup.onboardingPromptSeen
             preferences[quietHoursEnabledKey] = sanitizedQuietHours.enabled
@@ -347,6 +437,12 @@ class ExamRepository(private val appContext: Context) {
             .getOrDefault(emptyList())
     }
 
+    private fun decodeEvents(raw: String?): List<SchoolEvent> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching { json.decodeFromString<List<SchoolEvent>>(raw) }
+            .getOrDefault(emptyList())
+    }
+
     private fun decodeTimetableChanges(raw: String?): List<TimetableChangeEntry> {
         if (raw.isNullOrBlank()) return emptyList()
         return runCatching { json.decodeFromString<List<TimetableChangeEntry>>(raw) }
@@ -371,6 +467,7 @@ class ExamRepository(private val appContext: Context) {
         private const val MAX_BACKUP_CHARS: Int = 1_000_000
         private const val MAX_BACKUP_EXAMS: Int = 5_000
         private const val MAX_BACKUP_LESSONS: Int = 15_000
+        private const val MAX_BACKUP_EVENTS: Int = 8_000
         private const val MAX_BACKUP_TIMETABLE_CHANGES: Int = 500
     }
 }
