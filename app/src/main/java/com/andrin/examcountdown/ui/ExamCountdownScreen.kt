@@ -132,6 +132,7 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
     val lessons by viewModel.lessons.collectAsStateWithLifecycle()
     val savedIcalUrl by viewModel.savedIcalUrl.collectAsStateWithLifecycle()
     val onboardingDone by viewModel.onboardingDone.collectAsStateWithLifecycle()
+    val onboardingPromptSeen by viewModel.onboardingPromptSeen.collectAsStateWithLifecycle()
     val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
     val isDarkMode = isSystemInDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -146,12 +147,13 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(onboardingDone, savedIcalUrl) {
-        if (!onboardingDone && savedIcalUrl.isBlank()) {
+    LaunchedEffect(onboardingDone, onboardingPromptSeen, savedIcalUrl) {
+        if (!onboardingDone && !onboardingPromptSeen && savedIcalUrl.isBlank()) {
             showOnboardingDialog = true
             onboardingUrl = savedIcalUrl
             onboardingTestedOk = false
             onboardingInfoMessage = ""
+            viewModel.markOnboardingPromptSeen()
         }
     }
 
@@ -216,7 +218,10 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
                     }
                 }
             },
-            onDismiss = { showOnboardingDialog = false }
+            onDismiss = {
+                showOnboardingDialog = false
+                viewModel.dismissOnboardingPrompt()
+            }
         )
     }
 

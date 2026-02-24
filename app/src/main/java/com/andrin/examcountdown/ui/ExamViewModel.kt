@@ -38,6 +38,11 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = false
     )
+    val onboardingPromptSeen = repository.onboardingPromptSeenFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false
+    )
     val syncStatus = repository.syncStatusFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -146,6 +151,16 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
             }
             onDone(success, message)
         }
+    }
+
+    fun dismissOnboardingPrompt() {
+        viewModelScope.launch {
+            repository.setOnboardingPromptSeen(true)
+        }
+    }
+
+    suspend fun markOnboardingPromptSeen() {
+        repository.setOnboardingPromptSeen(true)
     }
 
     private suspend fun syncFromIcalUrl(

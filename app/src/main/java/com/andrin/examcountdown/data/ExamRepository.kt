@@ -32,6 +32,7 @@ class ExamRepository(private val appContext: Context) {
     private val lessonsKey = stringPreferencesKey("lessons_json")
     private val iCalUrlKey = stringPreferencesKey("ical_url")
     private val onboardingDoneKey = booleanPreferencesKey("onboarding_done")
+    private val onboardingPromptSeenKey = booleanPreferencesKey("onboarding_prompt_seen")
     private val lastSyncAtMillisKey = longPreferencesKey("last_sync_at_ms")
     private val lastSyncSummaryKey = stringPreferencesKey("last_sync_summary")
     private val lastSyncErrorKey = stringPreferencesKey("last_sync_error")
@@ -63,6 +64,9 @@ class ExamRepository(private val appContext: Context) {
 
     val onboardingDoneFlow: Flow<Boolean> = preferencesFlow
         .map { preferences -> preferences[onboardingDoneKey] ?: false }
+
+    val onboardingPromptSeenFlow: Flow<Boolean> = preferencesFlow
+        .map { preferences -> preferences[onboardingPromptSeenKey] ?: false }
 
     val syncStatusFlow: Flow<SyncStatus> = preferencesFlow
         .map { preferences ->
@@ -111,6 +115,12 @@ class ExamRepository(private val appContext: Context) {
     suspend fun setOnboardingDone(done: Boolean) {
         appContext.dataStore.edit { preferences ->
             preferences[onboardingDoneKey] = done
+        }
+    }
+
+    suspend fun setOnboardingPromptSeen(seen: Boolean) {
+        appContext.dataStore.edit { preferences ->
+            preferences[onboardingPromptSeenKey] = seen
         }
     }
 
