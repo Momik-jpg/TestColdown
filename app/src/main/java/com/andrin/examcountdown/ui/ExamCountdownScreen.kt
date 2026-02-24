@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.SwapHoriz
@@ -92,7 +93,7 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
     var iCalUrl by rememberSaveable { mutableStateOf("") }
-    var isImportingIcal by rememberSaveable { mutableStateOf(false) }
+    var isSyncingIcal by rememberSaveable { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(HomeTab.EXAMS) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -109,15 +110,15 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
     if (showIcalDialog) {
         IcalImportDialog(
             url = iCalUrl,
-            isImporting = isImportingIcal,
+            isImporting = isSyncingIcal,
             onUrlChange = { iCalUrl = it },
             onDismiss = {
-                if (!isImportingIcal) showIcalDialog = false
+                if (!isSyncingIcal) showIcalDialog = false
             },
             onImport = {
-                isImportingIcal = true
+                isSyncingIcal = true
                 viewModel.importFromIcal(iCalUrl) { message ->
-                    isImportingIcal = false
+                    isSyncingIcal = false
                     showIcalDialog = false
                     scope.launch {
                         snackbarHostState.showSnackbar(message)
@@ -151,7 +152,24 @@ fun ExamCountdownScreen(viewModel: ExamViewModel = viewModel()) {
                     actions = {
                         if (selectedTab != HomeTab.GRADES) {
                             IconButton(
-                                enabled = !isImportingIcal,
+                                enabled = !isSyncingIcal,
+                                onClick = {
+                                    isSyncingIcal = true
+                                    viewModel.refreshFromSavedIcal { message ->
+                                        isSyncingIcal = false
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(message)
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Refresh,
+                                    contentDescription = "Jetzt aktualisieren"
+                                )
+                            }
+                            IconButton(
+                                enabled = !isSyncingIcal,
                                 onClick = {
                                     iCalUrl = savedIcalUrl
                                     showIcalDialog = true
@@ -247,7 +265,7 @@ private fun IcalImportDialog(
                 )
 
                 Text(
-                    text = "Synchronisiert Prüfungen und Stundenplan aus schulNetz. Termine/Events werden im Stundenplan nicht angezeigt.",
+                    text = "iCal-Link einmal eingeben und speichern. Danach reicht oben der Pfeil zum Aktualisieren. Termine/Events werden im Stundenplan ausgeblendet.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -447,9 +465,9 @@ private fun TimetableEmptyState(
                 )
                 Text(
                     text = if (hasIcalUrl) {
-                        "Tippe oben rechts auf iCal-Sync, um neue Lektionen zu laden."
+                        "Tippe oben rechts auf den Pfeil zum Aktualisieren."
                     } else {
-                        "Importiere zuerst deinen schulNetz-iCal-Link."
+                        "Gib deinen schulNetz-iCal-Link einmal ein, er bleibt gespeichert."
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

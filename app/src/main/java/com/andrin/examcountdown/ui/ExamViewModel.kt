@@ -72,21 +72,33 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             repository.saveIcalUrl(trimmedUrl)
+            onDone(syncFromIcalUrl(trimmedUrl))
+        }
+    }
 
-            val message = runCatching {
-                val importResult = iCalImporter.importFromUrl(trimmedUrl)
-                val timetableResult = timetableImporter.importFromUrl(trimmedUrl)
-                repository.replaceIcalImportedExams(importResult.exams)
-                repository.replaceSyncedLessons(timetableResult.lessons)
-                IcalSyncScheduler.schedule(getApplication())
-                IcalSyncScheduler.syncNow(getApplication())
-                WidgetUpdater.updateAll(getApplication())
-                "${importResult.exams.size} Prüfungen und ${timetableResult.lessons.size} Lektionen synchronisiert."
-            }.getOrElse { throwable ->
-                "iCal-Import fehlgeschlagen: ${throwable.message ?: "Unbekannter Fehler"}"
+    fun refreshFromSavedIcal(onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            val savedUrl = repository.readIcalUrl()
+            if (savedUrl.isNullOrBlank()) {
+                onDone("Bitte zuerst einmal eine iCal-URL eingeben.")
+                return@launch
             }
 
-            onDone(message)
+            onDone(syncFromIcalUrl(savedUrl))
+        }
+    }
+
+    private suspend fun syncFromIcalUrl(url: String): String {
+        return runCatching {
+            val importResult = iCalImporter.importFromUrl(url)
+            val timetableResult = timetableImporter.importFromUrl(url)
+            repository.replaceIcalImportedExams(importResult.exams)
+            repository.replaceSyncedLessons(timetableResult.lessons)
+            IcalSyncScheduler.schedule(getApplication())
+            WidgetUpdater.updateAll(getApplication())
+            "${importResult.exams.size} Prüfungen und ${timetableResult.lessons.size} Lektionen synchronisiert."
+        }.getOrElse { throwable ->
+            "iCal-Sync fehlgeschlagen: ${throwable.message ?: "Unbekannter Fehler"}"
         }
     }
 }

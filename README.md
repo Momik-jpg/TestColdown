@@ -15,6 +15,7 @@
 5. Prüfungen und Stundenplan werden synchronisiert.
 6. Im Stundenplan werden nur Lektionen angezeigt (keine `Termin`-Events).
 7. Danach synchronisiert die App automatisch im Hintergrund (bei Internet).
+8. Der iCal-Link bleibt gespeichert. Oben kannst du mit dem Pfeil (`Aktualisieren`) manuell neu laden.
 
 ## Stundenplan
 - Neuer Tab `Stundenplan` mit Tagesansicht.
