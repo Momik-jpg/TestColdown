@@ -111,4 +111,138 @@ class ScheduleCollisionDetectorTest {
 
         assertTrue(collisions.isEmpty())
     }
+
+    @Test
+    fun canDisableEventCollisions() {
+        val examStart = LocalDate.now(zone).plusDays(2)
+            .atTime(10, 0)
+            .atZone(zone)
+            .toInstant()
+            .toEpochMilli()
+        val allDayStart = LocalDate.now(zone).plusDays(2)
+            .atStartOfDay(zone)
+            .toInstant()
+            .toEpochMilli()
+        val allDayEnd = LocalDate.now(zone).plusDays(3)
+            .atStartOfDay(zone)
+            .toInstant()
+            .toEpochMilli()
+
+        val collisions = detectExamCollisions(
+            exams = listOf(
+                Exam(
+                    id = "exam-3",
+                    title = "Geschichte",
+                    startsAtEpochMillis = examStart
+                )
+            ),
+            lessons = emptyList(),
+            events = listOf(
+                SchoolEvent(
+                    id = "event-2",
+                    title = "Sporttag",
+                    type = SchoolEventType.SCHOOL,
+                    startsAtEpochMillis = allDayStart,
+                    endsAtEpochMillis = allDayEnd,
+                    isAllDay = true
+                )
+            ),
+            zoneId = zone,
+            rules = CollisionRules(includeEventCollisions = false)
+        )
+
+        assertTrue(collisions.isEmpty())
+    }
+
+    @Test
+    fun onlyDifferentSubjectRuleCanBeDisabled() {
+        val examStart = LocalDate.now(zone).plusDays(2)
+            .atTime(9, 0)
+            .atZone(zone)
+            .toInstant()
+            .toEpochMilli()
+        val lessonStart = LocalDate.now(zone).plusDays(2)
+            .atTime(8, 45)
+            .atZone(zone)
+            .toInstant()
+            .toEpochMilli()
+        val lessonEnd = LocalDate.now(zone).plusDays(2)
+            .atTime(9, 30)
+            .atZone(zone)
+            .toInstant()
+            .toEpochMilli()
+
+        val exam = Exam(
+            id = "exam-4",
+            title = "Staatskunde",
+            subject = "EGSP",
+            startsAtEpochMillis = examStart
+        )
+        val lesson = TimetableLesson(
+            id = "lesson-4",
+            title = "EGSP · I24B · SutPe",
+            startsAtEpochMillis = lessonStart,
+            endsAtEpochMillis = lessonEnd
+        )
+
+        val defaultCollisions = detectExamCollisions(
+            exams = listOf(exam),
+            lessons = listOf(lesson),
+            events = emptyList(),
+            zoneId = zone
+        )
+        val strictCollisions = detectExamCollisions(
+            exams = listOf(exam),
+            lessons = listOf(lesson),
+            events = emptyList(),
+            zoneId = zone,
+            rules = CollisionRules(onlyDifferentSubject = false)
+        )
+
+        assertTrue(defaultCollisions.isEmpty())
+        assertEquals(1, strictCollisions.size)
+        assertEquals(CollisionSource.LESSON, strictCollisions.first().source)
+    }
+
+    @Test
+    fun exactTimeOverlapIgnoresAllDayEvents() {
+        val examStart = LocalDate.now(zone).plusDays(4)
+            .atTime(11, 0)
+            .atZone(zone)
+            .toInstant()
+            .toEpochMilli()
+        val allDayStart = LocalDate.now(zone).plusDays(4)
+            .atStartOfDay(zone)
+            .toInstant()
+            .toEpochMilli()
+        val allDayEnd = LocalDate.now(zone).plusDays(5)
+            .atStartOfDay(zone)
+            .toInstant()
+            .toEpochMilli()
+
+        val collisions = detectExamCollisions(
+            exams = listOf(
+                Exam(
+                    id = "exam-5",
+                    title = "Deutsch",
+                    startsAtEpochMillis = examStart
+                )
+            ),
+            lessons = emptyList(),
+            events = listOf(
+                SchoolEvent(
+                    id = "event-5",
+                    title = "Ferientag",
+                    type = SchoolEventType.HOLIDAY,
+                    startsAtEpochMillis = allDayStart,
+                    endsAtEpochMillis = allDayEnd,
+                    isAllDay = true
+                )
+            ),
+            zoneId = zone,
+            rules = CollisionRules(requireExactTimeOverlap = true)
+        )
+
+        assertTrue(collisions.isEmpty())
+    }
 }

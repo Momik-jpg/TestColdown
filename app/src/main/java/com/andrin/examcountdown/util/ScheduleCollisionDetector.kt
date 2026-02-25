@@ -11,6 +11,13 @@ enum class CollisionSource {
     EVENT
 }
 
+data class CollisionRules(
+    val includeLessonCollisions: Boolean = true,
+    val includeEventCollisions: Boolean = true,
+    val onlyDifferentSubject: Boolean = true,
+    val requireExactTimeOverlap: Boolean = false
+)
+
 data class ExamCollision(
     val examId: String,
     val examTitle: String,
@@ -27,7 +34,8 @@ fun detectExamCollisions(
     exams: List<Exam>,
     lessons: List<TimetableLesson>,
     events: List<SchoolEvent>,
-    zoneId: ZoneId = ZoneId.of("Europe/Zurich")
+    zoneId: ZoneId = ZoneId.of("Europe/Zurich"),
+    rules: CollisionRules = CollisionRules()
 ): List<ExamCollision> {
     if (exams.isEmpty()) return emptyList()
 
@@ -37,50 +45,57 @@ fun detectExamCollisions(
         val examAt = exam.startsAtEpochMillis
         if (examAt <= 0L) return@forEach
 
-        lessons.forEach { lesson ->
-            val hasValidRange = lesson.endsAtEpochMillis > lesson.startsAtEpochMillis
-            val overlaps = hasValidRange && examAt in lesson.startsAtEpochMillis until lesson.endsAtEpochMillis
-            val shouldIgnore = isLikelySameSubjectLesson(exam, lesson) || looksLikeExamSlotLabel(lesson.title)
+        if (rules.includeLessonCollisions) {
+            lessons.forEach { lesson ->
+                val hasValidRange = lesson.endsAtEpochMillis > lesson.startsAtEpochMillis
+                val overlaps = hasValidRange && examAt in lesson.startsAtEpochMillis until lesson.endsAtEpochMillis
+                val sameSubject = rules.onlyDifferentSubject && isLikelySameSubjectLesson(exam, lesson)
+                val shouldIgnore = sameSubject || looksLikeExamSlotLabel(lesson.title)
 
-            if (overlaps && !shouldIgnore) {
-                collisions += ExamCollision(
-                    examId = exam.id,
-                    examTitle = exam.title,
-                    examStartsAtEpochMillis = examAt,
-                    source = CollisionSource.LESSON,
-                    sourceId = lesson.id,
-                    sourceTitle = lesson.title,
-                    sourceStartsAtEpochMillis = lesson.startsAtEpochMillis,
-                    sourceEndsAtEpochMillis = lesson.endsAtEpochMillis,
-                    sourceIsAllDay = false
-                )
+                if (overlaps && !shouldIgnore) {
+                    collisions += ExamCollision(
+                        examId = exam.id,
+                        examTitle = exam.title,
+                        examStartsAtEpochMillis = examAt,
+                        source = CollisionSource.LESSON,
+                        sourceId = lesson.id,
+                        sourceTitle = lesson.title,
+                        sourceStartsAtEpochMillis = lesson.startsAtEpochMillis,
+                        sourceEndsAtEpochMillis = lesson.endsAtEpochMillis,
+                        sourceIsAllDay = false
+                    )
+                }
             }
         }
 
-        events.forEach { event ->
-            val conflicts = if (event.isAllDay) {
-                isAllDayConflict(
-                    examAtMillis = examAt,
-                    eventStartMillis = event.startsAtEpochMillis,
-                    eventEndMillis = event.endsAtEpochMillis,
-                    zoneId = zoneId
-                )
-            } else {
-                examAt in event.startsAtEpochMillis until event.endsAtEpochMillis
-            }
+        if (rules.includeEventCollisions) {
+            events.forEach { event ->
+                val conflicts = when {
+                    event.isAllDay && rules.requireExactTimeOverlap -> false
+                    event.isAllDay -> {
+                        isAllDayConflict(
+                            examAtMillis = examAt,
+                            eventStartMillis = event.startsAtEpochMillis,
+                            eventEndMillis = event.endsAtEpochMillis,
+                            zoneId = zoneId
+                        )
+                    }
+                    else -> examAt in event.startsAtEpochMillis until event.endsAtEpochMillis
+                }
 
-            if (conflicts) {
-                collisions += ExamCollision(
-                    examId = exam.id,
-                    examTitle = exam.title,
-                    examStartsAtEpochMillis = examAt,
-                    source = CollisionSource.EVENT,
-                    sourceId = event.id,
-                    sourceTitle = event.title,
-                    sourceStartsAtEpochMillis = event.startsAtEpochMillis,
-                    sourceEndsAtEpochMillis = event.endsAtEpochMillis,
-                    sourceIsAllDay = event.isAllDay
-                )
+                if (conflicts) {
+                    collisions += ExamCollision(
+                        examId = exam.id,
+                        examTitle = exam.title,
+                        examStartsAtEpochMillis = examAt,
+                        source = CollisionSource.EVENT,
+                        sourceId = event.id,
+                        sourceTitle = event.title,
+                        sourceStartsAtEpochMillis = event.startsAtEpochMillis,
+                        sourceEndsAtEpochMillis = event.endsAtEpochMillis,
+                        sourceIsAllDay = event.isAllDay
+                    )
+                }
             }
         }
     }

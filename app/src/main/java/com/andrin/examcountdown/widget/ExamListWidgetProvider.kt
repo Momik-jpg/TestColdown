@@ -9,7 +9,6 @@ import android.view.View
 import android.widget.RemoteViews
 import com.andrin.examcountdown.MainActivity
 import com.andrin.examcountdown.R
-import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.ui.HomeTab
 import com.andrin.examcountdown.util.formatExamDateShort
 import com.andrin.examcountdown.worker.IcalSyncScheduler
@@ -33,16 +32,33 @@ class ExamListWidgetProvider : AppWidgetProvider() {
         updateWidgets(context, appWidgetManager, appWidgetIds)
     }
 
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        appWidgetIds.forEach { widgetId ->
+            WidgetPreferences.clearConfig(context, widgetId)
+        }
+        super.onDeleted(context, appWidgetIds)
+    }
+
     companion object {
         fun updateWidgets(
             context: Context,
             appWidgetManager: AppWidgetManager,
             appWidgetIds: IntArray
         ) {
-            val upcoming = WidgetContentLoader.loadUpcoming(context, limit = 5)
-
             appWidgetIds.forEach { widgetId ->
                 val views = RemoteViews(context.packageName, R.layout.widget_exam_list)
+                val config = WidgetPreferences.readConfig(context, widgetId)
+                val upcoming = WidgetContentLoader.loadUpcomingItems(
+                    context = context,
+                    appWidgetId = widgetId,
+                    limit = 5
+                )
+
+                views.setTextViewText(R.id.listWidgetHeader, WidgetContentLoader.headerLabel(context, widgetId))
+                views.setTextViewText(
+                    R.id.listWidgetOpenTimetable,
+                    if (config.mode == WidgetMode.EXAMS) "Stundenplan" else "Prüfungen"
+                )
 
                 if (upcoming.isEmpty()) {
                     views.setViewVisibility(R.id.listEmptyState, View.VISIBLE)
@@ -52,13 +68,20 @@ class ExamListWidgetProvider : AppWidgetProvider() {
                     bindRows(views, upcoming)
                 }
 
+                val mainRoute = WidgetContentLoader.openTabForConfig(context, widgetId)
+                val secondaryRoute = if (config.mode == WidgetMode.EXAMS) {
+                    HomeTab.TIMETABLE.route
+                } else {
+                    HomeTab.EXAMS.route
+                }
+
                 views.setOnClickPendingIntent(
                     R.id.listWidgetRoot,
-                    createOpenAppIntent(context, widgetId, HomeTab.EXAMS)
+                    createOpenAppIntent(context, widgetId, mainRoute)
                 )
                 views.setOnClickPendingIntent(
                     R.id.listWidgetOpenTimetable,
-                    createOpenAppIntent(context, widgetId + 10_000, HomeTab.TIMETABLE)
+                    createOpenAppIntent(context, widgetId + 10_000, secondaryRoute)
                 )
                 views.setOnClickPendingIntent(
                     R.id.listWidgetRefresh,
@@ -69,17 +92,21 @@ class ExamListWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun bindRows(views: RemoteViews, exams: List<Exam>) {
+        private fun bindRows(views: RemoteViews, items: List<WidgetTimelineItem>) {
             val rowIds = intArrayOf(R.id.row1, R.id.row2, R.id.row3, R.id.row4, R.id.row5)
             rowIds.forEachIndexed { index, rowId ->
-                if (index < exams.size) {
-                    val exam = exams[index]
-                    val title = exam.subject
-                        ?.takeIf { it.isNotBlank() }
-                        ?.let { "$it · ${exam.title}" }
-                        ?: exam.title
+                if (index < items.size) {
+                    val item = items[index]
+                    val typePrefix = when (item.kind) {
+                        WidgetItemKind.EXAM -> "[P] "
+                        WidgetItemKind.LESSON -> "[L] "
+                        WidgetItemKind.EVENT -> "[E] "
+                    }
                     views.setViewVisibility(rowId, View.VISIBLE)
-                    views.setTextViewText(rowId, "${formatExamDateShort(exam.startsAtEpochMillis)}  •  $title")
+                    views.setTextViewText(
+                        rowId,
+                        "${formatExamDateShort(item.startsAtEpochMillis)}  •  $typePrefix${item.title}"
+                    )
                 } else {
                     views.setViewVisibility(rowId, View.GONE)
                 }
@@ -94,9 +121,9 @@ class ExamListWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun createOpenAppIntent(context: Context, requestCode: Int, tab: HomeTab): PendingIntent {
+        private fun createOpenAppIntent(context: Context, requestCode: Int, route: String): PendingIntent {
             val intent = Intent(context, MainActivity::class.java)
-                .putExtra(MainActivity.EXTRA_OPEN_TAB, tab.route)
+                .putExtra(MainActivity.EXTRA_OPEN_TAB, route)
             return PendingIntent.getActivity(
                 context,
                 requestCode,

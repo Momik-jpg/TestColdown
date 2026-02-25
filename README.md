@@ -22,6 +22,15 @@ Android-App für Prüfungen, Stundenplan, Events, Benachrichtigungen und Widgets
 - `Events`: Kalender-Timeline mit Filter "Alles / Nur Prüfungen / Nur Lektionen / Nur Events".
 - `Notenrechner`: Durchschnitt, Zielnote und Noten-Punkte-Rechner.
 
+## Neu (Pro-Features)
+- `Sync-Diagnose`: zeigt letzten Versuch, Dauer, HTTP-Status, Delta-Status, Import-Zahlen und Fehlerursache.
+- `Delta-Sync`: nutzt `ETag`/`Last-Modified` (304 = keine Änderungen), spart Akku und Daten.
+- `Kollisionsregeln`: getrennte Schalter für Lektionen/Events, nur anderes Fach, echte Zeitüberschneidung.
+- `Widget pro Instanz konfigurierbar`: Modus (Prüfungen/Agenda), Zeitraum (7/30/90 Tage), Sortierung.
+- `Barrierefreiheit-Modus`: größerer Text + höherer Kontrast.
+- `In-App Changelog`: erscheint nach Updates automatisch.
+- `CSV/PDF Export`: Prüfungen und Stundenplan direkt aus der App exportierbar.
+
 ## Benachrichtigungen
 - Mehrere Vorlaufzeiten pro Prüfung möglich.
 - Exakte Datum/Uhrzeit-Erinnerung möglich.

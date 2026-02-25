@@ -4,8 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrin.examcountdown.data.AppBackup
+import com.andrin.examcountdown.data.CollisionRuleSettings
 import com.andrin.examcountdown.data.ExamRepository
 import com.andrin.examcountdown.data.IcalSyncEngine
+import com.andrin.examcountdown.data.SyncDiagnostics
 import com.andrin.examcountdown.data.QuietHoursConfig
 import com.andrin.examcountdown.data.SyncStatus
 import com.andrin.examcountdown.data.toSyncErrorMessage
@@ -78,6 +80,11 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = SyncStatus()
     )
+    val syncDiagnostics = repository.syncDiagnosticsFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = SyncDiagnostics()
+    )
     val syncIntervalMinutes = repository.syncIntervalMinutesFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -102,6 +109,21 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = false
+    )
+    val collisionRuleSettings = repository.collisionRuleSettingsFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = CollisionRuleSettings()
+    )
+    val accessibilityModeEnabled = repository.accessibilityModeEnabledFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false
+    )
+    val lastSeenVersion = repository.lastSeenVersionFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = ""
     )
 
     fun addExam(
@@ -368,6 +390,24 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
     fun setShowExamCollisionBadges(enabled: Boolean) {
         viewModelScope.launch {
             repository.setShowExamCollisionBadges(enabled)
+        }
+    }
+
+    fun saveCollisionRuleSettings(settings: CollisionRuleSettings) {
+        viewModelScope.launch {
+            repository.saveCollisionRuleSettings(settings)
+        }
+    }
+
+    fun setAccessibilityModeEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setAccessibilityModeEnabled(enabled)
+        }
+    }
+
+    fun setLastSeenVersion(versionName: String) {
+        viewModelScope.launch {
+            repository.setLastSeenVersion(versionName)
         }
     }
 }

@@ -10,12 +10,16 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.andrin.examcountdown.ui.ExamCountdownScreen
+import com.andrin.examcountdown.ui.ExamViewModel
 import com.andrin.examcountdown.ui.HomeTab
 import com.andrin.examcountdown.ui.theme.ExamCountdownTheme
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 class MainActivity : ComponentActivity() {
     private val startTabRoute = mutableStateOf(HomeTab.EXAMS.route)
@@ -28,13 +32,16 @@ class MainActivity : ComponentActivity() {
         updateStartTabFromIntent()
         requestNotificationPermissionIfNeeded()
         setContent {
-            ExamCountdownTheme {
+            val examViewModel: ExamViewModel = viewModel()
+            val accessibilityModeEnabled by examViewModel.accessibilityModeEnabled.collectAsStateWithLifecycle()
+            ExamCountdownTheme(accessibilityMode = accessibilityModeEnabled) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     ExamCountdownScreen(
-                        initialTab = HomeTab.fromRoute(startTabRoute.value)
+                        initialTab = HomeTab.fromRoute(startTabRoute.value),
+                        viewModel = examViewModel
                     )
                 }
             }

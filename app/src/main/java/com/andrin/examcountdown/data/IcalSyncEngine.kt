@@ -1,11 +1,12 @@
 package com.andrin.examcountdown.data
 
 import android.content.Context
-import com.andrin.examcountdown.model.TimetableLesson
 import com.andrin.examcountdown.model.TimetableChangeEntry
 import com.andrin.examcountdown.model.TimetableChangeType
+import com.andrin.examcountdown.model.TimetableLesson
 import com.andrin.examcountdown.reminder.TimetableSyncNotificationManager
 import com.andrin.examcountdown.widget.WidgetUpdater
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -15,9 +16,15 @@ data class IcalSyncResult(
     val eventsImported: Int,
     val changedLessons: Int,
     val movedLessons: Int,
-    val roomChangedLessons: Int
+    val roomChangedLessons: Int,
+    val deltaNotModified: Boolean = false,
+    val httpStatusCode: Int? = null,
+    val durationMillis: Long? = null
 ) {
     fun summaryText(): String {
+        if (deltaNotModified) {
+            return "Keine Änderungen seit letztem Sync (Delta-Sync)."
+        }
         return buildString {
             append("$examsImported Prüfungen und $lessonsImported Lektionen synchronisiert.")
             if (eventsImported > 0) {
@@ -46,56 +53,141 @@ class IcalSyncEngine(
         emitChangeNotification: Boolean,
         importEvents: Boolean? = null
     ): IcalSyncResult {
-        val normalizedUrl = normalizeAndValidateUrl(url)
-        val raw = withContext(Dispatchers.IO) { IcalHttpClient.download(normalizedUrl) }
-        val previousLessons = repository.readLessonsSnapshot()
-        val shouldImportEvents = importEvents ?: repository.readImportEventsEnabled()
+        val startedAt = System.currentTimeMillis()
+        var httpStatusCode: Int? = null
 
-        val examResult = examImporter.importFromRaw(raw)
-        val timetableResult = timetableImporter.importFromRaw(raw)
-        val eventsResult = if (shouldImportEvents) {
-            eventImporter.importFromRaw(raw)
-        } else {
-            SchoolEventImportResult(events = emptyList(), message = "Event-Import deaktiviert.")
-        }
-
-        repository.replaceIcalSyncSnapshot(
-            importedExams = examResult.exams,
-            importedLessons = timetableResult.lessons,
-            importedEvents = eventsResult.events
-        )
-        WidgetUpdater.updateAll(appContext)
-
-        val changes = detectLessonChanges(previousLessons, timetableResult.lessons)
-        val result = IcalSyncResult(
-            examsImported = examResult.exams.size,
-            lessonsImported = timetableResult.lessons.size,
-            eventsImported = eventsResult.events.size,
-            changedLessons = changes.total,
-            movedLessons = changes.movedCount,
-            roomChangedLessons = changes.roomChangedCount
-        )
-
-        repository.markSyncSuccess(result.summaryText())
-        if (!changes.isFirstSync && changes.entries.isNotEmpty()) {
-            repository.appendTimetableChanges(changes.entries)
-        }
-
-        if (emitChangeNotification && !changes.isFirstSync && changes.total > 0) {
-            TimetableSyncNotificationManager.showChangedLessons(
-                context = appContext,
-                changedCount = changes.total,
-                movedCount = changes.movedCount,
-                roomChangedCount = changes.roomChangedCount
+        try {
+            val normalizedUrl = normalizeAndValidateUrl(url)
+            val cacheHeaders = repository.readIcalSyncCacheHeaders()
+            val response = withContext(Dispatchers.IO) {
+                IcalHttpClient.download(
+                    url = normalizedUrl,
+                    previousEtag = cacheHeaders.etag,
+                    previousLastModified = cacheHeaders.lastModified
+                )
+            }
+            httpStatusCode = response.httpStatusCode
+            repository.saveIcalSyncCacheHeaders(
+                IcalSyncCacheHeaders(
+                    etag = response.etag,
+                    lastModified = response.lastModified
+                )
             )
-        }
 
-        return result
+            if (response.notModified) {
+                val duration = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                val result = IcalSyncResult(
+                    examsImported = 0,
+                    lessonsImported = 0,
+                    eventsImported = 0,
+                    changedLessons = 0,
+                    movedLessons = 0,
+                    roomChangedLessons = 0,
+                    deltaNotModified = true,
+                    httpStatusCode = response.httpStatusCode,
+                    durationMillis = duration
+                )
+                repository.markSyncSuccess(result.summaryText())
+                repository.saveSyncDiagnostics(
+                    SyncDiagnostics(
+                        lastAttemptAtMillis = startedAt,
+                        lastDurationMillis = duration,
+                        lastHttpStatusCode = response.httpStatusCode,
+                        lastDeltaNotModified = true
+                    )
+                )
+                WidgetUpdater.updateAll(appContext)
+                return result
+            }
+
+            val raw = response.body ?: throw IOException("Leere iCal-Antwort")
+            val previousLessons = repository.readLessonsSnapshot()
+            val shouldImportEvents = importEvents ?: repository.readImportEventsEnabled()
+
+            val examResult = examImporter.importFromRaw(raw)
+            val timetableResult = timetableImporter.importFromRaw(raw)
+            val eventsResult = if (shouldImportEvents) {
+                eventImporter.importFromRaw(raw)
+            } else {
+                SchoolEventImportResult(events = emptyList(), message = "Event-Import deaktiviert.")
+            }
+
+            repository.replaceIcalSyncSnapshot(
+                importedExams = examResult.exams,
+                importedLessons = timetableResult.lessons,
+                importedEvents = eventsResult.events
+            )
+            WidgetUpdater.updateAll(appContext)
+
+            val changes = detectLessonChanges(previousLessons, timetableResult.lessons)
+            val duration = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            val result = IcalSyncResult(
+                examsImported = examResult.exams.size,
+                lessonsImported = timetableResult.lessons.size,
+                eventsImported = eventsResult.events.size,
+                changedLessons = changes.total,
+                movedLessons = changes.movedCount,
+                roomChangedLessons = changes.roomChangedCount,
+                deltaNotModified = false,
+                httpStatusCode = response.httpStatusCode,
+                durationMillis = duration
+            )
+
+            repository.markSyncSuccess(result.summaryText())
+            repository.saveSyncDiagnostics(
+                SyncDiagnostics(
+                    lastAttemptAtMillis = startedAt,
+                    lastDurationMillis = duration,
+                    lastHttpStatusCode = response.httpStatusCode,
+                    lastDeltaNotModified = false,
+                    importedExams = result.examsImported,
+                    importedLessons = result.lessonsImported,
+                    importedEvents = result.eventsImported,
+                    changedLessons = result.changedLessons,
+                    movedLessons = result.movedLessons,
+                    roomChangedLessons = result.roomChangedLessons
+                )
+            )
+
+            if (!changes.isFirstSync && changes.entries.isNotEmpty()) {
+                repository.appendTimetableChanges(changes.entries)
+            }
+
+            if (emitChangeNotification && !changes.isFirstSync && changes.total > 0) {
+                TimetableSyncNotificationManager.showChangedLessons(
+                    context = appContext,
+                    changedCount = changes.total,
+                    movedCount = changes.movedCount,
+                    roomChangedCount = changes.roomChangedCount
+                )
+            }
+
+            return result
+        } catch (exception: Exception) {
+            val duration = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            repository.saveSyncDiagnostics(
+                SyncDiagnostics(
+                    lastAttemptAtMillis = startedAt,
+                    lastDurationMillis = duration,
+                    lastHttpStatusCode = httpStatusCode ?: extractHttpStatusCode(exception.message),
+                    lastDeltaNotModified = false,
+                    lastErrorReason = toSyncErrorMessage(exception)
+                )
+            )
+            throw exception
+        }
     }
 
     suspend fun testConnection(url: String, importEvents: Boolean? = null): IcalSyncResult {
         val normalizedUrl = normalizeAndValidateUrl(url)
-        val raw = withContext(Dispatchers.IO) { IcalHttpClient.download(normalizedUrl) }
+        val response = withContext(Dispatchers.IO) {
+            IcalHttpClient.download(
+                url = normalizedUrl,
+                previousEtag = null,
+                previousLastModified = null
+            )
+        }
+        val raw = response.body ?: throw IOException("Leere iCal-Antwort")
         val shouldImportEvents = importEvents ?: repository.readImportEventsEnabled()
         val examResult = examImporter.importFromRaw(raw)
         val timetableResult = timetableImporter.importFromRaw(raw)
@@ -111,7 +203,9 @@ class IcalSyncEngine(
             eventsImported = eventsResult.events.size,
             changedLessons = 0,
             movedLessons = 0,
-            roomChangedLessons = 0
+            roomChangedLessons = 0,
+            deltaNotModified = false,
+            httpStatusCode = response.httpStatusCode
         )
     }
 
@@ -237,5 +331,11 @@ class IcalSyncEngine(
             "Ungültige URL"
         }
         return normalizedUrl
+    }
+
+    private fun extractHttpStatusCode(message: String?): Int? {
+        val raw = message.orEmpty()
+        val match = Regex("HTTP-(\\d{3})").find(raw) ?: return null
+        return match.groupValues.getOrNull(1)?.toIntOrNull()
     }
 }

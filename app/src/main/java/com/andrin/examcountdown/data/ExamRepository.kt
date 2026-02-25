@@ -29,6 +29,32 @@ data class SyncStatus(
     val lastSyncError: String? = null
 )
 
+data class IcalSyncCacheHeaders(
+    val etag: String? = null,
+    val lastModified: String? = null
+)
+
+data class SyncDiagnostics(
+    val lastAttemptAtMillis: Long? = null,
+    val lastDurationMillis: Long? = null,
+    val lastHttpStatusCode: Int? = null,
+    val lastDeltaNotModified: Boolean = false,
+    val importedExams: Int = 0,
+    val importedLessons: Int = 0,
+    val importedEvents: Int = 0,
+    val changedLessons: Int = 0,
+    val movedLessons: Int = 0,
+    val roomChangedLessons: Int = 0,
+    val lastErrorReason: String? = null
+)
+
+data class CollisionRuleSettings(
+    val includeLessonCollisions: Boolean = true,
+    val includeEventCollisions: Boolean = false,
+    val onlyDifferentSubject: Boolean = true,
+    val requireExactTimeOverlap: Boolean = true
+)
+
 class ExamRepository(private val appContext: Context) {
     private val examsKey = stringPreferencesKey("exams_json")
     private val lessonsKey = stringPreferencesKey("lessons_json")
@@ -46,9 +72,28 @@ class ExamRepository(private val appContext: Context) {
     private val showTimetableTabKey = booleanPreferencesKey("show_timetable_tab")
     private val showAgendaTabKey = booleanPreferencesKey("show_agenda_tab")
     private val showExamCollisionBadgesKey = booleanPreferencesKey("show_exam_collision_badges")
+    private val collisionIncludeLessonsKey = booleanPreferencesKey("collision_include_lessons")
+    private val collisionIncludeEventsKey = booleanPreferencesKey("collision_include_events")
+    private val collisionOnlyDifferentSubjectKey = booleanPreferencesKey("collision_only_different_subject")
+    private val collisionRequireExactOverlapKey = booleanPreferencesKey("collision_require_exact_overlap")
+    private val accessibilityModeEnabledKey = booleanPreferencesKey("accessibility_mode_enabled")
+    private val lastSeenVersionKey = stringPreferencesKey("last_seen_version")
+    private val iCalEtagKey = stringPreferencesKey("ical_etag")
+    private val iCalLastModifiedKey = stringPreferencesKey("ical_last_modified")
     private val lastSyncAtMillisKey = longPreferencesKey("last_sync_at_ms")
     private val lastSyncSummaryKey = stringPreferencesKey("last_sync_summary")
     private val lastSyncErrorKey = stringPreferencesKey("last_sync_error")
+    private val diagAttemptAtMillisKey = longPreferencesKey("sync_diag_attempt_at_ms")
+    private val diagDurationMillisKey = longPreferencesKey("sync_diag_duration_ms")
+    private val diagHttpStatusKey = longPreferencesKey("sync_diag_http_status")
+    private val diagDeltaNotModifiedKey = booleanPreferencesKey("sync_diag_delta_not_modified")
+    private val diagImportedExamsKey = longPreferencesKey("sync_diag_imported_exams")
+    private val diagImportedLessonsKey = longPreferencesKey("sync_diag_imported_lessons")
+    private val diagImportedEventsKey = longPreferencesKey("sync_diag_imported_events")
+    private val diagChangedLessonsKey = longPreferencesKey("sync_diag_changed_lessons")
+    private val diagMovedLessonsKey = longPreferencesKey("sync_diag_moved_lessons")
+    private val diagRoomChangedLessonsKey = longPreferencesKey("sync_diag_room_changed_lessons")
+    private val diagLastErrorReasonKey = stringPreferencesKey("sync_diag_last_error_reason")
     private val json = Json { ignoreUnknownKeys = true }
 
     private val preferencesFlow: Flow<Preferences> = appContext.dataStore.data
@@ -119,6 +164,23 @@ class ExamRepository(private val appContext: Context) {
             )
         }
 
+    val syncDiagnosticsFlow: Flow<SyncDiagnostics> = preferencesFlow
+        .map { preferences ->
+            SyncDiagnostics(
+                lastAttemptAtMillis = preferences[diagAttemptAtMillisKey],
+                lastDurationMillis = preferences[diagDurationMillisKey],
+                lastHttpStatusCode = preferences[diagHttpStatusKey]?.toInt(),
+                lastDeltaNotModified = preferences[diagDeltaNotModifiedKey] ?: false,
+                importedExams = preferences[diagImportedExamsKey]?.toInt() ?: 0,
+                importedLessons = preferences[diagImportedLessonsKey]?.toInt() ?: 0,
+                importedEvents = preferences[diagImportedEventsKey]?.toInt() ?: 0,
+                changedLessons = preferences[diagChangedLessonsKey]?.toInt() ?: 0,
+                movedLessons = preferences[diagMovedLessonsKey]?.toInt() ?: 0,
+                roomChangedLessons = preferences[diagRoomChangedLessonsKey]?.toInt() ?: 0,
+                lastErrorReason = preferences[diagLastErrorReasonKey]
+            )
+        }
+
     val syncIntervalMinutesFlow: Flow<Long> = preferencesFlow
         .map { preferences ->
             normalizeSyncIntervalMinutes(preferences[syncIntervalMinutesKey] ?: DEFAULT_SYNC_INTERVAL_MINUTES)
@@ -142,6 +204,26 @@ class ExamRepository(private val appContext: Context) {
     val showExamCollisionBadgesFlow: Flow<Boolean> = preferencesFlow
         .map { preferences ->
             preferences[showExamCollisionBadgesKey] ?: false
+        }
+
+    val collisionRuleSettingsFlow: Flow<CollisionRuleSettings> = preferencesFlow
+        .map { preferences ->
+            CollisionRuleSettings(
+                includeLessonCollisions = preferences[collisionIncludeLessonsKey] ?: true,
+                includeEventCollisions = preferences[collisionIncludeEventsKey] ?: false,
+                onlyDifferentSubject = preferences[collisionOnlyDifferentSubjectKey] ?: true,
+                requireExactTimeOverlap = preferences[collisionRequireExactOverlapKey] ?: true
+            )
+        }
+
+    val accessibilityModeEnabledFlow: Flow<Boolean> = preferencesFlow
+        .map { preferences ->
+            preferences[accessibilityModeEnabledKey] ?: false
+        }
+
+    val lastSeenVersionFlow: Flow<String> = preferencesFlow
+        .map { preferences ->
+            preferences[lastSeenVersionKey].orEmpty()
         }
 
     suspend fun addExam(exam: Exam) {
@@ -230,8 +312,28 @@ class ExamRepository(private val appContext: Context) {
     }
 
     suspend fun saveIcalUrl(url: String) {
+        val normalized = url.trim()
         appContext.dataStore.edit { preferences ->
-            preferences[iCalUrlKey] = url.trim()
+            val previous = preferences[iCalUrlKey].orEmpty().trim()
+            preferences[iCalUrlKey] = normalized
+            if (previous != normalized) {
+                preferences.remove(iCalEtagKey)
+                preferences.remove(iCalLastModifiedKey)
+                preferences.remove(lastSyncAtMillisKey)
+                preferences.remove(lastSyncSummaryKey)
+                preferences.remove(lastSyncErrorKey)
+                preferences.remove(diagAttemptAtMillisKey)
+                preferences.remove(diagDurationMillisKey)
+                preferences.remove(diagHttpStatusKey)
+                preferences.remove(diagDeltaNotModifiedKey)
+                preferences.remove(diagImportedExamsKey)
+                preferences.remove(diagImportedLessonsKey)
+                preferences.remove(diagImportedEventsKey)
+                preferences.remove(diagChangedLessonsKey)
+                preferences.remove(diagMovedLessonsKey)
+                preferences.remove(diagRoomChangedLessonsKey)
+                preferences.remove(diagLastErrorReasonKey)
+            }
         }
     }
 
@@ -275,6 +377,52 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun saveIcalSyncCacheHeaders(headers: IcalSyncCacheHeaders) {
+        appContext.dataStore.edit { preferences ->
+            val etag = headers.etag?.trim().orEmpty()
+            val lastModified = headers.lastModified?.trim().orEmpty()
+            if (etag.isBlank()) {
+                preferences.remove(iCalEtagKey)
+            } else {
+                preferences[iCalEtagKey] = etag
+            }
+            if (lastModified.isBlank()) {
+                preferences.remove(iCalLastModifiedKey)
+            } else {
+                preferences[iCalLastModifiedKey] = lastModified
+            }
+        }
+    }
+
+    suspend fun saveSyncDiagnostics(diagnostics: SyncDiagnostics) {
+        appContext.dataStore.edit { preferences ->
+            diagnostics.lastAttemptAtMillis?.let {
+                preferences[diagAttemptAtMillisKey] = it
+            } ?: preferences.remove(diagAttemptAtMillisKey)
+            diagnostics.lastDurationMillis?.let {
+                preferences[diagDurationMillisKey] = it
+            } ?: preferences.remove(diagDurationMillisKey)
+            diagnostics.lastHttpStatusCode?.let {
+                preferences[diagHttpStatusKey] = it.toLong()
+            } ?: preferences.remove(diagHttpStatusKey)
+
+            preferences[diagDeltaNotModifiedKey] = diagnostics.lastDeltaNotModified
+            preferences[diagImportedExamsKey] = diagnostics.importedExams.toLong()
+            preferences[diagImportedLessonsKey] = diagnostics.importedLessons.toLong()
+            preferences[diagImportedEventsKey] = diagnostics.importedEvents.toLong()
+            preferences[diagChangedLessonsKey] = diagnostics.changedLessons.toLong()
+            preferences[diagMovedLessonsKey] = diagnostics.movedLessons.toLong()
+            preferences[diagRoomChangedLessonsKey] = diagnostics.roomChangedLessons.toLong()
+
+            val error = diagnostics.lastErrorReason?.trim().orEmpty()
+            if (error.isBlank()) {
+                preferences.remove(diagLastErrorReasonKey)
+            } else {
+                preferences[diagLastErrorReasonKey] = error
+            }
+        }
+    }
+
     suspend fun saveSyncIntervalMinutes(minutes: Long) {
         appContext.dataStore.edit { preferences ->
             preferences[syncIntervalMinutesKey] = normalizeSyncIntervalMinutes(minutes)
@@ -305,17 +453,54 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun saveCollisionRuleSettings(settings: CollisionRuleSettings) {
+        appContext.dataStore.edit { preferences ->
+            preferences[collisionIncludeLessonsKey] = settings.includeLessonCollisions
+            preferences[collisionIncludeEventsKey] = settings.includeEventCollisions
+            preferences[collisionOnlyDifferentSubjectKey] = settings.onlyDifferentSubject
+            preferences[collisionRequireExactOverlapKey] = settings.requireExactTimeOverlap
+        }
+    }
+
+    suspend fun setAccessibilityModeEnabled(enabled: Boolean) {
+        appContext.dataStore.edit { preferences ->
+            preferences[accessibilityModeEnabledKey] = enabled
+        }
+    }
+
+    suspend fun setLastSeenVersion(versionName: String) {
+        val normalized = versionName.trim()
+        appContext.dataStore.edit { preferences ->
+            if (normalized.isBlank()) {
+                preferences.remove(lastSeenVersionKey)
+            } else {
+                preferences[lastSeenVersionKey] = normalized
+            }
+        }
+    }
+
     suspend fun readIcalUrl(): String? = iCalUrlFlow.first().takeIf { it.isNotBlank() }
     suspend fun readImportEventsEnabled(): Boolean = importEventsEnabledFlow.first()
     suspend fun readSyncIntervalMinutes(): Long = syncIntervalMinutesFlow.first()
+    suspend fun readCollisionRuleSettings(): CollisionRuleSettings = collisionRuleSettingsFlow.first()
+    suspend fun readAccessibilityModeEnabled(): Boolean = accessibilityModeEnabledFlow.first()
+    suspend fun readIcalSyncCacheHeaders(): IcalSyncCacheHeaders {
+        val preferences = preferencesFlow.first()
+        return IcalSyncCacheHeaders(
+            etag = preferences[iCalEtagKey],
+            lastModified = preferences[iCalLastModifiedKey]
+        )
+    }
 
     suspend fun readSnapshot(): List<Exam> = examsFlow.first()
     suspend fun readLessonsSnapshot(): List<TimetableLesson> = lessonsFlow.first()
     suspend fun readEventsSnapshot(): List<SchoolEvent> = eventsFlow.first()
     suspend fun readTimetableChangesSnapshot(): List<TimetableChangeEntry> = timetableChangesFlow.first()
     suspend fun readQuietHoursConfig(): QuietHoursConfig = quietHoursFlow.first()
+    suspend fun readSyncDiagnostics(): SyncDiagnostics = syncDiagnosticsFlow.first()
 
     suspend fun exportBackupJson(): String {
+        val collisionRules = readCollisionRuleSettings()
         val backup = AppBackup(
             exams = readSnapshot(),
             lessons = readLessonsSnapshot(),
@@ -326,6 +511,11 @@ class ExamRepository(private val appContext: Context) {
             showTimetableTab = showTimetableTabFlow.first(),
             showAgendaTab = showAgendaTabFlow.first(),
             showExamCollisionBadges = showExamCollisionBadgesFlow.first(),
+            collisionIncludeLessons = collisionRules.includeLessonCollisions,
+            collisionIncludeEvents = collisionRules.includeEventCollisions,
+            collisionOnlyDifferentSubject = collisionRules.onlyDifferentSubject,
+            collisionRequireExactTimeOverlap = collisionRules.requireExactTimeOverlap,
+            accessibilityModeEnabled = readAccessibilityModeEnabled(),
             onboardingDone = onboardingDoneFlow.first(),
             onboardingPromptSeen = onboardingPromptSeenFlow.first(),
             quietHours = readQuietHoursConfig(),
@@ -404,6 +594,11 @@ class ExamRepository(private val appContext: Context) {
             preferences[showTimetableTabKey] = backup.showTimetableTab
             preferences[showAgendaTabKey] = backup.showAgendaTab
             preferences[showExamCollisionBadgesKey] = backup.showExamCollisionBadges
+            preferences[collisionIncludeLessonsKey] = backup.collisionIncludeLessons
+            preferences[collisionIncludeEventsKey] = backup.collisionIncludeEvents
+            preferences[collisionOnlyDifferentSubjectKey] = backup.collisionOnlyDifferentSubject
+            preferences[collisionRequireExactOverlapKey] = backup.collisionRequireExactTimeOverlap
+            preferences[accessibilityModeEnabledKey] = backup.accessibilityModeEnabled
             preferences[onboardingDoneKey] = backup.onboardingDone
             preferences[onboardingPromptSeenKey] = backup.onboardingPromptSeen
             preferences[quietHoursEnabledKey] = sanitizedQuietHours.enabled
@@ -414,6 +609,20 @@ class ExamRepository(private val appContext: Context) {
             preferences.remove(lastSyncAtMillisKey)
             preferences.remove(lastSyncSummaryKey)
             preferences.remove(lastSyncErrorKey)
+            preferences.remove(iCalEtagKey)
+            preferences.remove(iCalLastModifiedKey)
+            preferences.remove(diagAttemptAtMillisKey)
+            preferences.remove(diagDurationMillisKey)
+            preferences.remove(diagHttpStatusKey)
+            preferences.remove(diagDeltaNotModifiedKey)
+            preferences.remove(diagImportedExamsKey)
+            preferences.remove(diagImportedLessonsKey)
+            preferences.remove(diagImportedEventsKey)
+            preferences.remove(diagChangedLessonsKey)
+            preferences.remove(diagMovedLessonsKey)
+            preferences.remove(diagRoomChangedLessonsKey)
+            preferences.remove(diagLastErrorReasonKey)
+            preferences.remove(lastSeenVersionKey)
         }
         return backup
     }

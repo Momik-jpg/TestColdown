@@ -3,6 +3,8 @@ package com.andrin.examcountdown.ui
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -87,14 +89,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.andrin.examcountdown.BuildConfig
+import com.andrin.examcountdown.data.CollisionRuleSettings
 import com.andrin.examcountdown.data.QuietHoursConfig
 import com.andrin.examcountdown.data.SyncStatus
+import com.andrin.examcountdown.data.SyncDiagnostics
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.model.TimetableChangeEntry
 import com.andrin.examcountdown.model.TimetableChangeType
 import com.andrin.examcountdown.model.TimetableLesson
 import com.andrin.examcountdown.util.CollisionSource
+import com.andrin.examcountdown.util.CollisionRules
 import com.andrin.examcountdown.util.ExamCollision
 import com.andrin.examcountdown.util.collisionsByExam
 import com.andrin.examcountdown.util.detectExamCollisions
@@ -108,6 +114,7 @@ import com.andrin.examcountdown.util.formatReminderLeadTime
 import com.andrin.examcountdown.util.formatSyncDateTime
 import com.andrin.examcountdown.util.formatTimeRange
 import java.io.BufferedReader
+import java.io.OutputStream
 import java.time.LocalTime
 import java.time.DayOfWeek
 import java.time.Instant
@@ -189,11 +196,15 @@ fun ExamCountdownScreen(
     val preferencesLoaded by viewModel.preferencesLoaded.collectAsStateWithLifecycle()
     val quietHours by viewModel.quietHours.collectAsStateWithLifecycle()
     val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
+    val syncDiagnostics by viewModel.syncDiagnostics.collectAsStateWithLifecycle()
     val syncIntervalMinutes by viewModel.syncIntervalMinutes.collectAsStateWithLifecycle()
     val showSyncStatusStrip by viewModel.showSyncStatusStrip.collectAsStateWithLifecycle()
     val showTimetableTab by viewModel.showTimetableTab.collectAsStateWithLifecycle()
     val showAgendaTab by viewModel.showAgendaTab.collectAsStateWithLifecycle()
     val showExamCollisionBadges by viewModel.showExamCollisionBadges.collectAsStateWithLifecycle()
+    val collisionRuleSettings by viewModel.collisionRuleSettings.collectAsStateWithLifecycle()
+    val accessibilityModeEnabled by viewModel.accessibilityModeEnabled.collectAsStateWithLifecycle()
+    val lastSeenVersion by viewModel.lastSeenVersion.collectAsStateWithLifecycle()
     val isDarkMode = isSystemInDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
@@ -203,6 +214,9 @@ fun ExamCountdownScreen(
     var showQuickActionsDialog by rememberSaveable { mutableStateOf(false) }
     var showPersonalizationDialog by rememberSaveable { mutableStateOf(false) }
     var showHelpDialog by rememberSaveable { mutableStateOf(false) }
+    var showSyncDiagnosticsDialog by rememberSaveable { mutableStateOf(false) }
+    var showChangelogDialog by rememberSaveable { mutableStateOf(false) }
+    var showExportDialog by rememberSaveable { mutableStateOf(false) }
     var iCalUrl by rememberSaveable { mutableStateOf("") }
     var importEventsToggle by rememberSaveable { mutableStateOf(false) }
     var onboardingUrl by rememberSaveable { mutableStateOf("") }
@@ -215,6 +229,8 @@ fun ExamCountdownScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var pendingBackupJson by remember { mutableStateOf<String?>(null) }
+    var pendingCsvExport by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var pendingPdfExport by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
 
     LaunchedEffect(initialTab) {
         selectedTab = initialTab
@@ -286,6 +302,46 @@ fun ExamCountdownScreen(
         }
     }
 
+    val exportCsvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        val payload = pendingCsvExport ?: return@rememberLauncherForActivityResult
+        pendingCsvExport = null
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+                writer.write(payload.second)
+            } ?: error("Datei konnte nicht geschrieben werden.")
+        }.onSuccess {
+            scope.launch { snackbarHostState.showSnackbar("${payload.first} exportiert.") }
+        }.onFailure { throwable ->
+            val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+            scope.launch { snackbarHostState.showSnackbar("CSV-Export fehlgeschlagen: $error") }
+        }
+    }
+
+    val exportPdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri ->
+        val payload = pendingPdfExport ?: return@rememberLauncherForActivityResult
+        pendingPdfExport = null
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { output ->
+                writeSimplePdf(
+                    outputStream = output,
+                    title = payload.first,
+                    lines = payload.second
+                )
+            } ?: error("Datei konnte nicht geschrieben werden.")
+        }.onSuccess {
+            scope.launch { snackbarHostState.showSnackbar("${payload.first} als PDF exportiert.") }
+        }.onFailure { throwable ->
+            val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+            scope.launch { snackbarHostState.showSnackbar("PDF-Export fehlgeschlagen: $error") }
+        }
+    }
+
     LaunchedEffect(preferencesLoaded, onboardingDone, onboardingPromptSeen, savedIcalUrl) {
         if (!preferencesLoaded) return@LaunchedEffect
 
@@ -302,6 +358,13 @@ fun ExamCountdownScreen(
             viewModel.markOnboardingPromptSeen()
         } else {
             showOnboardingDialog = false
+        }
+    }
+
+    LaunchedEffect(preferencesLoaded, lastSeenVersion) {
+        if (!preferencesLoaded) return@LaunchedEffect
+        if (lastSeenVersion != BuildConfig.VERSION_NAME) {
+            showChangelogDialog = true
         }
     }
 
@@ -457,6 +520,18 @@ fun ExamCountdownScreen(
                 showQuickActionsDialog = false
                 showHelpDialog = true
             },
+            onOpenSyncDiagnostics = {
+                showQuickActionsDialog = false
+                showSyncDiagnosticsDialog = true
+            },
+            onOpenExport = {
+                showQuickActionsDialog = false
+                showExportDialog = true
+            },
+            onOpenChangelog = {
+                showQuickActionsDialog = false
+                showChangelogDialog = true
+            },
             onOpenPersonalization = {
                 showQuickActionsDialog = false
                 showPersonalizationDialog = true
@@ -490,11 +565,58 @@ fun ExamCountdownScreen(
         )
     }
 
+    if (showSyncDiagnosticsDialog) {
+        SyncDiagnosticsDialog(
+            diagnostics = syncDiagnostics,
+            syncStatus = syncStatus,
+            onDismiss = { showSyncDiagnosticsDialog = false }
+        )
+    }
+
+    if (showChangelogDialog) {
+        ChangelogDialog(
+            versionName = BuildConfig.VERSION_NAME,
+            entries = changelogEntriesFor(BuildConfig.VERSION_NAME),
+            onDismiss = {
+                showChangelogDialog = false
+                viewModel.setLastSeenVersion(BuildConfig.VERSION_NAME)
+            }
+        )
+    }
+
+    if (showExportDialog) {
+        ExportDialog(
+            onDismiss = { showExportDialog = false },
+            onExportExamsCsv = {
+                pendingCsvExport = "pruefungen" to buildExamsCsv(exams)
+                exportCsvLauncher.launch("pruefungen-${System.currentTimeMillis()}.csv")
+                showExportDialog = false
+            },
+            onExportTimetableCsv = {
+                pendingCsvExport = "stundenplan" to buildTimetableCsv(lessons)
+                exportCsvLauncher.launch("stundenplan-${System.currentTimeMillis()}.csv")
+                showExportDialog = false
+            },
+            onExportExamsPdf = {
+                pendingPdfExport = "Prüfungen" to buildExamPdfLines(exams)
+                exportPdfLauncher.launch("pruefungen-${System.currentTimeMillis()}.pdf")
+                showExportDialog = false
+            },
+            onExportTimetablePdf = {
+                pendingPdfExport = "Stundenplan" to buildTimetablePdfLines(lessons)
+                exportPdfLauncher.launch("stundenplan-${System.currentTimeMillis()}.pdf")
+                showExportDialog = false
+            }
+        )
+    }
+
     if (showPersonalizationDialog) {
         PersonalizationDialog(
             showTimetableTab = showTimetableTab,
             showAgendaTab = showAgendaTab,
             showExamCollisionBadges = showExamCollisionBadges,
+            collisionRules = collisionRuleSettings,
+            accessibilityModeEnabled = accessibilityModeEnabled,
             onDismiss = { showPersonalizationDialog = false },
             onShowTimetableTabChange = { enabled ->
                 if (!enabled && !showAgendaTab) {
@@ -510,6 +632,12 @@ fun ExamCountdownScreen(
             },
             onShowExamCollisionBadgesChange = { enabled ->
                 viewModel.setShowExamCollisionBadges(enabled)
+            },
+            onCollisionRulesChange = { rules ->
+                viewModel.saveCollisionRuleSettings(rules)
+            },
+            onAccessibilityModeChange = { enabled ->
+                viewModel.setAccessibilityModeEnabled(enabled)
             }
         )
     }
@@ -621,7 +749,9 @@ fun ExamCountdownScreen(
                 HomeTab.EXAMS -> ExamListContent(
                     exams = exams,
                     lessons = lessons,
+                    events = events,
                     showCollisionBadges = showExamCollisionBadges,
+                    collisionRules = collisionRuleSettings,
                     onAddClick = { showAddDialog = true },
                     onDelete = { exam ->
                         viewModel.deleteExam(exam.id)
@@ -761,6 +891,9 @@ private fun QuickActionsDialog(
     onOpenSyncSettings: () -> Unit,
     onOpenIcalImport: () -> Unit,
     onOpenHelp: () -> Unit,
+    onOpenSyncDiagnostics: () -> Unit,
+    onOpenExport: () -> Unit,
+    onOpenChangelog: () -> Unit,
     onOpenPersonalization: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit
@@ -827,6 +960,28 @@ private fun QuickActionsDialog(
                     Text("Auto-Sync")
                 }
                 OutlinedButton(
+                    onClick = onOpenSyncDiagnostics,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text("Sync-Diagnose")
+                }
+                OutlinedButton(
+                    onClick = onOpenExport,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.CloudDownload,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text("CSV/PDF Export")
+                }
+                OutlinedButton(
                     onClick = onOpenHelp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -836,6 +991,17 @@ private fun QuickActionsDialog(
                         modifier = Modifier.padding(end = 6.dp)
                     )
                     Text("Hilfe / Troubleshooting")
+                }
+                OutlinedButton(
+                    onClick = onOpenChangelog,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.CalendarToday,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text("Was ist neu")
                 }
                 OutlinedButton(
                     onClick = onOpenPersonalization,
@@ -1104,10 +1270,14 @@ private fun PersonalizationDialog(
     showTimetableTab: Boolean,
     showAgendaTab: Boolean,
     showExamCollisionBadges: Boolean,
+    collisionRules: CollisionRuleSettings,
+    accessibilityModeEnabled: Boolean,
     onDismiss: () -> Unit,
     onShowTimetableTabChange: (Boolean) -> Unit,
     onShowAgendaTabChange: (Boolean) -> Unit,
-    onShowExamCollisionBadgesChange: (Boolean) -> Unit
+    onShowExamCollisionBadgesChange: (Boolean) -> Unit,
+    onCollisionRulesChange: (CollisionRuleSettings) -> Unit,
+    onAccessibilityModeChange: (Boolean) -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1157,11 +1327,82 @@ private fun PersonalizationDialog(
                                 onCheckedChange = onShowExamCollisionBadgesChange
                             )
                         }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Kollisionen mit Lektionen")
+                            Switch(
+                                checked = collisionRules.includeLessonCollisions,
+                                onCheckedChange = {
+                                    onCollisionRulesChange(
+                                        collisionRules.copy(includeLessonCollisions = it)
+                                    )
+                                }
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Kollisionen mit Events")
+                            Switch(
+                                checked = collisionRules.includeEventCollisions,
+                                onCheckedChange = {
+                                    onCollisionRulesChange(
+                                        collisionRules.copy(includeEventCollisions = it)
+                                    )
+                                }
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Nur anderes Fach")
+                            Switch(
+                                checked = collisionRules.onlyDifferentSubject,
+                                onCheckedChange = {
+                                    onCollisionRulesChange(
+                                        collisionRules.copy(onlyDifferentSubject = it)
+                                    )
+                                }
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Nur echte Zeitüberschneidung")
+                            Switch(
+                                checked = collisionRules.requireExactTimeOverlap,
+                                onCheckedChange = {
+                                    onCollisionRulesChange(
+                                        collisionRules.copy(requireExactTimeOverlap = it)
+                                    )
+                                }
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Barrierefreiheit-Modus")
+                            Switch(
+                                checked = accessibilityModeEnabled,
+                                onCheckedChange = onAccessibilityModeChange
+                            )
+                        }
                     }
                 }
 
                 Text(
-                    text = "Agenda zeigt Prüfungen, Lektionen und Events kombiniert. Du kannst sie statt Stundenplan nutzen.",
+                    text = "Agenda zeigt Prüfungen, Lektionen und Events kombiniert. Kollisionsregeln und Accessibility lassen sich hier zentral steuern.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1239,6 +1480,188 @@ private fun SyncStatusStrip(syncStatus: SyncStatus) {
             }
         }
     }
+}
+
+@Composable
+private fun SyncDiagnosticsDialog(
+    diagnostics: SyncDiagnostics,
+    syncStatus: SyncStatus,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sync-Diagnose") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Letzter erfolgreicher Sync: ${
+                        syncStatus.lastSyncAtMillis?.let(::formatSyncDateTime) ?: "noch nie"
+                    }",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "Letzter Versuch: ${
+                        diagnostics.lastAttemptAtMillis?.let(::formatSyncDateTime) ?: "unbekannt"
+                    }",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "Dauer: ${diagnostics.lastDurationMillis?.let(::formatDurationMillis) ?: "unbekannt"}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "HTTP-Status: ${diagnostics.lastHttpStatusCode?.toString() ?: "unbekannt"}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "Delta-Sync: ${if (diagnostics.lastDeltaNotModified) "Keine Änderungen (304)" else "Daten aktualisiert"}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Importiert",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text("Prüfungen: ${diagnostics.importedExams}", style = MaterialTheme.typography.bodySmall)
+                        Text("Lektionen: ${diagnostics.importedLessons}", style = MaterialTheme.typography.bodySmall)
+                        Text("Events: ${diagnostics.importedEvents}", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Erkannte Änderungen",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text("Gesamt: ${diagnostics.changedLessons}", style = MaterialTheme.typography.bodySmall)
+                        Text("Verschoben: ${diagnostics.movedLessons}", style = MaterialTheme.typography.bodySmall)
+                        Text("Raum geändert: ${diagnostics.roomChangedLessons}", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
+                val error = diagnostics.lastErrorReason
+                    ?.takeIf { it.isNotBlank() }
+                    ?: syncStatus.lastSyncError
+                if (!error.isNullOrBlank()) {
+                    Text(
+                        text = "Fehlerursache: $error",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Schließen")
+            }
+        }
+    )
+}
+
+@Composable
+private fun ChangelogDialog(
+    versionName: String,
+    entries: List<String>,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Neu in Version $versionName") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                entries.forEach { entry ->
+                    Text(
+                        text = "• $entry",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Verstanden")
+            }
+        }
+    )
+}
+
+@Composable
+private fun ExportDialog(
+    onDismiss: () -> Unit,
+    onExportExamsCsv: () -> Unit,
+    onExportTimetableCsv: () -> Unit,
+    onExportExamsPdf: () -> Unit,
+    onExportTimetablePdf: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("CSV/PDF Export") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onExportExamsCsv
+                ) {
+                    Text("Prüfungen als CSV")
+                }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onExportTimetableCsv
+                ) {
+                    Text("Stundenplan als CSV")
+                }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onExportExamsPdf
+                ) {
+                    Text("Prüfungen als PDF")
+                }
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onExportTimetablePdf
+                ) {
+                    Text("Stundenplan als PDF")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Schließen")
+            }
+        }
+    )
 }
 
 @Composable
@@ -2071,7 +2494,9 @@ private fun TimetableEmptyState(
 private fun ExamListContent(
     exams: List<Exam>,
     lessons: List<TimetableLesson>,
+    events: List<SchoolEvent>,
     showCollisionBadges: Boolean,
+    collisionRules: CollisionRuleSettings,
     onAddClick: () -> Unit,
     onDelete: (Exam) -> Unit
 ) {
@@ -2138,14 +2563,20 @@ private fun ExamListContent(
         val now = System.currentTimeMillis()
         filteredExams.firstOrNull { it.startsAtEpochMillis >= now } ?: filteredExams.firstOrNull()
     }
-    val collisionMap = remember(exams, lessons, showCollisionBadges) {
+    val collisionMap = remember(exams, lessons, events, showCollisionBadges, collisionRules) {
         if (!showCollisionBadges) {
             emptyMap()
         } else {
             val collisions = detectExamCollisions(
                 exams = exams,
                 lessons = lessons,
-                events = emptyList()
+                events = events,
+                rules = CollisionRules(
+                    includeLessonCollisions = collisionRules.includeLessonCollisions,
+                    includeEventCollisions = collisionRules.includeEventCollisions,
+                    onlyDifferentSubject = collisionRules.onlyDifferentSubject,
+                    requireExactTimeOverlap = collisionRules.requireExactTimeOverlap
+                )
             )
             collisionsByExam(collisions)
         }
@@ -3088,6 +3519,150 @@ private fun SyncSettingsDialog(
             }
         }
     )
+}
+
+private fun changelogEntriesFor(versionName: String): List<String> {
+    return when (versionName) {
+        "1.5.0" -> listOf(
+            "Sync-Diagnose mit letzter Dauer, HTTP-Status und klarer Fehlerursache.",
+            "Delta-Sync per ETag/Last-Modified für stabilere und sparsamere Synchronisierung.",
+            "Kollisionsregeln: Lektion/Event getrennt, nur anderes Fach, echte Zeitüberschneidung.",
+            "Widget-Konfiguration pro Widget: Modus, Zeitraum und Sortierung.",
+            "Barrierefreiheit-Modus mit größerer Schrift und höherem Kontrast.",
+            "CSV/PDF-Export für Prüfungen und Stundenplan.",
+            "In-App Changelog nach App-Updates."
+        )
+        else -> listOf(
+            "Neue Version mit Verbesserungen für Sync, UI und Stabilität.",
+            "Details findest du in README und den Release Notes auf GitHub."
+        )
+    }
+}
+
+private fun buildExamsCsv(exams: List<Exam>): String {
+    val header = "Fach,Titel,Datum,Ort,Countdown"
+    val rows = exams
+        .sortedBy { it.startsAtEpochMillis }
+        .map { exam ->
+            listOf(
+                exam.subject.orEmpty(),
+                exam.title,
+                formatExamDate(exam.startsAtEpochMillis),
+                exam.location.orEmpty(),
+                formatCountdown(exam.startsAtEpochMillis)
+            ).joinToString(",") { csvEscape(it) }
+        }
+    return buildString {
+        appendLine(header)
+        rows.forEach { appendLine(it) }
+    }
+}
+
+private fun buildTimetableCsv(lessons: List<TimetableLesson>): String {
+    val header = "Titel,Start,Ende,Uhrzeit,Ort,Verschoben,Raum geändert"
+    val rows = lessons
+        .sortedBy { it.startsAtEpochMillis }
+        .map { lesson ->
+            listOf(
+                lesson.title,
+                formatExamDateShort(lesson.startsAtEpochMillis),
+                formatExamDateShort(lesson.endsAtEpochMillis),
+                formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
+                lesson.location.orEmpty(),
+                if (lesson.isMoved) "Ja" else "Nein",
+                if (lesson.isLocationChanged) "Ja" else "Nein"
+            ).joinToString(",") { csvEscape(it) }
+        }
+    return buildString {
+        appendLine(header)
+        rows.forEach { appendLine(it) }
+    }
+}
+
+private fun buildExamPdfLines(exams: List<Exam>): List<String> {
+    if (exams.isEmpty()) return listOf("Keine Prüfungen vorhanden.")
+    return exams.sortedBy { it.startsAtEpochMillis }.map { exam ->
+        val subjectPrefix = exam.subject?.takeIf { it.isNotBlank() }?.let { "[$it] " }.orEmpty()
+        "$subjectPrefix${exam.title} | ${formatExamDate(exam.startsAtEpochMillis)}${exam.location?.let { " | $it" }.orEmpty()}"
+    }
+}
+
+private fun buildTimetablePdfLines(lessons: List<TimetableLesson>): List<String> {
+    if (lessons.isEmpty()) return listOf("Keine Lektionen vorhanden.")
+    return lessons.sortedBy { it.startsAtEpochMillis }.map { lesson ->
+        val flags = buildList {
+            if (lesson.isMoved) add("verschoben")
+            if (lesson.isLocationChanged) add("Raum geändert")
+        }.joinToString(", ")
+        "${lesson.title} | ${formatExamDateShort(lesson.startsAtEpochMillis)} ${formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis)}${lesson.location?.let { " | $it" }.orEmpty()}${if (flags.isNotBlank()) " | $flags" else ""}"
+    }
+}
+
+private fun csvEscape(raw: String): String {
+    val normalized = raw.replace("\r", " ").replace("\n", " ")
+    return "\"${normalized.replace("\"", "\"\"")}\""
+}
+
+private fun writeSimplePdf(
+    outputStream: OutputStream,
+    title: String,
+    lines: List<String>
+) {
+    val document = PdfDocument()
+    val pageWidth = 595
+    val pageHeight = 842
+    val left = 40f
+    val top = 56f
+    val bottom = pageHeight - 48f
+
+    val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = 16f
+        isFakeBoldText = true
+    }
+    val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = 11f
+    }
+
+    var pageNumber = 1
+    var page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
+    var canvas = page.canvas
+    var y = top
+
+    fun newPage() {
+        document.finishPage(page)
+        pageNumber += 1
+        page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
+        canvas = page.canvas
+        y = top
+        canvas.drawText(title, left, y, titlePaint)
+        y += 24f
+    }
+
+    canvas.drawText(title, left, y, titlePaint)
+    y += 24f
+
+    val maxCharsPerLine = 92
+    lines.forEach { line ->
+        val wrapped = line.chunked(maxCharsPerLine)
+        wrapped.forEach { part ->
+            if (y > bottom) {
+                newPage()
+            }
+            canvas.drawText(part, left, y, bodyPaint)
+            y += 16f
+        }
+    }
+
+    document.finishPage(page)
+    document.writeTo(outputStream)
+    document.close()
+}
+
+private fun formatDurationMillis(durationMillis: Long): String {
+    val safe = durationMillis.coerceAtLeast(0L)
+    val seconds = safe / 1_000L
+    val millis = safe % 1_000L
+    return "${seconds}s ${millis}ms"
 }
 
 private fun parseLeadTimesMinutes(raw: String): List<Long> {

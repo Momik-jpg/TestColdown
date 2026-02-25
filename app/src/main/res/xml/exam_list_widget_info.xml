@@ -6,4 +6,5 @@
     android:previewLayout="@layout/widget_exam_list"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
+    android:configure="com.andrin.examcountdown.widget.WidgetConfigActivity"
     android:widgetCategory="home_screen" />

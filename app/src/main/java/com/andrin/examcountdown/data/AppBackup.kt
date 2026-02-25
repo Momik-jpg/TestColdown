@@ -26,6 +26,11 @@ data class AppBackup(
     val showTimetableTab: Boolean = true,
     val showAgendaTab: Boolean = true,
     val showExamCollisionBadges: Boolean = false,
+    val collisionIncludeLessons: Boolean = true,
+    val collisionIncludeEvents: Boolean = false,
+    val collisionOnlyDifferentSubject: Boolean = true,
+    val collisionRequireExactTimeOverlap: Boolean = true,
+    val accessibilityModeEnabled: Boolean = false,
     val onboardingDone: Boolean = false,
     val onboardingPromptSeen: Boolean = false,
     val quietHours: QuietHoursConfig = QuietHoursConfig(),
@@ -33,6 +38,6 @@ data class AppBackup(
     val showSyncStatusStrip: Boolean = true
 ) {
     companion object {
-        const val CURRENT_SCHEMA_VERSION: Int = 6
+        const val CURRENT_SCHEMA_VERSION: Int = 7
     }
 }
