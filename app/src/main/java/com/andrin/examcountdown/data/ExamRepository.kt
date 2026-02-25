@@ -1,6 +1,7 @@
 package com.andrin.examcountdown.data
 
 import android.content.Context
+import android.util.Base64
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -14,6 +15,8 @@ import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.model.TimetableChangeEntry
 import com.andrin.examcountdown.model.TimetableLesson
 import java.io.IOException
+import java.security.MessageDigest
+import java.security.SecureRandom
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -60,7 +63,9 @@ class ExamRepository(private val appContext: Context) {
     private val lessonsKey = stringPreferencesKey("lessons_json")
     private val eventsKey = stringPreferencesKey("events_json")
     private val timetableChangesKey = stringPreferencesKey("timetable_changes_json")
+    // Legacy key: kept only for one-time migration to encrypted storage.
     private val iCalUrlKey = stringPreferencesKey("ical_url")
+    private val iCalUrlRevisionKey = longPreferencesKey("ical_url_revision")
     private val importEventsEnabledKey = booleanPreferencesKey("import_events_enabled")
     private val onboardingDoneKey = booleanPreferencesKey("onboarding_done")
     private val onboardingPromptSeenKey = booleanPreferencesKey("onboarding_prompt_seen")
@@ -77,8 +82,13 @@ class ExamRepository(private val appContext: Context) {
     private val collisionOnlyDifferentSubjectKey = booleanPreferencesKey("collision_only_different_subject")
     private val collisionRequireExactOverlapKey = booleanPreferencesKey("collision_require_exact_overlap")
     private val accessibilityModeEnabledKey = booleanPreferencesKey("accessibility_mode_enabled")
+    private val simpleModeEnabledKey = booleanPreferencesKey("simple_mode_enabled")
     private val lastSeenVersionKey = stringPreferencesKey("last_seen_version")
     private val showSetupGuideCardKey = booleanPreferencesKey("show_setup_guide_card")
+    private val appLockEnabledKey = booleanPreferencesKey("app_lock_enabled")
+    private val appLockPinHashKey = stringPreferencesKey("app_lock_pin_hash")
+    private val appLockPinSaltKey = stringPreferencesKey("app_lock_pin_salt")
+    private val appLockBiometricEnabledKey = booleanPreferencesKey("app_lock_biometric_enabled")
     private val iCalEtagKey = stringPreferencesKey("ical_etag")
     private val iCalLastModifiedKey = stringPreferencesKey("ical_last_modified")
     private val lastSyncAtMillisKey = longPreferencesKey("last_sync_at_ms")
@@ -96,6 +106,7 @@ class ExamRepository(private val appContext: Context) {
     private val diagRoomChangedLessonsKey = longPreferencesKey("sync_diag_room_changed_lessons")
     private val diagLastErrorReasonKey = stringPreferencesKey("sync_diag_last_error_reason")
     private val json = Json { ignoreUnknownKeys = true }
+    private val secureIcalUrlStore = SecureIcalUrlStore(appContext)
 
     private val preferencesFlow: Flow<Preferences> = appContext.dataStore.data
         .catch { exception ->
@@ -131,7 +142,12 @@ class ExamRepository(private val appContext: Context) {
         }
 
     val iCalUrlFlow: Flow<String> = preferencesFlow
-        .map { preferences -> preferences[iCalUrlKey].orEmpty() }
+        .map { preferences ->
+            // Touch revision key so changes in encrypted storage trigger flow refresh.
+            preferences[iCalUrlRevisionKey]
+            secureIcalUrlStore.read()
+                ?: preferences[iCalUrlKey].orEmpty().trim()
+        }
 
     val importEventsEnabledFlow: Flow<Boolean> = preferencesFlow
         .map { preferences -> preferences[importEventsEnabledKey] ?: false }
@@ -222,6 +238,11 @@ class ExamRepository(private val appContext: Context) {
             preferences[accessibilityModeEnabledKey] ?: false
         }
 
+    val simpleModeEnabledFlow: Flow<Boolean> = preferencesFlow
+        .map { preferences ->
+            preferences[simpleModeEnabledKey] ?: true
+        }
+
     val lastSeenVersionFlow: Flow<String> = preferencesFlow
         .map { preferences ->
             preferences[lastSeenVersionKey].orEmpty()
@@ -230,6 +251,20 @@ class ExamRepository(private val appContext: Context) {
     val showSetupGuideCardFlow: Flow<Boolean> = preferencesFlow
         .map { preferences ->
             preferences[showSetupGuideCardKey] ?: true
+        }
+
+    val appLockEnabledFlow: Flow<Boolean> = preferencesFlow
+        .map { preferences ->
+            preferences[appLockEnabledKey] ?: false
+        }
+
+    val appLockBiometricEnabledFlow: Flow<Boolean> = preferencesFlow
+        .map { preferences ->
+            if (!(preferences[appLockEnabledKey] ?: false)) {
+                false
+            } else {
+                preferences[appLockBiometricEnabledKey] ?: false
+            }
         }
 
     suspend fun addExam(exam: Exam) {
@@ -318,10 +353,13 @@ class ExamRepository(private val appContext: Context) {
     }
 
     suspend fun saveIcalUrl(url: String) {
-        val normalized = url.trim()
+        val normalized = normalizeAndValidateIcalUrl(url)
+        val previous = secureIcalUrlStore.read().orEmpty()
+        secureIcalUrlStore.write(normalized)
         appContext.dataStore.edit { preferences ->
-            val previous = preferences[iCalUrlKey].orEmpty().trim()
-            preferences[iCalUrlKey] = normalized
+            // Remove legacy plain-text value after migration/update.
+            preferences.remove(iCalUrlKey)
+            preferences[iCalUrlRevisionKey] = System.currentTimeMillis()
             if (previous != normalized) {
                 preferences.remove(iCalEtagKey)
                 preferences.remove(iCalLastModifiedKey)
@@ -340,6 +378,18 @@ class ExamRepository(private val appContext: Context) {
                 preferences.remove(diagRoomChangedLessonsKey)
                 preferences.remove(diagLastErrorReasonKey)
             }
+        }
+    }
+
+    suspend fun migrateLegacyIcalUrlIfNeeded() {
+        val secureUrl = secureIcalUrlStore.read()
+        if (!secureUrl.isNullOrBlank()) return
+        val preferences = preferencesFlow.first()
+        val legacyUrl = normalizeImportedIcalUrlOrNull(preferences[iCalUrlKey]) ?: return
+        secureIcalUrlStore.write(legacyUrl)
+        appContext.dataStore.edit { editable ->
+            editable.remove(iCalUrlKey)
+            editable[iCalUrlRevisionKey] = System.currentTimeMillis()
         }
     }
 
@@ -474,6 +524,12 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun setSimpleModeEnabled(enabled: Boolean) {
+        appContext.dataStore.edit { preferences ->
+            preferences[simpleModeEnabledKey] = enabled
+        }
+    }
+
     suspend fun setLastSeenVersion(versionName: String) {
         val normalized = versionName.trim()
         appContext.dataStore.edit { preferences ->
@@ -489,6 +545,62 @@ class ExamRepository(private val appContext: Context) {
         appContext.dataStore.edit { preferences ->
             preferences[showSetupGuideCardKey] = enabled
         }
+    }
+
+    suspend fun enableAppLockWithPin(pin: String, biometricEnabled: Boolean = false) {
+        val normalizedPin = requireValidPin(pin)
+        val saltBytes = ByteArray(APP_LOCK_SALT_BYTES).also { SecureRandom().nextBytes(it) }
+        val encodedSalt = Base64.encodeToString(saltBytes, Base64.NO_WRAP)
+        val encodedHash = hashPin(normalizedPin, saltBytes)
+
+        appContext.dataStore.edit { preferences ->
+            preferences[appLockEnabledKey] = true
+            preferences[appLockPinSaltKey] = encodedSalt
+            preferences[appLockPinHashKey] = encodedHash
+            preferences[appLockBiometricEnabledKey] = biometricEnabled
+        }
+    }
+
+    suspend fun disableAppLock() {
+        appContext.dataStore.edit { preferences ->
+            preferences[appLockEnabledKey] = false
+            preferences.remove(appLockPinSaltKey)
+            preferences.remove(appLockPinHashKey)
+            preferences.remove(appLockBiometricEnabledKey)
+        }
+    }
+
+    suspend fun setAppLockBiometricEnabled(enabled: Boolean) {
+        appContext.dataStore.edit { preferences ->
+            if (preferences[appLockEnabledKey] ?: false) {
+                preferences[appLockBiometricEnabledKey] = enabled
+            } else {
+                preferences.remove(appLockBiometricEnabledKey)
+            }
+        }
+    }
+
+    suspend fun verifyAppLockPin(pin: String): Boolean {
+        val normalizedPin = pin.trim()
+        if (normalizedPin.isEmpty()) return false
+
+        val preferences = preferencesFlow.first()
+        if (!(preferences[appLockEnabledKey] ?: false)) {
+            return true
+        }
+
+        val encodedSalt = preferences[appLockPinSaltKey].orEmpty()
+        val encodedHash = preferences[appLockPinHashKey].orEmpty()
+        if (encodedSalt.isBlank() || encodedHash.isBlank()) {
+            return false
+        }
+
+        val saltBytes = runCatching {
+            Base64.decode(encodedSalt, Base64.NO_WRAP)
+        }.getOrNull() ?: return false
+
+        val candidateHash = hashPin(normalizedPin, saltBytes)
+        return candidateHash == encodedHash
     }
 
     suspend fun readIcalUrl(): String? = iCalUrlFlow.first().takeIf { it.isNotBlank() }
@@ -518,7 +630,8 @@ class ExamRepository(private val appContext: Context) {
             lessons = readLessonsSnapshot(),
             events = readEventsSnapshot(),
             timetableChanges = readTimetableChangesSnapshot(),
-            iCalUrl = readIcalUrl(),
+            // Sensitive tokenized iCal links are intentionally excluded from backups.
+            iCalUrl = null,
             importEventsEnabled = readImportEventsEnabled(),
             showTimetableTab = showTimetableTabFlow.first(),
             showAgendaTab = showAgendaTabFlow.first(),
@@ -528,6 +641,8 @@ class ExamRepository(private val appContext: Context) {
             collisionOnlyDifferentSubject = collisionRules.onlyDifferentSubject,
             collisionRequireExactTimeOverlap = collisionRules.requireExactTimeOverlap,
             accessibilityModeEnabled = readAccessibilityModeEnabled(),
+            simpleModeEnabled = simpleModeEnabledFlow.first(),
+            appLockBiometricEnabled = appLockBiometricEnabledFlow.first(),
             showSetupGuideCard = showSetupGuideCardFlow.first(),
             onboardingDone = onboardingDoneFlow.first(),
             onboardingPromptSeen = onboardingPromptSeenFlow.first(),
@@ -597,11 +712,11 @@ class ExamRepository(private val appContext: Context) {
                 sanitizedChanges
             )
 
-            if (sanitizedUrl == null) {
-                preferences.remove(iCalUrlKey)
-            } else {
-                preferences[iCalUrlKey] = sanitizedUrl
+            if (sanitizedUrl != null) {
+                secureIcalUrlStore.write(sanitizedUrl)
+                preferences[iCalUrlRevisionKey] = System.currentTimeMillis()
             }
+            preferences.remove(iCalUrlKey)
 
             preferences[importEventsEnabledKey] = backup.importEventsEnabled
             preferences[showTimetableTabKey] = backup.showTimetableTab
@@ -612,6 +727,12 @@ class ExamRepository(private val appContext: Context) {
             preferences[collisionOnlyDifferentSubjectKey] = backup.collisionOnlyDifferentSubject
             preferences[collisionRequireExactOverlapKey] = backup.collisionRequireExactTimeOverlap
             preferences[accessibilityModeEnabledKey] = backup.accessibilityModeEnabled
+            preferences[simpleModeEnabledKey] = backup.simpleModeEnabled
+            if (preferences[appLockEnabledKey] ?: false) {
+                preferences[appLockBiometricEnabledKey] = backup.appLockBiometricEnabled
+            } else {
+                preferences.remove(appLockBiometricEnabledKey)
+            }
             preferences[showSetupGuideCardKey] = backup.showSetupGuideCard
             preferences[onboardingDoneKey] = backup.onboardingDone
             preferences[onboardingPromptSeenKey] = backup.onboardingPromptSeen
@@ -677,16 +798,29 @@ class ExamRepository(private val appContext: Context) {
     }
 
     private fun normalizeImportedIcalUrl(raw: String?): String? {
-        val normalized = raw?.trim().orEmpty()
-        if (normalized.isBlank()) return null
-        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
-            return normalized
+        return normalizeImportedIcalUrlOrNull(raw)
+    }
+
+    private fun requireValidPin(pin: String): String {
+        val normalized = pin.trim()
+        require(normalized.matches(Regex("^\\d{$APP_LOCK_PIN_MIN_DIGITS,$APP_LOCK_PIN_MAX_DIGITS}$"))) {
+            "PIN muss aus $APP_LOCK_PIN_MIN_DIGITS bis $APP_LOCK_PIN_MAX_DIGITS Ziffern bestehen."
         }
-        return null
+        return normalized
+    }
+
+    private fun hashPin(pin: String, saltBytes: ByteArray): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        digest.update(saltBytes)
+        val hash = digest.digest(pin.toByteArray(Charsets.UTF_8))
+        return Base64.encodeToString(hash, Base64.NO_WRAP)
     }
 
     companion object {
         const val DEFAULT_SYNC_INTERVAL_MINUTES: Long = 6L * 60L
+        const val APP_LOCK_PIN_MIN_DIGITS: Int = 4
+        const val APP_LOCK_PIN_MAX_DIGITS: Int = 10
+        private const val APP_LOCK_SALT_BYTES: Int = 16
         private const val MAX_BACKUP_CHARS: Int = 1_000_000
         private const val MAX_BACKUP_EXAMS: Int = 5_000
         private const val MAX_BACKUP_LESSONS: Int = 15_000

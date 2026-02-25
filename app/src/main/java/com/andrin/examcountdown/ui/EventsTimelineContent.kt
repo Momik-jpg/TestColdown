@@ -435,7 +435,7 @@ private fun EventEmptyState(
                         text = if (hasIcalUrl) {
                             "Tippe oben rechts auf Aktualisieren. Optional kannst du Event-Import aktivieren."
                         } else {
-                            "Füge zuerst deinen schulNetz-iCal-Link hinzu."
+                            "Füge zuerst deinen iCal-Link hinzu."
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

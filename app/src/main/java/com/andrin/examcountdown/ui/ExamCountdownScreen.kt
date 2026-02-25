@@ -8,6 +8,7 @@ import android.graphics.pdf.PdfDocument
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -28,12 +29,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.NotificationsActive
@@ -44,12 +47,15 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -69,6 +75,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -76,19 +83,30 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import com.andrin.examcountdown.BuildConfig
 import com.andrin.examcountdown.data.CollisionRuleSettings
 import com.andrin.examcountdown.data.QuietHoursConfig
@@ -125,11 +143,16 @@ import java.time.format.DateTimeFormatter
 import java.util.Calendar
 import kotlinx.coroutines.launch
 
-enum class HomeTab(val title: String, val route: String) {
-    EXAMS("Prüfungen", "exams"),
-    TIMETABLE("Stundenplan", "timetable"),
-    EVENTS("Agenda", "events"),
-    GRADES("Notenrechner", "grades");
+enum class HomeTab(
+    val title: String,
+    val shortTitle: String,
+    val route: String,
+    val icon: ImageVector
+) {
+    EXAMS("Prüfungen", "Prüf.", "exams", Icons.Outlined.School),
+    TIMETABLE("Stundenplan", "Plan", "timetable", Icons.Outlined.Schedule),
+    EVENTS("Agenda", "Agenda", "events", Icons.Outlined.CalendarToday),
+    GRADES("Notenrechner", "Noten", "grades", Icons.Outlined.Calculate);
 
     companion object {
         fun fromRoute(route: String?): HomeTab {
@@ -164,6 +187,11 @@ private enum class ExamSortMode(val title: String) {
     TITLE_AZ("Titel A-Z")
 }
 
+private enum class ReminderInputMode(val title: String) {
+    QUICK("Schnell"),
+    SERIES("Eigene Regel")
+}
+
 private data class TimetableLessonBlock(
     val id: String,
     val title: String,
@@ -178,6 +206,8 @@ private data class TimetableLessonBlock(
 )
 
 private const val SUBJECT_FILTER_ALL = "Alle Fächer"
+private const val APP_LOCK_MIN_PIN_DIGITS = 4
+private const val APP_LOCK_MAX_PIN_DIGITS = 10
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -204,8 +234,11 @@ fun ExamCountdownScreen(
     val showExamCollisionBadges by viewModel.showExamCollisionBadges.collectAsStateWithLifecycle()
     val collisionRuleSettings by viewModel.collisionRuleSettings.collectAsStateWithLifecycle()
     val accessibilityModeEnabled by viewModel.accessibilityModeEnabled.collectAsStateWithLifecycle()
+    val simpleModeEnabled by viewModel.simpleModeEnabled.collectAsStateWithLifecycle()
     val lastSeenVersion by viewModel.lastSeenVersion.collectAsStateWithLifecycle()
     val showSetupGuideCard by viewModel.showSetupGuideCard.collectAsStateWithLifecycle()
+    val appLockEnabled by viewModel.appLockEnabled.collectAsStateWithLifecycle()
+    val appLockBiometricEnabled by viewModel.appLockBiometricEnabled.collectAsStateWithLifecycle()
     val isDarkMode = isSystemInDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
@@ -214,6 +247,7 @@ fun ExamCountdownScreen(
     var showSyncSettingsDialog by rememberSaveable { mutableStateOf(false) }
     var showQuickActionsDialog by rememberSaveable { mutableStateOf(false) }
     var showPersonalizationDialog by rememberSaveable { mutableStateOf(false) }
+    var showAppLockDialog by rememberSaveable { mutableStateOf(false) }
     var showHelpDialog by rememberSaveable { mutableStateOf(false) }
     var showSyncDiagnosticsDialog by rememberSaveable { mutableStateOf(false) }
     var showChangelogDialog by rememberSaveable { mutableStateOf(false) }
@@ -226,9 +260,16 @@ fun ExamCountdownScreen(
     var onboardingInfoMessage by rememberSaveable { mutableStateOf("") }
     var isSyncingIcal by rememberSaveable { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(initialTab) }
+    var appLockInitialized by rememberSaveable { mutableStateOf(false) }
+    var isAppUnlocked by rememberSaveable { mutableStateOf(false) }
+    var biometricAutoPromptConsumed by rememberSaveable { mutableStateOf(false) }
+    var biometricUnlockError by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val hostActivity = remember(context) { context as? FragmentActivity }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val biometricAvailable = remember(context) { isBiometricUnlockAvailable(context) }
     var pendingBackupJson by remember { mutableStateOf<String?>(null) }
     var pendingCsvExport by remember { mutableStateOf<Pair<String, String>?>(null) }
     var pendingPdfExport by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
@@ -245,6 +286,70 @@ fun ExamCountdownScreen(
 
     LaunchedEffect(initialTab) {
         selectedTab = initialTab
+    }
+
+    LaunchedEffect(preferencesLoaded, appLockEnabled) {
+        if (!preferencesLoaded) return@LaunchedEffect
+        if (!appLockInitialized) {
+            appLockInitialized = true
+            isAppUnlocked = !appLockEnabled
+            biometricAutoPromptConsumed = false
+            biometricUnlockError = null
+            return@LaunchedEffect
+        }
+        if (!appLockEnabled) {
+            isAppUnlocked = true
+            biometricAutoPromptConsumed = false
+            biometricUnlockError = null
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, appLockEnabled, appLockInitialized) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (
+                event == Lifecycle.Event.ON_STOP &&
+                appLockEnabled &&
+                appLockInitialized
+            ) {
+                isAppUnlocked = false
+                biometricAutoPromptConsumed = false
+                biometricUnlockError = null
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val onBiometricUnlockSuccess = rememberUpdatedState(newValue = {
+        isAppUnlocked = true
+        biometricUnlockError = null
+    })
+    val onBiometricUnlockFailure = rememberUpdatedState(newValue = { error: String? ->
+        biometricUnlockError = error?.takeIf { it.isNotBlank() } ?: "Biometrie fehlgeschlagen."
+    })
+
+    LaunchedEffect(
+        appLockInitialized,
+        appLockEnabled,
+        isAppUnlocked,
+        appLockBiometricEnabled,
+        biometricAvailable,
+        biometricAutoPromptConsumed,
+        hostActivity
+    ) {
+        if (!appLockInitialized || !appLockEnabled || isAppUnlocked) return@LaunchedEffect
+        if (!appLockBiometricEnabled || !biometricAvailable) return@LaunchedEffect
+        if (biometricAutoPromptConsumed) return@LaunchedEffect
+        val activity = hostActivity ?: return@LaunchedEffect
+
+        biometricAutoPromptConsumed = true
+        runBiometricUnlock(
+            activity = activity,
+            title = "App entsperren",
+            subtitle = "Mit Fingerabdruck oder Face entsperren",
+            onSuccess = onBiometricUnlockSuccess.value,
+            onFailure = onBiometricUnlockFailure.value
+        )
     }
 
     LaunchedEffect(importEventsEnabled) {
@@ -547,6 +652,10 @@ fun ExamCountdownScreen(
                 showQuickActionsDialog = false
                 showPersonalizationDialog = true
             },
+            onOpenAppLock = {
+                showQuickActionsDialog = false
+                showAppLockDialog = true
+            },
             onExportBackup = {
                 showQuickActionsDialog = false
                 viewModel.exportBackupJson { result ->
@@ -566,6 +675,40 @@ fun ExamCountdownScreen(
             onImportBackup = {
                 showQuickActionsDialog = false
                 importBackupLauncher.launch(arrayOf("application/json", "text/plain"))
+            }
+        )
+    }
+
+    if (showAppLockDialog) {
+        AppLockSettingsDialog(
+            isEnabled = appLockEnabled,
+            biometricEnabled = appLockBiometricEnabled,
+            canUseBiometric = biometricAvailable && hostActivity != null,
+            onDismiss = { showAppLockDialog = false },
+            onBiometricEnabledChange = { enabled ->
+                viewModel.setAppLockBiometricEnabled(enabled)
+            },
+            onEnable = { pin, biometricEnabled ->
+                viewModel.enableAppLock(pin, biometricEnabled = biometricEnabled) { success, message ->
+                    scope.launch { snackbarHostState.showSnackbar(message) }
+                    if (success) {
+                        isAppUnlocked = true
+                        biometricAutoPromptConsumed = false
+                        biometricUnlockError = null
+                        showAppLockDialog = false
+                    }
+                }
+            },
+            onDisable = { pin ->
+                viewModel.disableAppLock(pin) { success, message ->
+                    scope.launch { snackbarHostState.showSnackbar(message) }
+                    if (success) {
+                        isAppUnlocked = true
+                        biometricAutoPromptConsumed = false
+                        biometricUnlockError = null
+                        showAppLockDialog = false
+                    }
+                }
             }
         )
     }
@@ -628,6 +771,7 @@ fun ExamCountdownScreen(
             showExamCollisionBadges = showExamCollisionBadges,
             collisionRules = collisionRuleSettings,
             accessibilityModeEnabled = accessibilityModeEnabled,
+            simpleModeEnabled = simpleModeEnabled,
             showSetupGuideCard = showSetupGuideCard,
             onDismiss = { showPersonalizationDialog = false },
             onShowTimetableTabChange = { enabled ->
@@ -651,8 +795,42 @@ fun ExamCountdownScreen(
             onAccessibilityModeChange = { enabled ->
                 viewModel.setAccessibilityModeEnabled(enabled)
             },
+            onSimpleModeChange = { enabled ->
+                viewModel.setSimpleModeEnabled(enabled)
+            },
             onShowSetupGuideCardChange = { enabled ->
                 viewModel.setShowSetupGuideCard(enabled)
+            }
+        )
+    }
+
+    if (appLockInitialized && appLockEnabled && !isAppUnlocked) {
+        AppUnlockDialog(
+            showBiometricButton = appLockBiometricEnabled && biometricAvailable && hostActivity != null,
+            biometricError = biometricUnlockError,
+            onUseBiometric = {
+                val activity = hostActivity ?: return@AppUnlockDialog
+                runBiometricUnlock(
+                    activity = activity,
+                    title = "App entsperren",
+                    subtitle = "Mit Fingerabdruck oder Face entsperren",
+                    onSuccess = {
+                        isAppUnlocked = true
+                        biometricUnlockError = null
+                    },
+                    onFailure = { error ->
+                        biometricUnlockError = error
+                    }
+                )
+            },
+            onUnlock = { pin, onResult ->
+                viewModel.verifyAppLockPin(pin) { isValid ->
+                    if (isValid) {
+                        isAppUnlocked = true
+                        biometricUnlockError = null
+                    }
+                    onResult(isValid)
+                }
             }
         )
     }
@@ -677,63 +855,103 @@ fun ExamCountdownScreen(
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
+            val topBarColor = MaterialTheme.colorScheme.background.copy(
+                alpha = if (isDarkMode) 0.94f else 0.98f
+            )
             Column {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = "Prüfungs-Planer",
-                            fontWeight = FontWeight.SemiBold
+                Surface(color = topBarColor) {
+                    Column {
+                        TopAppBar(
+                            title = {
+                                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                                    Text(
+                                        text = "Prüfungs-Planer",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "Klar organisiert für den Schulalltag",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            actions = {
+                                if (selectedTab != HomeTab.GRADES) {
+                                    FilledTonalIconButton(
+                                        enabled = !isSyncingIcal,
+                                        onClick = triggerManualRefresh
+                                    ) {
+                                        if (isSyncingIcal) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(18.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Refresh,
+                                                contentDescription = "Jetzt aktualisieren"
+                                            )
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            showQuickActionsDialog = true
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.MoreVert,
+                                            contentDescription = "Mehr Aktionen"
+                                        )
+                                    }
+                                }
+                            },
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = Color.Transparent,
+                                scrolledContainerColor = Color.Transparent
+                            )
                         )
-                    },
-                    actions = {
-                        if (selectedTab != HomeTab.GRADES) {
-                            IconButton(
-                                enabled = !isSyncingIcal,
-                                onClick = triggerManualRefresh
-                            ) {
-                                if (isSyncingIcal) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Refresh,
-                                        contentDescription = "Jetzt aktualisieren"
-                                    )
-                                }
+                        TabRow(
+                            selectedTabIndex = visibleTabs.indexOf(selectedTab).coerceAtLeast(0),
+                            containerColor = Color.Transparent,
+                            divider = {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)
+                                )
                             }
-                            IconButton(
-                                onClick = {
-                                    showQuickActionsDialog = true
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.MoreVert,
-                                    contentDescription = "Mehr Aktionen"
+                        ) {
+                            visibleTabs.forEach { tab ->
+                                Tab(
+                                    selected = selectedTab == tab,
+                                    onClick = { selectedTab = tab },
+                                    icon = {
+                                        Icon(
+                                            imageVector = tab.icon,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    },
+                                    text = {
+                                        Text(
+                                            text = tab.shortTitle,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 )
                             }
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        scrolledContainerColor = Color.Transparent
-                    )
-                )
-                TabRow(
-                    selectedTabIndex = visibleTabs.indexOf(selectedTab).coerceAtLeast(0),
-                    containerColor = Color.Transparent
-                ) {
-                    visibleTabs.forEach { tab ->
-                        Tab(
-                            selected = selectedTab == tab,
-                            onClick = { selectedTab = tab },
-                            text = { Text(tab.title) }
-                        )
                     }
                 }
                 if (showSyncStatusStrip) {
-                    SyncStatusStrip(syncStatus = syncStatus)
+                    SyncStatusStrip(
+                        syncStatus = syncStatus,
+                        onRepairIcalLink = {
+                            iCalUrl = savedIcalUrl
+                            importEventsToggle = importEventsEnabled
+                            showIcalDialog = true
+                        }
+                    )
                 }
             }
         },
@@ -762,6 +980,7 @@ fun ExamCountdownScreen(
                     hasIcalUrl = savedIcalUrl.isNotBlank(),
                     hasSyncedOnce = syncStatus.lastSyncAtMillis != null,
                     lastSyncError = syncStatus.lastSyncError,
+                    simpleModeEnabled = simpleModeEnabled,
                     showSetupGuideCard = showSetupGuideCard,
                     onOpenIcalImport = {
                         iCalUrl = savedIcalUrl
@@ -772,15 +991,19 @@ fun ExamCountdownScreen(
                     onOpenHelp = {
                         showHelpDialog = true
                     },
+                    onOpenSyncDiagnostics = {
+                        showSyncDiagnosticsDialog = true
+                    },
                     onHideSetupGuide = {
                         viewModel.setShowSetupGuideCard(false)
                     },
                     onAddClick = { showAddDialog = true },
                     onDelete = { exam ->
                         viewModel.deleteExam(exam.id)
+                        val deletedTitle = buildExamPresentation(exam).title
                         scope.launch {
                             val result = snackbarHostState.showSnackbar(
-                                message = "\"${exam.title}\" gelöscht",
+                                message = "\"$deletedTitle\" gelöscht",
                                 actionLabel = "Rückgängig",
                                 duration = SnackbarDuration.Long
                             )
@@ -848,7 +1071,7 @@ private fun IcalImportDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("iCal aus schulNetz importieren") },
+        title = { Text("iCal-Kalender verbinden") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
@@ -918,19 +1141,25 @@ private fun QuickActionsDialog(
     onOpenExport: () -> Unit,
     onOpenChangelog: () -> Unit,
     onOpenPersonalization: () -> Unit,
+    onOpenAppLock: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit
 ) {
     var showAdvancedActions by remember { mutableStateOf(false) }
+    val actionsContentModifier = if (showAdvancedActions) {
+        Modifier
+            .heightIn(max = 460.dp)
+            .verticalScroll(rememberScrollState())
+    } else {
+        Modifier
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Werkzeuge") },
         text = {
             Column(
-                modifier = Modifier
-                    .heightIn(max = 460.dp)
-                    .verticalScroll(rememberScrollState()),
+                modifier = actionsContentModifier,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Surface(
@@ -1003,17 +1232,16 @@ private fun QuickActionsDialog(
                     )
                     Text("Personalisieren")
                 }
-                TextButton(
-                    onClick = { showAdvancedActions = !showAdvancedActions },
-                    modifier = Modifier.align(Alignment.End)
+                OutlinedButton(
+                    onClick = onOpenAppLock,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        if (showAdvancedActions) {
-                            "Weniger Optionen"
-                        } else {
-                            "Weitere Optionen"
-                        }
+                    Icon(
+                        imageVector = Icons.Outlined.Lock,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 6.dp)
                     )
+                    Text("App-Schutz (PIN)")
                 }
                 if (showAdvancedActions) {
                     OutlinedButton(
@@ -1081,6 +1309,185 @@ private fun QuickActionsDialog(
             TextButton(onClick = onDismiss) {
                 Text("Schließen")
             }
+        },
+        dismissButton = {
+            TextButton(onClick = { showAdvancedActions = !showAdvancedActions }) {
+                Text(if (showAdvancedActions) "Weniger Optionen" else "Weitere Optionen")
+            }
+        }
+    )
+}
+
+@Composable
+private fun AppLockSettingsDialog(
+    isEnabled: Boolean,
+    biometricEnabled: Boolean,
+    canUseBiometric: Boolean,
+    onDismiss: () -> Unit,
+    onBiometricEnabledChange: (Boolean) -> Unit,
+    onEnable: (String, Boolean) -> Unit,
+    onDisable: (String) -> Unit
+) {
+    var pin by rememberSaveable { mutableStateOf("") }
+    var enableBiometricOnSetup by rememberSaveable { mutableStateOf(canUseBiometric) }
+    val normalizedPin = pin.trim()
+    val pinPattern = remember {
+        Regex("^\\d{$APP_LOCK_MIN_PIN_DIGITS,$APP_LOCK_MAX_PIN_DIGITS}$")
+    }
+    val pinValid = normalizedPin.matches(pinPattern)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(if (isEnabled) "App-Schutz deaktivieren" else "App-Schutz aktivieren")
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = if (isEnabled) {
+                        "Schutz ist aktiv. Du kannst ihn hier anpassen oder deaktivieren."
+                    } else {
+                        "Optionaler Schutz: PIN (und optional Biometrie)."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (isEnabled) {
+                    if (canUseBiometric) {
+                        SettingToggleRow(
+                            label = "Biometrie zum Entsperren",
+                            checked = biometricEnabled,
+                            onCheckedChange = onBiometricEnabledChange
+                        )
+                    } else {
+                        Text(
+                            text = "Biometrie ist auf diesem Gerät gerade nicht verfügbar.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else if (canUseBiometric) {
+                    SettingToggleRow(
+                        label = "Biometrie direkt aktivieren",
+                        checked = enableBiometricOnSetup,
+                        onCheckedChange = { enableBiometricOnSetup = it }
+                    )
+                }
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { value ->
+                        pin = value.filter { it.isDigit() }.take(APP_LOCK_MAX_PIN_DIGITS)
+                    },
+                    label = {
+                        Text(
+                            if (isEnabled) "Aktuelle PIN" else "Neue PIN ($APP_LOCK_MIN_PIN_DIGITS-$APP_LOCK_MAX_PIN_DIGITS Ziffern)"
+                        )
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    visualTransformation = PasswordVisualTransformation()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = pinValid,
+                onClick = {
+                    if (isEnabled) {
+                        onDisable(normalizedPin)
+                    } else {
+                        onEnable(normalizedPin, enableBiometricOnSetup && canUseBiometric)
+                    }
+                }
+            ) {
+                Text(if (isEnabled) "Deaktivieren" else "Aktivieren")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Abbrechen")
+            }
+        }
+    )
+}
+
+@Composable
+private fun AppUnlockDialog(
+    showBiometricButton: Boolean,
+    biometricError: String?,
+    onUseBiometric: (() -> Unit)?,
+    onUnlock: (String, (Boolean) -> Unit) -> Unit
+) {
+    var pin by rememberSaveable { mutableStateOf("") }
+    var isChecking by rememberSaveable { mutableStateOf(false) }
+    var showError by rememberSaveable { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("App entsperren") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = if (showBiometricButton) {
+                        "Nutze Biometrie oder gib deine PIN ein."
+                    } else {
+                        "Bitte PIN eingeben, um fortzufahren."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { value ->
+                        pin = value.filter { it.isDigit() }.take(APP_LOCK_MAX_PIN_DIGITS)
+                        showError = false
+                    },
+                    label = { Text("PIN") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    visualTransformation = PasswordVisualTransformation()
+                )
+                if (showError) {
+                    Text(
+                        text = "PIN falsch. Bitte erneut versuchen.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                if (!biometricError.isNullOrBlank()) {
+                    Text(
+                        text = biometricError,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !isChecking && pin.trim().isNotBlank(),
+                onClick = {
+                    isChecking = true
+                    onUnlock(pin.trim()) { success ->
+                        isChecking = false
+                        showError = !success
+                        if (success) {
+                            pin = ""
+                        }
+                    }
+                }
+            ) {
+                Text(if (isChecking) "Prüfe..." else "Entsperren")
+            }
+        },
+        dismissButton = {
+            if (showBiometricButton && onUseBiometric != null) {
+                TextButton(onClick = onUseBiometric) {
+                    Text("Biometrie")
+                }
+            }
         }
     )
 }
@@ -1098,33 +1505,42 @@ private fun OnboardingDialog(
     onFinish: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    var step by rememberSaveable { mutableIntStateOf(1) }
+    var step by rememberSaveable { mutableIntStateOf(0) }
+    val statusColor = when {
+        statusMessage.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant
+        canFinish -> MaterialTheme.colorScheme.primary
+        statusMessage.contains("fehlgeschlagen", ignoreCase = true) -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Erststart: iCal verbinden") },
+        title = { Text("Start in 3 Schritten") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(1, 2, 3).forEach { number ->
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("1 Link", "2 Test", "3 Fertig").forEachIndexed { index, title ->
                         FilterChip(
-                            selected = step == number,
-                            onClick = { step = number },
-                            label = { Text("Schritt $number") }
+                            selected = step == index,
+                            onClick = { step = index },
+                            label = { Text(title) }
                         )
                     }
                 }
 
-                if (step == 1) {
+                if (step == 0) {
                     Text(
-                        text = "Schritt 1/3: iCal-Link einfügen. Der Link bleibt gespeichert.",
+                        text = "Schritt 1: Füge deinen iCal-Link ein.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedTextField(
                         value = url,
                         onValueChange = onUrlChange,
-                        label = { Text("schulNetz iCal-URL") },
+                        label = { Text("iCal-URL") },
                         placeholder = { Text("https://...") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -1146,9 +1562,9 @@ private fun OnboardingDialog(
                     }
                 }
 
-                if (step == 2) {
+                if (step == 1) {
                     Text(
-                        text = "Schritt 2/3: Verbindung testen. Erst bei Erfolg wird 'Fertig' aktiv.",
+                        text = "Schritt 2: Teste die Verbindung.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1164,14 +1580,14 @@ private fun OnboardingDialog(
                         ) {
                             Text(
                                 text = if (includeEvents) {
-                                    "Import-Modus: Prüfungen + Lektionen + Events"
+                                    "Import: Prüfungen, Lektionen und Events"
                                 } else {
-                                    "Import-Modus: Prüfungen + Lektionen"
+                                    "Import: Prüfungen und Lektionen"
                                 },
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(
-                                text = if (url.isBlank()) "Kein Link eingegeben" else url.take(64),
+                                text = if (url.isBlank()) "Noch kein Link eingegeben" else url.take(64),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1179,9 +1595,9 @@ private fun OnboardingDialog(
                     }
                 }
 
-                if (step == 3) {
+                if (step == 2) {
                     Text(
-                        text = "Schritt 3/3: Fertigstellen. Danach kannst du oben mit dem Pfeil jederzeit aktualisieren.",
+                        text = "Schritt 3: Fertigstellen und loslegen.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1196,11 +1612,11 @@ private fun OnboardingDialog(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                text = if (canFinish) "Verbindung geprüft. Bereit für ersten Sync." else "Bitte zuerst Verbindung testen.",
+                                text = if (canFinish) "Alles bereit. Du kannst die App jetzt normal nutzen." else "Bitte zuerst Verbindung testen.",
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(
-                                text = if (includeEvents) "Events-Import ist aktiviert." else "Events-Import ist deaktiviert.",
+                                text = "Später kannst du jederzeit oben mit ↻ aktualisieren.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1212,11 +1628,7 @@ private fun OnboardingDialog(
                     Text(
                         text = statusMessage,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (canFinish) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
+                        color = statusColor
                     )
                 }
             }
@@ -1224,28 +1636,44 @@ private fun OnboardingDialog(
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(
-                    enabled = !isBusy && step > 1,
+                    enabled = !isBusy && step > 0,
                     onClick = { step -= 1 }
                 ) {
                     Text("Zurück")
                 }
-                TextButton(
-                    enabled = !isBusy && step < 3,
-                    onClick = { step += 1 }
-                ) {
-                    Text("Weiter")
-                }
-                TextButton(
-                    enabled = !isBusy && url.isNotBlank(),
-                    onClick = onTest
-                ) {
-                    Text(if (isBusy) "Prüfe..." else "Verbindung testen")
-                }
-                TextButton(
-                    enabled = !isBusy && canFinish && step == 3,
-                    onClick = onFinish
-                ) {
-                    Text(if (isBusy) "Sync..." else "Fertig")
+                when (step) {
+                    0 -> {
+                        TextButton(
+                            enabled = !isBusy && url.isNotBlank(),
+                            onClick = { step = 1 }
+                        ) {
+                            Text("Weiter")
+                        }
+                    }
+
+                    1 -> {
+                        TextButton(
+                            enabled = !isBusy && url.isNotBlank(),
+                            onClick = onTest
+                        ) {
+                            Text(if (isBusy) "Prüfe..." else "Testen")
+                        }
+                        TextButton(
+                            enabled = !isBusy && canFinish,
+                            onClick = { step = 2 }
+                        ) {
+                            Text("Weiter")
+                        }
+                    }
+
+                    else -> {
+                        TextButton(
+                            enabled = !isBusy && canFinish,
+                            onClick = onFinish
+                        ) {
+                            Text(if (isBusy) "Sync..." else "Fertig")
+                        }
+                    }
                 }
             }
         },
@@ -1326,7 +1754,7 @@ private fun HelpDialog(
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
-                    text = "Sync-Fehler: Link prüfen, Internet prüfen, bei HTTP 410 einen neuen iCal-Link in schulNetz erzeugen.",
+                    text = "Sync-Fehler: Link und Internet prüfen. Bei HTTP 410 den iCal-Link im Schulportal neu erstellen.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
@@ -1354,6 +1782,7 @@ private fun PersonalizationDialog(
     showExamCollisionBadges: Boolean,
     collisionRules: CollisionRuleSettings,
     accessibilityModeEnabled: Boolean,
+    simpleModeEnabled: Boolean,
     showSetupGuideCard: Boolean,
     onDismiss: () -> Unit,
     onShowTimetableTabChange: (Boolean) -> Unit,
@@ -1361,6 +1790,7 @@ private fun PersonalizationDialog(
     onShowExamCollisionBadgesChange: (Boolean) -> Unit,
     onCollisionRulesChange: (CollisionRuleSettings) -> Unit,
     onAccessibilityModeChange: (Boolean) -> Unit,
+    onSimpleModeChange: (Boolean) -> Unit,
     onShowSetupGuideCardChange: (Boolean) -> Unit
 ) {
     var showAdvancedCollisionRules by remember { mutableStateOf(false) }
@@ -1404,6 +1834,11 @@ private fun PersonalizationDialog(
                             label = "Barrierefreiheit-Modus",
                             checked = accessibilityModeEnabled,
                             onCheckedChange = onAccessibilityModeChange
+                        )
+                        SettingToggleRow(
+                            label = "Einfach-Modus (weniger Optionen)",
+                            checked = simpleModeEnabled,
+                            onCheckedChange = onSimpleModeChange
                         )
                         SettingToggleRow(
                             label = "Kollisions-Badges anzeigen",
@@ -1513,7 +1948,10 @@ private fun SettingToggleRow(
 }
 
 @Composable
-private fun SyncStatusStrip(syncStatus: SyncStatus) {
+private fun SyncStatusStrip(
+    syncStatus: SyncStatus,
+    onRepairIcalLink: (() -> Unit)? = null
+) {
     val error = syncStatus.lastSyncError
     val now = System.currentTimeMillis()
     val staleThresholdMillis = 24L * 60L * 60L * 1000L
@@ -1549,6 +1987,7 @@ private fun SyncStatusStrip(syncStatus: SyncStatus) {
         isStale -> MaterialTheme.colorScheme.onTertiaryContainer
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val showRepairAction = onRepairIcalLink != null && isIcalLinkRepairRecommended(error)
 
     Surface(
         modifier = Modifier
@@ -1573,6 +2012,14 @@ private fun SyncStatusStrip(syncStatus: SyncStatus) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+            if (showRepairAction) {
+                TextButton(
+                    onClick = { onRepairIcalLink?.invoke() },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Link reparieren")
+                }
             }
         }
     }
@@ -2194,8 +2641,15 @@ private fun TimetableNowNextCard(
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 fontWeight = FontWeight.SemiBold
                             )
+                            val lessonDay = Instant.ofEpochMilli(lesson.startsAtEpochMillis)
+                                .atZone(ZoneId.of("Europe/Zurich"))
+                                .toLocalDate()
+                            val roomText = lesson.location
+                                ?.takeIf { it.isNotBlank() }
+                                ?.let { " · Raum $it" }
+                                .orEmpty()
                             Text(
-                                text = "${formatExamDateShort(lesson.startsAtEpochMillis)} · ${formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis)}",
+                                text = "${formatCompactDay(lessonDay)} · ${formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis)}$roomText",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -2559,7 +3013,7 @@ private fun TimetableEmptyState(
                     text = if (hasIcalUrl) {
                         "Tippe oben rechts auf den Pfeil zum Aktualisieren."
                     } else {
-                        "Gib deinen schulNetz-iCal-Link einmal ein, er bleibt gespeichert."
+                        "Gib deinen iCal-Link einmal ein, er bleibt gespeichert."
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2582,10 +3036,12 @@ private fun ExamListContent(
     hasIcalUrl: Boolean,
     hasSyncedOnce: Boolean,
     lastSyncError: String?,
+    simpleModeEnabled: Boolean,
     showSetupGuideCard: Boolean,
     onOpenIcalImport: () -> Unit,
     onRefreshNow: () -> Unit,
     onOpenHelp: () -> Unit,
+    onOpenSyncDiagnostics: () -> Unit,
     onHideSetupGuide: () -> Unit,
     onAddClick: () -> Unit,
     onDelete: (Exam) -> Unit
@@ -2594,9 +3050,12 @@ private fun ExamListContent(
     var selectedSubject by rememberSaveable { mutableStateOf(SUBJECT_FILTER_ALL) }
     var selectedWindow by rememberSaveable { mutableStateOf(ExamWindowFilter.ALL) }
     var selectedSortMode by rememberSaveable { mutableStateOf(ExamSortMode.NEXT_FIRST) }
-    val subjectOptions = remember(exams) {
-        val subjects = exams.mapNotNull { exam ->
-            exam.subject?.trim()?.takeIf { it.isNotBlank() }
+    val examPresentations = remember(exams) {
+        exams.associate { exam -> exam.id to buildExamPresentation(exam) }
+    }
+    val subjectOptions = remember(examPresentations) {
+        val subjects = examPresentations.values.mapNotNull { info ->
+            info.subject?.trim()?.takeIf { it.isNotBlank() }
         }
             .distinct()
             .sortedBy { it.lowercase() }
@@ -2608,7 +3067,14 @@ private fun ExamListContent(
         }
     }
 
-    val filteredExams = remember(exams, searchQuery, selectedSubject, selectedWindow, selectedSortMode) {
+    val filteredExams = remember(
+        exams,
+        examPresentations,
+        searchQuery,
+        selectedSubject,
+        selectedWindow,
+        selectedSortMode
+    ) {
         val query = searchQuery.trim().lowercase()
         val now = System.currentTimeMillis()
         val windowEnd = selectedWindow.maxDaysAhead?.let { days ->
@@ -2616,11 +3082,12 @@ private fun ExamListContent(
         }
 
         val filtered = exams.filter { exam ->
+            val info = examPresentations[exam.id] ?: buildExamPresentation(exam)
             val matchesSubject = selectedSubject == SUBJECT_FILTER_ALL ||
-                exam.subject?.equals(selectedSubject, ignoreCase = true) == true
+                info.subject?.equals(selectedSubject, ignoreCase = true) == true
             val matchesQuery = query.isBlank() || listOf(
-                exam.subject.orEmpty(),
-                exam.title,
+                info.subject.orEmpty(),
+                info.title,
                 exam.location.orEmpty()
             )
                 .joinToString(" ")
@@ -2635,15 +3102,15 @@ private fun ExamListContent(
             ExamSortMode.LATEST_FIRST -> filtered.sortedByDescending { it.startsAtEpochMillis }
             ExamSortMode.SUBJECT_AZ -> filtered.sortedWith(
                 compareBy<Exam>(
-                    { it.subject.orEmpty().lowercase() },
-                    { it.title.lowercase() },
+                    { examPresentations[it.id]?.subject.orEmpty().lowercase() },
+                    { examPresentations[it.id]?.title.orEmpty().lowercase() },
                     { it.startsAtEpochMillis }
                 )
             )
             ExamSortMode.TITLE_AZ -> filtered.sortedWith(
                 compareBy<Exam>(
-                    { it.title.lowercase() },
-                    { it.subject.orEmpty().lowercase() },
+                    { examPresentations[it.id]?.title.orEmpty().lowercase() },
+                    { examPresentations[it.id]?.subject.orEmpty().lowercase() },
                     { it.startsAtEpochMillis }
                 )
             )
@@ -2657,8 +3124,15 @@ private fun ExamListContent(
         val heroId = nextExam?.id ?: return@remember filteredExams
         filteredExams.filterNot { it.id == heroId }
     }
-    val collisionMap = remember(exams, lessons, events, showCollisionBadges, collisionRules) {
-        if (!showCollisionBadges) {
+    val showCollisionBadgesEffective = showCollisionBadges && !simpleModeEnabled
+    val collisionMap = remember(
+        exams,
+        lessons,
+        events,
+        showCollisionBadgesEffective,
+        collisionRules
+    ) {
+        if (!showCollisionBadgesEffective) {
             emptyMap()
         } else {
             val collisions = detectExamCollisions(
@@ -2678,15 +3152,18 @@ private fun ExamListContent(
     val collisionCount = remember(collisionMap) {
         collisionMap.values.flatten().size
     }
-    val showSetupGuide = remember(showSetupGuideCard, hasIcalUrl, hasSyncedOnce, exams.size, lastSyncError) {
-        showSetupGuideCard && (!hasIcalUrl || !hasSyncedOnce || exams.isEmpty() || !lastSyncError.isNullOrBlank())
+    val showSetupGuide = remember(showSetupGuideCard) {
+        showSetupGuideCard
+    }
+    val suggestLinkRepair = remember(lastSyncError) {
+        isIcalLinkRepairRecommended(lastSyncError)
     }
 
     if (exams.isEmpty()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             if (showSetupGuide) {
                 item("setup-guide-empty") {
@@ -2695,10 +3172,22 @@ private fun ExamListContent(
                         hasIcalUrl = hasIcalUrl,
                         hasSyncedOnce = hasSyncedOnce,
                         lastSyncError = lastSyncError,
+                        shouldSuggestLinkRepair = suggestLinkRepair,
                         onOpenIcalImport = onOpenIcalImport,
                         onRefreshNow = onRefreshNow,
                         onOpenHelp = onOpenHelp,
                         onHide = onHideSetupGuide
+                    )
+                }
+            }
+            if (!lastSyncError.isNullOrBlank()) {
+                item("sync-issue-empty") {
+                    SyncIssueCard(
+                        errorText = lastSyncError,
+                        showRepairAction = suggestLinkRepair,
+                        onRetryNow = onRefreshNow,
+                        onRepairLink = onOpenIcalImport,
+                        onOpenDiagnostics = onOpenSyncDiagnostics
                     )
                 }
             }
@@ -2714,8 +3203,8 @@ private fun ExamListContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         if (showSetupGuide) {
             item("setup-guide") {
@@ -2724,10 +3213,22 @@ private fun ExamListContent(
                     hasIcalUrl = hasIcalUrl,
                     hasSyncedOnce = hasSyncedOnce,
                     lastSyncError = lastSyncError,
+                    shouldSuggestLinkRepair = suggestLinkRepair,
                     onOpenIcalImport = onOpenIcalImport,
                     onRefreshNow = onRefreshNow,
                     onOpenHelp = onOpenHelp,
                     onHide = onHideSetupGuide
+                )
+            }
+        }
+        if (!lastSyncError.isNullOrBlank()) {
+            item("sync-issue") {
+                SyncIssueCard(
+                    errorText = lastSyncError,
+                    showRepairAction = suggestLinkRepair,
+                    onRetryNow = onRefreshNow,
+                    onRepairLink = onOpenIcalImport,
+                    onOpenDiagnostics = onOpenSyncDiagnostics
                 )
             }
         }
@@ -2740,26 +3241,31 @@ private fun ExamListContent(
                 onSubjectSelected = { selectedSubject = it },
                 selectedWindow = selectedWindow,
                 onWindowSelected = { selectedWindow = it },
+                simpleModeEnabled = simpleModeEnabled,
+                showSortOptions = !simpleModeEnabled,
                 selectedSortMode = selectedSortMode,
                 onSortModeSelected = { selectedSortMode = it }
             )
         }
-        item {
-            ExamInsightsCard(
-                exams = exams,
-                visibleCount = filteredExams.size
-            )
-        }
-        if (collisionCount > 0) {
+        if (!simpleModeEnabled) {
             item {
-                ExamCollisionOverviewCard(
-                    collisionMap = collisionMap
+                ExamInsightsCard(
+                    exams = exams,
+                    visibleCount = filteredExams.size
                 )
+            }
+            if (collisionCount > 0) {
+                item {
+                    ExamCollisionOverviewCard(
+                        collisionMap = collisionMap
+                    )
+                }
             }
         }
         item {
             nextExam?.let { exam ->
-                NextExamHero(exam = exam)
+                val info = examPresentations[exam.id] ?: buildExamPresentation(exam)
+                NextExamHero(exam = exam, presentation = info)
             }
         }
 
@@ -2790,8 +3296,10 @@ private fun ExamListContent(
                 }
             } else {
                 items(items = listExams, key = { it.id }) { exam ->
+                    val info = examPresentations[exam.id] ?: buildExamPresentation(exam)
                     ExamCard(
                         exam = exam,
+                        presentation = info,
                         collisions = collisionMap[exam.id].orEmpty(),
                         onDelete = { onDelete(exam) }
                     )
@@ -2859,21 +3367,24 @@ private fun SetupGuideCard(
     hasIcalUrl: Boolean,
     hasSyncedOnce: Boolean,
     lastSyncError: String?,
+    shouldSuggestLinkRepair: Boolean,
     onOpenIcalImport: () -> Unit,
     onRefreshNow: () -> Unit,
     onOpenHelp: () -> Unit,
     onHide: () -> Unit
 ) {
     val actionText = when {
-        !hasIcalUrl -> "iCal einrichten"
-        else -> "Jetzt synchronisieren"
+        !hasIcalUrl -> "Link einfügen"
+        shouldSuggestLinkRepair -> "Link reparieren"
+        else -> "Aktualisieren"
     }
     val statusText = when {
-        !hasIcalUrl -> "iCal-Link fehlt"
-        !hasSyncedOnce -> "Erster Sync offen"
-        examCount == 0 -> "Keine Prüfungen gefunden"
-        !lastSyncError.isNullOrBlank() -> "Sync prüfen"
-        else -> "Bereit"
+        !hasIcalUrl -> "Schritt 1: Tippe auf \"Link einfügen\"."
+        shouldSuggestLinkRepair -> "Link scheint ungültig/abgelaufen. Bitte reparieren."
+        !hasSyncedOnce -> "Schritt 2: Tippe auf \"Aktualisieren\"."
+        examCount == 0 -> "Noch keine Prüfungen gefunden. Bitte aktualisieren."
+        !lastSyncError.isNullOrBlank() -> "Es gab ein Problem. Tippe auf \"Hilfe\"."
+        else -> "Alles bereit. Du kannst die App normal nutzen."
     }
 
     Card(
@@ -2885,7 +3396,7 @@ private fun SetupGuideCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Setup",
+                text = "Erste Schritte",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold
             )
@@ -2896,15 +3407,15 @@ private fun SetupGuideCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 SetupStatusPill(
-                    label = if (hasIcalUrl) "Link ok" else "Link fehlt",
+                    label = if (hasIcalUrl) "Link verbunden" else "Link fehlt",
                     ok = hasIcalUrl
                 )
                 SetupStatusPill(
-                    label = if (hasSyncedOnce) "Sync ok" else "Sync offen",
+                    label = if (hasSyncedOnce) "Daten geladen" else "Noch nicht geladen",
                     ok = hasSyncedOnce
                 )
                 SetupStatusPill(
-                    label = "$examCount Prüfungen",
+                    label = "$examCount Prüfungen sichtbar",
                     ok = examCount > 0
                 )
             }
@@ -2924,8 +3435,8 @@ private fun SetupGuideCard(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = if (hasIcalUrl) onRefreshNow else onOpenIcalImport,
+                Button(
+                    onClick = if (!hasIcalUrl || shouldSuggestLinkRepair) onOpenIcalImport else onRefreshNow,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(actionText)
@@ -2934,14 +3445,14 @@ private fun SetupGuideCard(
                     onClick = onOpenHelp,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Hilfe")
+                    Text("So geht's")
                 }
             }
             TextButton(
                 onClick = onHide,
                 modifier = Modifier.align(Alignment.End)
             ) {
-                Text("Nicht mehr anzeigen")
+                Text("Karte ausblenden")
             }
         }
     }
@@ -3057,16 +3568,20 @@ private fun ExamSearchAndFilterCard(
     onSubjectSelected: (String) -> Unit,
     selectedWindow: ExamWindowFilter,
     onWindowSelected: (ExamWindowFilter) -> Unit,
+    simpleModeEnabled: Boolean,
+    showSortOptions: Boolean,
     selectedSortMode: ExamSortMode,
     onSortModeSelected: (ExamSortMode) -> Unit
 ) {
+    var showExtendedFilters by rememberSaveable(simpleModeEnabled) { mutableStateOf(!simpleModeEnabled) }
+
     Card(
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             OutlinedTextField(
                 value = query,
@@ -3091,7 +3606,40 @@ private fun ExamSearchAndFilterCard(
                     }
                 }
             )
-            if (subjects.size > 1) {
+            Text(
+                text = "Zeitraum",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ExamWindowFilter.entries.forEach { window ->
+                    FilterChip(
+                        selected = selectedWindow == window,
+                        onClick = { onWindowSelected(window) },
+                        label = { Text(window.title) }
+                    )
+                }
+            }
+            if (simpleModeEnabled) {
+                TextButton(
+                    onClick = { showExtendedFilters = !showExtendedFilters },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(if (showExtendedFilters) "Weniger Filter" else "Weitere Filter")
+                }
+            }
+            val showSubjectFilters = subjects.size > 1 && (!simpleModeEnabled || showExtendedFilters)
+            if (showSubjectFilters) {
+                Text(
+                    text = "Fächer",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -3107,32 +3655,25 @@ private fun ExamSearchAndFilterCard(
                     }
                 }
             }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ExamWindowFilter.entries.forEach { window ->
-                    FilterChip(
-                        selected = selectedWindow == window,
-                        onClick = { onWindowSelected(window) },
-                        label = { Text(window.title) }
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ExamSortMode.entries.forEach { mode ->
-                    FilterChip(
-                        selected = selectedSortMode == mode,
-                        onClick = { onSortModeSelected(mode) },
-                        label = { Text(mode.title) }
-                    )
+            if (showSortOptions && (!simpleModeEnabled || showExtendedFilters)) {
+                Text(
+                    text = "Sortierung",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ExamSortMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = selectedSortMode == mode,
+                            onClick = { onSortModeSelected(mode) },
+                            label = { Text(mode.title) }
+                        )
+                    }
                 }
             }
         }
@@ -3165,58 +3706,112 @@ private fun NoExamResultsCard(
 }
 
 @Composable
-private fun NextExamHero(exam: Exam) {
+private fun NextExamHero(
+    exam: Exam,
+    presentation: ExamPresentation
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF10406F)
+            containerColor = MaterialTheme.colorScheme.primaryContainer
         )
     ) {
         Column(
-            modifier = Modifier.padding(18.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
                 text = "Nächste Prüfung",
                 style = MaterialTheme.typography.labelLarge,
-                color = Color(0xFFD0E4FF)
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
             )
-            exam.subject?.takeIf { it.isNotBlank() }?.let { subject ->
+            presentation.subject?.takeIf { it.isNotBlank() }?.let { subject ->
                 Surface(
-                    color = Color(0x332F6EBA),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
                     shape = MaterialTheme.shapes.small
                 ) {
                     Text(
                         text = "Fach: $subject",
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         style = MaterialTheme.typography.labelMedium,
-                        color = Color(0xFFE6F0FF)
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }
             Text(
-                text = exam.title,
-                style = MaterialTheme.typography.headlineSmall,
-                color = Color.White,
+                text = presentation.title,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = formatExamDate(exam.startsAtEpochMillis),
-                style = MaterialTheme.typography.bodyLarge,
-                color = Color(0xFFE6F0FF)
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
             )
             Surface(
-                color = Color(0xFF2F6EBA),
+                color = MaterialTheme.colorScheme.primary,
                 shape = MaterialTheme.shapes.small
             ) {
                 Text(
                     text = formatCountdown(exam.startsAtEpochMillis),
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelLarge
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.titleSmall
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SyncIssueCard(
+    errorText: String,
+    showRepairAction: Boolean,
+    onRetryNow: () -> Unit,
+    onRepairLink: () -> Unit,
+    onOpenDiagnostics: () -> Unit
+) {
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.72f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Synchronisierung braucht Aufmerksamkeit",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+            Text(
+                text = errorText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(onClick = onRetryNow) {
+                    Text("Erneut versuchen")
+                }
+                if (showRepairAction) {
+                    OutlinedButton(onClick = onRepairLink) {
+                        Text("Link reparieren")
+                    }
+                }
+                OutlinedButton(onClick = onOpenDiagnostics) {
+                    Text("Diagnose öffnen")
+                }
             }
         }
     }
@@ -3267,6 +3862,7 @@ private fun EmptyState(
 @Composable
 private fun ExamCard(
     exam: Exam,
+    presentation: ExamPresentation,
     collisions: List<ExamCollision>,
     onDelete: () -> Unit
 ) {
@@ -3274,15 +3870,15 @@ private fun ExamCard(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            exam.subject?.takeIf { it.isNotBlank() }?.let { subject ->
+            presentation.subject?.takeIf { it.isNotBlank() }?.let { subject ->
                 Surface(
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     shape = MaterialTheme.shapes.small
@@ -3318,8 +3914,8 @@ private fun ExamCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = exam.title,
-                    style = MaterialTheme.typography.titleLarge,
+                    text = presentation.title,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.fillMaxWidth(0.85f),
                     maxLines = 2,
@@ -3417,19 +4013,60 @@ private fun AddExamDialog(
         mutableLongStateOf(System.currentTimeMillis() + 24L * 60L * 60L * 1000L)
     }
     var reminderEnabled by rememberSaveable { mutableStateOf(true) }
-    var leadTimesRaw by rememberSaveable { mutableStateOf("30, 1440") }
+    var reminderInputMode by rememberSaveable { mutableStateOf(ReminderInputMode.QUICK) }
+    var quickLeadTimesRaw by rememberSaveable { mutableStateOf("30,1440") }
+    var seriesStartDaysRaw by rememberSaveable { mutableStateOf("0") }
+    var seriesStartHoursRaw by rememberSaveable { mutableStateOf("0") }
+    var seriesStartMinutesRaw by rememberSaveable { mutableStateOf("30") }
+    var seriesRepeatCountRaw by rememberSaveable { mutableStateOf("1") }
+    var seriesEveryDaysRaw by rememberSaveable { mutableStateOf("0") }
+    var seriesEveryHoursRaw by rememberSaveable { mutableStateOf("12") }
+    var seriesEveryMinutesRaw by rememberSaveable { mutableStateOf("0") }
     var exactReminderEnabled by rememberSaveable { mutableStateOf(false) }
     var reminderManuallySet by rememberSaveable { mutableStateOf(false) }
     var selectedReminderMillis by rememberSaveable {
         mutableLongStateOf(System.currentTimeMillis() + 24L * 60L * 60L * 1000L - 30L * 60L * 1000L)
     }
 
-    val parsedLeadTimes = remember(leadTimesRaw) { parseLeadTimesMinutes(leadTimesRaw) }
-    val leadTimesInvalid = reminderEnabled && leadTimesRaw.isNotBlank() && parsedLeadTimes.isEmpty()
+    val quickLeadTimes = remember(quickLeadTimesRaw) {
+        parseLeadTimesMinutes(quickLeadTimesRaw)
+    }
+    val seriesConfig = remember(
+        seriesStartDaysRaw,
+        seriesStartHoursRaw,
+        seriesStartMinutesRaw,
+        seriesRepeatCountRaw,
+        seriesEveryDaysRaw,
+        seriesEveryHoursRaw,
+        seriesEveryMinutesRaw
+    ) {
+        buildReminderSeriesLeadTimes(
+            startDaysRaw = seriesStartDaysRaw,
+            startHoursRaw = seriesStartHoursRaw,
+            startMinutesRaw = seriesStartMinutesRaw,
+            repeatCountRaw = seriesRepeatCountRaw,
+            intervalDaysRaw = seriesEveryDaysRaw,
+            intervalHoursRaw = seriesEveryHoursRaw,
+            intervalMinutesRaw = seriesEveryMinutesRaw
+        )
+    }
+
+    val selectedLeadTimes = remember(reminderEnabled, reminderInputMode, quickLeadTimes, seriesConfig) {
+        if (!reminderEnabled) {
+            emptyList()
+        } else if (reminderInputMode == ReminderInputMode.QUICK) {
+            quickLeadTimes
+        } else {
+            seriesConfig.leadTimes
+        }
+    }
 
     val reminderValidationError = when {
         !reminderEnabled -> null
-        leadTimesInvalid -> "Vorlaufzeiten ungültig (z. B. 30, 120, 1440)"
+        reminderInputMode == ReminderInputMode.QUICK && selectedLeadTimes.isEmpty() ->
+            "Wähle mindestens eine Erinnerungszeit."
+        reminderInputMode == ReminderInputMode.SERIES && !seriesConfig.error.isNullOrBlank() ->
+            seriesConfig.error
         exactReminderEnabled && selectedReminderMillis <= System.currentTimeMillis() -> "Erinnerungszeit liegt in der Vergangenheit"
         exactReminderEnabled && selectedReminderMillis >= selectedExamMillis -> "Erinnerung muss vor Prüfungsbeginn liegen"
         else -> null
@@ -3508,19 +4145,113 @@ private fun AddExamDialog(
                 }
 
                 if (reminderEnabled) {
-                    OutlinedTextField(
-                        value = leadTimesRaw,
-                        onValueChange = { leadTimesRaw = it },
-                        label = { Text("Vorlaufzeiten in Minuten") },
-                        placeholder = { Text("z. B. 30, 120, 1440") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Text(
-                        text = "Mehrere Erinnerungen möglich. Beispiel: 30, 120, 1440.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ReminderInputMode.entries.forEach { mode ->
+                            FilterChip(
+                                selected = reminderInputMode == mode,
+                                onClick = { reminderInputMode = mode },
+                                label = { Text(mode.title) }
+                            )
+                        }
+                    }
+
+                    if (reminderInputMode == ReminderInputMode.QUICK) {
+                        val quickOptions = listOf(
+                            10L to "10 Min",
+                            30L to "30 Min",
+                            60L to "1 Std",
+                            120L to "2 Std",
+                            360L to "6 Std",
+                            24L * 60L to "1 Tag",
+                            2L * 24L * 60L to "2 Tage",
+                            7L * 24L * 60L to "7 Tage"
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            quickOptions.forEach { option ->
+                                val isSelected = option.first in quickLeadTimes
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        quickLeadTimesRaw = toggleLeadTimePreset(
+                                            currentRaw = quickLeadTimesRaw,
+                                            minutes = option.first
+                                        )
+                                    },
+                                    label = { Text(option.second) }
+                                )
+                            }
+                        }
+                        Text(
+                            text = "Tippe auf die Zeiten. Mehrere sind gleichzeitig möglich.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Ab wann vor der Prüfung?",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                DurationPartsInputRow(
+                                    daysRaw = seriesStartDaysRaw,
+                                    hoursRaw = seriesStartHoursRaw,
+                                    minutesRaw = seriesStartMinutesRaw,
+                                    onDaysChange = { seriesStartDaysRaw = it },
+                                    onHoursChange = { seriesStartHoursRaw = it },
+                                    onMinutesChange = { seriesStartMinutesRaw = it }
+                                )
+                                OutlinedTextField(
+                                    value = seriesRepeatCountRaw,
+                                    onValueChange = { seriesRepeatCountRaw = it.filter(Char::isDigit).take(2) },
+                                    label = { Text("Wie oft erinnern? (1 bis 8)") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                if ((seriesRepeatCountRaw.toIntOrNull() ?: 1) > 1) {
+                                    Text(
+                                        text = "Abstand zwischen Erinnerungen:",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    DurationPartsInputRow(
+                                        daysRaw = seriesEveryDaysRaw,
+                                        hoursRaw = seriesEveryHoursRaw,
+                                        minutesRaw = seriesEveryMinutesRaw,
+                                        onDaysChange = { seriesEveryDaysRaw = it },
+                                        onHoursChange = { seriesEveryHoursRaw = it },
+                                        onMinutesChange = { seriesEveryMinutesRaw = it }
+                                    )
+                                }
+                                seriesConfig.preview?.let { preview ->
+                                    Text(
+                                        text = preview,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -3581,7 +4312,7 @@ private fun AddExamDialog(
                         location.ifBlank { null },
                         selectedExamMillis,
                         if (reminderEnabled && exactReminderEnabled) selectedReminderMillis else null,
-                        if (reminderEnabled) parsedLeadTimes else emptyList()
+                        if (reminderEnabled) selectedLeadTimes else emptyList()
                     )
                     onDismiss()
                 }
@@ -3595,6 +4326,46 @@ private fun AddExamDialog(
             }
         }
     )
+}
+
+private data class ReminderSeriesLeadTimes(
+    val leadTimes: List<Long>,
+    val error: String? = null,
+    val preview: String? = null
+)
+
+@Composable
+private fun DurationPartsInputRow(
+    daysRaw: String,
+    hoursRaw: String,
+    minutesRaw: String,
+    onDaysChange: (String) -> Unit,
+    onHoursChange: (String) -> Unit,
+    onMinutesChange: (String) -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = daysRaw,
+            onValueChange = { onDaysChange(it.filter(Char::isDigit).take(2)) },
+            label = { Text("Tage") },
+            singleLine = true,
+            modifier = Modifier.weight(1f)
+        )
+        OutlinedTextField(
+            value = hoursRaw,
+            onValueChange = { onHoursChange(it.filter(Char::isDigit).take(2)) },
+            label = { Text("Std") },
+            singleLine = true,
+            modifier = Modifier.weight(1f)
+        )
+        OutlinedTextField(
+            value = minutesRaw,
+            onValueChange = { onMinutesChange(it.filter(Char::isDigit).take(2)) },
+            label = { Text("Min") },
+            singleLine = true,
+            modifier = Modifier.weight(1f)
+        )
+    }
 }
 
 @Composable
@@ -3932,14 +4703,275 @@ private fun formatDurationMillis(durationMillis: Long): String {
     return "${seconds}s ${millis}ms"
 }
 
+private data class ExamPresentation(
+    val subject: String?,
+    val title: String
+)
+
+private fun buildExamPresentation(exam: Exam): ExamPresentation {
+    val normalizedTitle = normalizeExamDisplayText(exam.title)
+    val parsedFromTitle = parseEmbeddedSubjectFromTitle(normalizedTitle)
+    val subject = normalizeSubjectForDisplay(exam.subject) ?: parsedFromTitle?.subject
+    val title = (parsedFromTitle?.title ?: normalizedTitle)
+        .replace(Regex("\\s+"), " ")
+        .trim()
+        .ifBlank { "Prüfung" }
+    return ExamPresentation(
+        subject = subject,
+        title = title
+    )
+}
+
+private data class ParsedSubjectTitle(
+    val subject: String?,
+    val title: String
+)
+
+private fun parseEmbeddedSubjectFromTitle(title: String): ParsedSubjectTitle? {
+    val cleaned = title.trim().replace(Regex("\\s+"), " ")
+    if (cleaned.isBlank()) return null
+
+    val firstToken = cleaned.substringBefore(' ')
+    val remaining = cleaned.substringAfter(' ', "").trim()
+    if (firstToken.contains("_")) {
+        val subject = normalizeSubjectForDisplay(firstToken.substringBefore('_'))
+        val parsedTitle = remaining.ifBlank {
+            firstToken.substringAfter('_', "")
+                .replace('_', ' ')
+                .trim()
+        }.ifBlank { "Prüfung" }
+        return ParsedSubjectTitle(subject = subject, title = parsedTitle)
+    }
+
+    val parts = cleaned.split(':', '-', limit = 2)
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+    if (parts.size == 2 && parts.first().length in 2..10) {
+        return ParsedSubjectTitle(
+            subject = normalizeSubjectForDisplay(parts.first()),
+            title = parts.last().ifBlank { "Prüfung" }
+        )
+    }
+
+    return null
+}
+
+private fun normalizeSubjectForDisplay(raw: String?): String? {
+    val normalized = raw.orEmpty()
+        .trim()
+        .replace(Regex("[^A-Za-zÄÖÜäöü0-9]"), "")
+    if (normalized.isBlank()) return null
+    return if (normalized.length <= 6) {
+        normalized.uppercase()
+    } else {
+        normalized.lowercase().replaceFirstChar { it.titlecase() }
+    }
+}
+
+private fun normalizeExamDisplayText(raw: String): String {
+    var text = raw.trim()
+        .replace(Regex("\\s+"), " ")
+    text = replaceWordCaseInsensitive(text, "pruefungen", "Prüfungen")
+    text = replaceWordCaseInsensitive(text, "pruefung", "Prüfung")
+    text = replaceWordCaseInsensitive(text, "nachpruefungen", "Nachprüfungen")
+    text = replaceWordCaseInsensitive(text, "nachpruefung", "Nachprüfung")
+    return text
+}
+
+private fun replaceWordCaseInsensitive(input: String, from: String, replacement: String): String {
+    val regex = Regex("\\b$from\\b", RegexOption.IGNORE_CASE)
+    return regex.replace(input, replacement)
+}
+
+private fun isIcalLinkRepairRecommended(lastSyncError: String?): Boolean {
+    val error = lastSyncError.orEmpty().lowercase()
+    if (error.isBlank()) return false
+    return listOf(
+        "http-401",
+        "http-403",
+        "http-404",
+        "http-410",
+        "zugriff verweigert",
+        "ungültig",
+        "ungueltig",
+        "abgelaufen",
+        "nicht gefunden",
+        "nicht mehr verfügbar",
+        "nicht mehr verfuegbar"
+    ).any { token -> error.contains(token) }
+}
+
+private fun isBiometricUnlockAvailable(context: Context): Boolean {
+    val result = BiometricManager.from(context).canAuthenticate(
+        BiometricManager.Authenticators.BIOMETRIC_WEAK
+    )
+    return result == BiometricManager.BIOMETRIC_SUCCESS
+}
+
+private fun runBiometricUnlock(
+    activity: FragmentActivity,
+    title: String,
+    subtitle: String,
+    onSuccess: () -> Unit,
+    onFailure: (String?) -> Unit
+) {
+    val promptInfo = BiometricPrompt.PromptInfo.Builder()
+        .setTitle(title)
+        .setSubtitle(subtitle)
+        .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
+        .setNegativeButtonText("PIN verwenden")
+        .setConfirmationRequired(false)
+        .build()
+
+    val prompt = BiometricPrompt(
+        activity,
+        ContextCompat.getMainExecutor(activity),
+        object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                onSuccess()
+            }
+
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON ||
+                    errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                    errorCode == BiometricPrompt.ERROR_CANCELED
+                ) {
+                    onFailure(null)
+                    return
+                }
+                onFailure(errString.toString())
+            }
+
+            override fun onAuthenticationFailed() {
+                onFailure("Biometrie nicht erkannt. Bitte erneut versuchen.")
+            }
+        }
+    )
+
+    prompt.authenticate(promptInfo)
+}
+
 private fun parseLeadTimesMinutes(raw: String): List<Long> {
     return raw.split(',', ';', ' ')
         .map { it.trim() }
         .filter { it.isNotBlank() }
         .mapNotNull { it.toLongOrNull() }
-        .filter { it in 1L..(14L * 24L * 60L) }
+        .filter { it in 1L..(60L * 24L * 60L) }
         .distinct()
         .sorted()
+}
+
+private fun toggleLeadTimePreset(currentRaw: String, minutes: Long): String {
+    val values = parseLeadTimesMinutes(currentRaw).toMutableSet()
+    if (minutes in values) {
+        values.remove(minutes)
+    } else {
+        values.add(minutes)
+    }
+    return values.sorted().joinToString(",")
+}
+
+private fun buildReminderSeriesLeadTimes(
+    startDaysRaw: String,
+    startHoursRaw: String,
+    startMinutesRaw: String,
+    repeatCountRaw: String,
+    intervalDaysRaw: String,
+    intervalHoursRaw: String,
+    intervalMinutesRaw: String
+): ReminderSeriesLeadTimes {
+    val startDays = startDaysRaw.toIntOrNull() ?: return ReminderSeriesLeadTimes(
+        leadTimes = emptyList(),
+        error = "Bitte bei 'Ab wann' nur Zahlen eintragen."
+    )
+    val startHours = startHoursRaw.toIntOrNull() ?: return ReminderSeriesLeadTimes(
+        leadTimes = emptyList(),
+        error = "Bitte bei 'Ab wann' nur Zahlen eintragen."
+    )
+    val startMinutes = startMinutesRaw.toIntOrNull() ?: return ReminderSeriesLeadTimes(
+        leadTimes = emptyList(),
+        error = "Bitte bei 'Ab wann' nur Zahlen eintragen."
+    )
+    val repeatCount = repeatCountRaw.toIntOrNull() ?: return ReminderSeriesLeadTimes(
+        leadTimes = emptyList(),
+        error = "Bitte eine Anzahl zwischen 1 und 8 wählen."
+    )
+
+    if (startDays !in 0..60 || startHours !in 0..23 || startMinutes !in 0..59) {
+        return ReminderSeriesLeadTimes(
+            leadTimes = emptyList(),
+            error = "Ab wann: Tage 0-60, Stunden 0-23, Minuten 0-59."
+        )
+    }
+    if (repeatCount !in 1..8) {
+        return ReminderSeriesLeadTimes(
+            leadTimes = emptyList(),
+            error = "Wie oft: bitte 1 bis 8."
+        )
+    }
+
+    val startTotalMinutes = startDays * 24L * 60L + startHours * 60L + startMinutes
+    if (startTotalMinutes <= 0L) {
+        return ReminderSeriesLeadTimes(
+            leadTimes = emptyList(),
+            error = "Ab wann muss größer als 0 sein."
+        )
+    }
+
+    val intervalDays = intervalDaysRaw.toIntOrNull() ?: 0
+    val intervalHours = intervalHoursRaw.toIntOrNull() ?: 0
+    val intervalMinutes = intervalMinutesRaw.toIntOrNull() ?: 0
+    if (intervalDays !in 0..60 || intervalHours !in 0..23 || intervalMinutes !in 0..59) {
+        return ReminderSeriesLeadTimes(
+            leadTimes = emptyList(),
+            error = "Abstand: Tage 0-60, Stunden 0-23, Minuten 0-59."
+        )
+    }
+
+    val intervalTotalMinutes = intervalDays * 24L * 60L + intervalHours * 60L + intervalMinutes
+    if (repeatCount > 1 && intervalTotalMinutes <= 0L) {
+        return ReminderSeriesLeadTimes(
+            leadTimes = emptyList(),
+            error = "Für mehrere Erinnerungen muss der Abstand größer als 0 sein."
+        )
+    }
+
+    val leads = (0 until repeatCount)
+        .map { index -> startTotalMinutes + index * intervalTotalMinutes }
+        .distinct()
+        .sorted()
+
+    if (leads.any { it > 60L * 24L * 60L }) {
+        return ReminderSeriesLeadTimes(
+            leadTimes = emptyList(),
+            error = "Erinnerungen dürfen maximal 60 Tage vorher liegen."
+        )
+    }
+
+    val preview = if (repeatCount == 1) {
+        "Erinnert ${formatReminderLeadTime(startTotalMinutes)}."
+    } else {
+        "Erinnert $repeatCount-mal: zuerst ${formatReminderLeadTime(startTotalMinutes)}, dann alle ${formatDurationCompact(intervalTotalMinutes)}."
+    }
+
+    return ReminderSeriesLeadTimes(
+        leadTimes = leads,
+        preview = preview
+    )
+}
+
+private fun formatDurationCompact(totalMinutes: Long): String {
+    val safe = totalMinutes.coerceAtLeast(0L)
+    val days = safe / (24L * 60L)
+    val restAfterDays = safe % (24L * 60L)
+    val hours = restAfterDays / 60L
+    val minutes = restAfterDays % 60L
+    val parts = buildList {
+        if (days > 0) add("$days Tage")
+        if (hours > 0) add("$hours Std")
+        if (minutes > 0) add("$minutes Min")
+    }
+    return parts.joinToString(" ").ifBlank { "0 Min" }
 }
 
 private fun collisionSourceLabel(source: CollisionSource): String {

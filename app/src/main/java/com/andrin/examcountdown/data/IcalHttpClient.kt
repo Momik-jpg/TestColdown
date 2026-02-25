@@ -15,6 +15,7 @@ internal data class IcalHttpResponse(
 internal object IcalHttpClient {
     private const val CONNECT_TIMEOUT_MS = 15_000
     private const val READ_TIMEOUT_MS = 20_000
+    private const val MAX_REDIRECTS = 4
 
     fun download(url: String): String {
         val response = download(
@@ -33,61 +34,80 @@ internal object IcalHttpClient {
         previousEtag: String?,
         previousLastModified: String?
     ): IcalHttpResponse {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            instanceFollowRedirects = true
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = READ_TIMEOUT_MS
-            setRequestProperty("User-Agent", "ExamCountdown/1.0")
-            setRequestProperty("Accept", "text/calendar, text/plain, */*")
-            previousEtag
-                ?.trim()
-                ?.takeIf { it.isNotBlank() }
-                ?.let { setRequestProperty("If-None-Match", it) }
-            previousLastModified
-                ?.trim()
-                ?.takeIf { it.isNotBlank() }
-                ?.let { setRequestProperty("If-Modified-Since", it) }
-        }
+        var currentUrl = normalizeAndValidateIcalUrl(url)
+        var redirects = 0
 
-        return try {
-            val code = connection.responseCode
-            val etag = connection.getHeaderField("ETag")
-                ?.trim()
-                ?.takeIf { it.isNotBlank() }
-            val lastModified = connection.getHeaderField("Last-Modified")
-                ?.trim()
-                ?.takeIf { it.isNotBlank() }
+        while (true) {
+            val connection = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                instanceFollowRedirects = false
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
+                setRequestProperty("User-Agent", "ExamCountdown/1.0")
+                setRequestProperty("Accept", "text/calendar, text/plain, */*")
+                previousEtag
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { setRequestProperty("If-None-Match", it) }
+                previousLastModified
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { setRequestProperty("If-Modified-Since", it) }
+            }
 
-            if (code == HttpURLConnection.HTTP_NOT_MODIFIED) {
+            try {
+                val code = connection.responseCode
+                val etag = connection.getHeaderField("ETag")
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                val lastModified = connection.getHeaderField("Last-Modified")
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+
+                if (code in 300..399) {
+                    val locationHeader = connection.getHeaderField("Location")
+                        ?.trim()
+                        ?.takeIf { it.isNotBlank() }
+                        ?: throw IOException("HTTP-$code")
+                    if (redirects >= MAX_REDIRECTS) {
+                        throw IOException("Zu viele Weiterleitungen")
+                    }
+                    val resolvedUrl = URL(URL(currentUrl), locationHeader).toString()
+                    currentUrl = normalizeAndValidateIcalUrl(resolvedUrl)
+                    redirects += 1
+                    continue
+                }
+
+                if (code == HttpURLConnection.HTTP_NOT_MODIFIED) {
+                    return IcalHttpResponse(
+                        body = null,
+                        httpStatusCode = code,
+                        etag = etag ?: previousEtag,
+                        lastModified = lastModified ?: previousLastModified,
+                        notModified = true
+                    )
+                }
+
+                if (code !in 200..299) {
+                    throw IOException("HTTP-$code")
+                }
+
+                val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+                    reader.readText()
+                }.ifBlank {
+                    throw IOException("Leere iCal-Antwort")
+                }
+
                 return IcalHttpResponse(
-                    body = null,
+                    body = body,
                     httpStatusCode = code,
-                    etag = etag ?: previousEtag,
-                    lastModified = lastModified ?: previousLastModified,
-                    notModified = true
+                    etag = etag,
+                    lastModified = lastModified,
+                    notModified = false
                 )
+            } finally {
+                connection.disconnect()
             }
-
-            if (code !in 200..299) {
-                throw IOException("HTTP-$code")
-            }
-
-            val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
-                reader.readText()
-            }.ifBlank {
-                throw IOException("Leere iCal-Antwort")
-            }
-
-            IcalHttpResponse(
-                body = body,
-                httpStatusCode = code,
-                etag = etag,
-                lastModified = lastModified,
-                notModified = false
-            )
-        } finally {
-            connection.disconnect()
         }
     }
 }

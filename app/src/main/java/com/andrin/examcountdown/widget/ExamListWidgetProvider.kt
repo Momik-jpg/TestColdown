@@ -98,7 +98,7 @@ class ExamListWidgetProvider : AppWidgetProvider() {
                 if (index < items.size) {
                     val item = items[index]
                     val typePrefix = when (item.kind) {
-                        WidgetItemKind.EXAM -> "[P] "
+                        WidgetItemKind.EXAM -> ""
                         WidgetItemKind.LESSON -> "[L] "
                         WidgetItemKind.EVENT -> "[E] "
                     }

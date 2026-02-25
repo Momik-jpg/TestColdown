@@ -31,6 +31,8 @@ data class AppBackup(
     val collisionOnlyDifferentSubject: Boolean = true,
     val collisionRequireExactTimeOverlap: Boolean = true,
     val accessibilityModeEnabled: Boolean = false,
+    val simpleModeEnabled: Boolean = true,
+    val appLockBiometricEnabled: Boolean = false,
     val showSetupGuideCard: Boolean = true,
     val onboardingDone: Boolean = false,
     val onboardingPromptSeen: Boolean = false,
@@ -39,6 +41,6 @@ data class AppBackup(
     val showSyncStatusStrip: Boolean = true
 ) {
     companion object {
-        const val CURRENT_SCHEMA_VERSION: Int = 7
+        const val CURRENT_SCHEMA_VERSION: Int = 9
     }
 }

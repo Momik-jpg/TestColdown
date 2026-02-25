@@ -18,7 +18,7 @@ data class IcalImportResult(
 
 class IcalImporter {
     suspend fun importFromUrl(url: String): IcalImportResult = withContext(Dispatchers.IO) {
-        val normalizedUrl = normalizeAndValidateUrl(url)
+        val normalizedUrl = normalizeAndValidateIcalUrl(url)
         val raw = IcalHttpClient.download(normalizedUrl)
         importFromRawInternal(raw)
     }
@@ -65,14 +65,6 @@ class IcalImporter {
             exams = exams,
             message = "${exams.size} Prüfungen aus iCal importiert."
         )
-    }
-
-    private fun normalizeAndValidateUrl(url: String): String {
-        val normalizedUrl = url.trim()
-        require(normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://")) {
-            "Ungültige URL"
-        }
-        return normalizedUrl
     }
 
     private fun isExamLike(event: ParsedIcalEvent): Boolean {

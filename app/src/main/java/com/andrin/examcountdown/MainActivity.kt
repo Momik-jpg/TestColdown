@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,10 +17,11 @@ import com.andrin.examcountdown.ui.ExamCountdownScreen
 import com.andrin.examcountdown.ui.ExamViewModel
 import com.andrin.examcountdown.ui.HomeTab
 import com.andrin.examcountdown.ui.theme.ExamCountdownTheme
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     private val startTabRoute = mutableStateOf(HomeTab.EXAMS.route)
 
     private val notificationPermissionLauncher =

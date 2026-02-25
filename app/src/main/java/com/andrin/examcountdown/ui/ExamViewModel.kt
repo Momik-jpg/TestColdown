@@ -120,6 +120,11 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = false
     )
+    val simpleModeEnabled = repository.simpleModeEnabledFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = true
+    )
     val lastSeenVersion = repository.lastSeenVersionFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -130,6 +135,22 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = true
     )
+    val appLockEnabled = repository.appLockEnabledFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false
+    )
+    val appLockBiometricEnabled = repository.appLockBiometricEnabledFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false
+    )
+
+    init {
+        viewModelScope.launch {
+            repository.migrateLegacyIcalUrlIfNeeded()
+        }
+    }
 
     fun addExam(
         subject: String?,
@@ -410,6 +431,12 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setSimpleModeEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setSimpleModeEnabled(enabled)
+        }
+    }
+
     fun setLastSeenVersion(versionName: String) {
         viewModelScope.launch {
             repository.setLastSeenVersion(versionName)
@@ -419,6 +446,43 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
     fun setShowSetupGuideCard(enabled: Boolean) {
         viewModelScope.launch {
             repository.setShowSetupGuideCard(enabled)
+        }
+    }
+
+    fun enableAppLock(pin: String, biometricEnabled: Boolean, onDone: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            runCatching {
+                repository.enableAppLockWithPin(pin, biometricEnabled = biometricEnabled)
+            }.onSuccess {
+                onDone(true, "App-Schutz aktiviert.")
+            }.onFailure { throwable ->
+                val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Ungültige PIN."
+                onDone(false, error)
+            }
+        }
+    }
+
+    fun disableAppLock(pin: String, onDone: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val verified = repository.verifyAppLockPin(pin)
+            if (!verified) {
+                onDone(false, "PIN falsch.")
+                return@launch
+            }
+            repository.disableAppLock()
+            onDone(true, "App-Schutz deaktiviert.")
+        }
+    }
+
+    fun verifyAppLockPin(pin: String, onDone: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            onDone(repository.verifyAppLockPin(pin))
+        }
+    }
+
+    fun setAppLockBiometricEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setAppLockBiometricEnabled(enabled)
         }
     }
 }

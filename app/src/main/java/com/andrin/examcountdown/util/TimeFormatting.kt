@@ -19,21 +19,21 @@ private val syncFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.M
 
 fun formatExamDate(epochMillis: Long): String {
     val localDateTime = Instant.ofEpochMilli(epochMillis)
-        .atZone(ZoneId.systemDefault())
+        .atZone(schoolZone)
         .toLocalDateTime()
     return fullFormatter.format(localDateTime)
 }
 
 fun formatExamDateShort(epochMillis: Long): String {
     val localDateTime = Instant.ofEpochMilli(epochMillis)
-        .atZone(ZoneId.systemDefault())
+        .atZone(schoolZone)
         .toLocalDateTime()
     return shortFormatter.format(localDateTime)
 }
 
 fun formatReminderDateTime(epochMillis: Long): String {
     val localDateTime = Instant.ofEpochMilli(epochMillis)
-        .atZone(ZoneId.systemDefault())
+        .atZone(schoolZone)
         .toLocalDateTime()
     return reminderFormatter.format(localDateTime)
 }

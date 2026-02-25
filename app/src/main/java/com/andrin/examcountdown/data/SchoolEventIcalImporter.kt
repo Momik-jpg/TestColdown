@@ -22,7 +22,7 @@ class SchoolEventIcalImporter {
     private val schoolZone: ZoneId = ZoneId.of("Europe/Zurich")
 
     suspend fun importFromUrl(url: String): SchoolEventImportResult = withContext(Dispatchers.IO) {
-        val normalizedUrl = normalizeAndValidateUrl(url)
+        val normalizedUrl = normalizeAndValidateIcalUrl(url)
         val raw = IcalHttpClient.download(normalizedUrl)
         importFromRawInternal(raw)
     }
@@ -279,14 +279,6 @@ class SchoolEventIcalImporter {
 
             else -> SchoolEventType.OTHER
         }
-    }
-
-    private fun normalizeAndValidateUrl(url: String): String {
-        val normalizedUrl = url.trim()
-        require(normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://")) {
-            "Ungültige URL"
-        }
-        return normalizedUrl
     }
 
     private fun unfoldIcalLines(raw: String): List<String> {

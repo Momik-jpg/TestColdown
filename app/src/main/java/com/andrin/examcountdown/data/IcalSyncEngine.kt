@@ -6,8 +6,11 @@ import com.andrin.examcountdown.model.TimetableChangeType
 import com.andrin.examcountdown.model.TimetableLesson
 import com.andrin.examcountdown.reminder.TimetableSyncNotificationManager
 import com.andrin.examcountdown.widget.WidgetUpdater
+import java.net.ConnectException
+import java.net.SocketTimeoutException
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 data class IcalSyncResult(
@@ -57,15 +60,12 @@ class IcalSyncEngine(
         var httpStatusCode: Int? = null
 
         try {
-            val normalizedUrl = normalizeAndValidateUrl(url)
+            val normalizedUrl = normalizeAndValidateIcalUrl(url)
             val cacheHeaders = repository.readIcalSyncCacheHeaders()
-            val response = withContext(Dispatchers.IO) {
-                IcalHttpClient.download(
-                    url = normalizedUrl,
-                    previousEtag = cacheHeaders.etag,
-                    previousLastModified = cacheHeaders.lastModified
-                )
-            }
+            val response = downloadWithRetry(
+                url = normalizedUrl,
+                cacheHeaders = cacheHeaders
+            )
             httpStatusCode = response.httpStatusCode
             repository.saveIcalSyncCacheHeaders(
                 IcalSyncCacheHeaders(
@@ -178,8 +178,50 @@ class IcalSyncEngine(
         }
     }
 
+    private suspend fun downloadWithRetry(
+        url: String,
+        cacheHeaders: IcalSyncCacheHeaders
+    ): IcalHttpResponse {
+        val maxAttempts = 2
+        var attempt = 0
+        var lastError: Exception? = null
+
+        while (attempt < maxAttempts) {
+            try {
+                return withContext(Dispatchers.IO) {
+                    IcalHttpClient.download(
+                        url = url,
+                        previousEtag = cacheHeaders.etag,
+                        previousLastModified = cacheHeaders.lastModified
+                    )
+                }
+            } catch (exception: Exception) {
+                lastError = exception
+                val shouldRetry = attempt < (maxAttempts - 1) && isRetryableSyncException(exception)
+                if (!shouldRetry) throw exception
+                delay(700L * (attempt + 1))
+                attempt += 1
+            }
+        }
+        throw lastError ?: IOException("Unbekannter Sync-Fehler")
+    }
+
+    private fun isRetryableSyncException(exception: Exception): Boolean {
+        if (exception is SocketTimeoutException || exception is ConnectException) {
+            return true
+        }
+        if (exception !is IOException) {
+            return false
+        }
+
+        val raw = exception.message.orEmpty().uppercase()
+        if (raw.contains("HTTP-4")) return false
+        if (raw.contains("ZU VIELE WEITERLEITUNGEN")) return false
+        return true
+    }
+
     suspend fun testConnection(url: String, importEvents: Boolean? = null): IcalSyncResult {
-        val normalizedUrl = normalizeAndValidateUrl(url)
+        val normalizedUrl = normalizeAndValidateIcalUrl(url)
         val response = withContext(Dispatchers.IO) {
             IcalHttpClient.download(
                 url = normalizedUrl,
@@ -323,14 +365,6 @@ class IcalSyncEngine(
             .trim()
             .lowercase()
             .replace(Regex("\\s+"), "")
-    }
-
-    private fun normalizeAndValidateUrl(url: String): String {
-        val normalizedUrl = url.trim()
-        require(normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://")) {
-            "Ungültige URL"
-        }
-        return normalizedUrl
     }
 
     private fun extractHttpStatusCode(message: String?): Int? {

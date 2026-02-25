@@ -23,7 +23,7 @@ class TimetableIcalImporter {
     private val schoolZone: ZoneId = ZoneId.of("Europe/Zurich")
 
     suspend fun importFromUrl(url: String): TimetableImportResult = withContext(Dispatchers.IO) {
-        val normalizedUrl = normalizeAndValidateUrl(url)
+        val normalizedUrl = normalizeAndValidateIcalUrl(url)
         val raw = IcalHttpClient.download(normalizedUrl)
         importFromRawInternal(raw)
     }
@@ -86,14 +86,6 @@ class TimetableIcalImporter {
             lessons = lessons,
             message = "${lessons.size} Lektionen synchronisiert."
         )
-    }
-
-    private fun normalizeAndValidateUrl(url: String): String {
-        val normalizedUrl = url.trim()
-        require(normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://")) {
-            "Ungültige URL"
-        }
-        return normalizedUrl
     }
 
     private data class ParsedDateTime(

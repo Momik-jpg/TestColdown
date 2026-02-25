@@ -10,7 +10,7 @@ Android-App für Prüfungen, Stundenplan, Events, Benachrichtigungen und Widgets
 
 ## App-Kurzanleitung
 1. App starten.
-2. Beim Erststart schulNetz-iCal-Link einfügen.
+2. Beim Erststart iCal-Link aus deinem Schulkalender einfügen (schulNetz oder anderer iCal-Anbieter).
 3. Verbindung testen.
 4. Optional: "Events zusätzlich importieren" aktivieren.
 5. Fertig drücken.
