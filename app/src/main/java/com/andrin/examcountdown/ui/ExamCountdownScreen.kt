@@ -921,11 +921,16 @@ private fun QuickActionsDialog(
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit
 ) {
+    var showAdvancedActions by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Werkzeuge") },
         text = {
             Column(
+                modifier = Modifier
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Surface(
@@ -949,6 +954,11 @@ private fun QuickActionsDialog(
                         )
                     }
                 }
+                Text(
+                    text = "Schnellzugriff",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
                 OutlinedButton(
                     onClick = onOpenIcalImport,
                     modifier = Modifier.fillMaxWidth()
@@ -958,7 +968,7 @@ private fun QuickActionsDialog(
                         contentDescription = null,
                         modifier = Modifier.padding(end = 6.dp)
                     )
-                    Text("iCal-Link verwalten")
+                    Text("iCal-Link")
                 }
                 OutlinedButton(
                     onClick = onOpenReminderSettings,
@@ -969,7 +979,7 @@ private fun QuickActionsDialog(
                         contentDescription = null,
                         modifier = Modifier.padding(end = 6.dp)
                     )
-                    Text("Benachrichtigungen")
+                    Text("Erinnerungen")
                 }
                 OutlinedButton(
                     onClick = onOpenSyncSettings,
@@ -983,50 +993,6 @@ private fun QuickActionsDialog(
                     Text("Auto-Sync")
                 }
                 OutlinedButton(
-                    onClick = onOpenSyncDiagnostics,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Schedule,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text("Sync-Diagnose")
-                }
-                OutlinedButton(
-                    onClick = onOpenExport,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.CloudDownload,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text("CSV/PDF Export")
-                }
-                OutlinedButton(
-                    onClick = onOpenHelp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.HelpOutline,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text("Hilfe / Troubleshooting")
-                }
-                OutlinedButton(
-                    onClick = onOpenChangelog,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.CalendarToday,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text("Was ist neu")
-                }
-                OutlinedButton(
                     onClick = onOpenPersonalization,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -1037,18 +1003,76 @@ private fun QuickActionsDialog(
                     )
                     Text("Personalisieren")
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    onClick = { showAdvancedActions = !showAdvancedActions },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(
+                        if (showAdvancedActions) {
+                            "Weniger Optionen"
+                        } else {
+                            "Weitere Optionen"
+                        }
+                    )
+                }
+                if (showAdvancedActions) {
                     OutlinedButton(
-                        onClick = onExportBackup,
-                        modifier = Modifier.weight(1f)
+                        onClick = onOpenSyncDiagnostics,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Backup Export")
+                        Icon(
+                            imageVector = Icons.Outlined.Schedule,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Text("Sync-Diagnose")
                     }
                     OutlinedButton(
-                        onClick = onImportBackup,
-                        modifier = Modifier.weight(1f)
+                        onClick = onOpenExport,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Backup Import")
+                        Icon(
+                            imageVector = Icons.Outlined.CloudDownload,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Text("CSV/PDF Export")
+                    }
+                    OutlinedButton(
+                        onClick = onOpenHelp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.HelpOutline,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Text("Hilfe")
+                    }
+                    OutlinedButton(
+                        onClick = onOpenChangelog,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.CalendarToday,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Text("Was ist neu")
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = onExportBackup,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Backup Export")
+                        }
+                        OutlinedButton(
+                            onClick = onImportBackup,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Backup Import")
+                        }
                     }
                 }
             }
@@ -1339,11 +1363,18 @@ private fun PersonalizationDialog(
     onAccessibilityModeChange: (Boolean) -> Unit,
     onShowSetupGuideCardChange: (Boolean) -> Unit
 ) {
+    var showAdvancedCollisionRules by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Personalisieren") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                     shape = MaterialTheme.shapes.medium
@@ -1354,46 +1385,67 @@ private fun PersonalizationDialog(
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        SettingToggleRow(
+                            label = "Stundenplan-Tab anzeigen",
+                            checked = showTimetableTab,
+                            onCheckedChange = onShowTimetableTabChange
+                        )
+                        SettingToggleRow(
+                            label = "Agenda-Tab anzeigen",
+                            checked = showAgendaTab,
+                            onCheckedChange = onShowAgendaTabChange
+                        )
+                        SettingToggleRow(
+                            label = "Setup-Hilfe anzeigen",
+                            checked = showSetupGuideCard,
+                            onCheckedChange = onShowSetupGuideCardChange
+                        )
+                        SettingToggleRow(
+                            label = "Barrierefreiheit-Modus",
+                            checked = accessibilityModeEnabled,
+                            onCheckedChange = onAccessibilityModeChange
+                        )
+                        SettingToggleRow(
+                            label = "Kollisions-Badges anzeigen",
+                            checked = showExamCollisionBadges,
+                            onCheckedChange = onShowExamCollisionBadgesChange
+                        )
+                    }
+                }
+
+                if (showExamCollisionBadges) {
+                    TextButton(
+                        onClick = { showAdvancedCollisionRules = !showAdvancedCollisionRules },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text(
+                            if (showAdvancedCollisionRules) {
+                                "Kollisionsregeln ausblenden"
+                            } else {
+                                "Kollisionsregeln anzeigen"
+                            }
+                        )
+                    }
+                }
+
+                if (showExamCollisionBadges && showAdvancedCollisionRules) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("Stundenplan-Tab anzeigen")
-                            Switch(
-                                checked = showTimetableTab,
-                                onCheckedChange = onShowTimetableTabChange
+                            Text(
+                                text = "Kollisionen - Erweitert",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
                             )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Agenda-Tab anzeigen")
-                            Switch(
-                                checked = showAgendaTab,
-                                onCheckedChange = onShowAgendaTabChange
-                            )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Kollisions-Badges anzeigen")
-                            Switch(
-                                checked = showExamCollisionBadges,
-                                onCheckedChange = onShowExamCollisionBadgesChange
-                            )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Kollisionen mit Lektionen")
-                            Switch(
+                            SettingToggleRow(
+                                label = "Kollisionen mit Lektionen",
                                 checked = collisionRules.includeLessonCollisions,
                                 onCheckedChange = {
                                     onCollisionRulesChange(
@@ -1401,14 +1453,8 @@ private fun PersonalizationDialog(
                                     )
                                 }
                             )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Kollisionen mit Events")
-                            Switch(
+                            SettingToggleRow(
+                                label = "Kollisionen mit Events",
                                 checked = collisionRules.includeEventCollisions,
                                 onCheckedChange = {
                                     onCollisionRulesChange(
@@ -1416,14 +1462,8 @@ private fun PersonalizationDialog(
                                     )
                                 }
                             )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Nur anderes Fach")
-                            Switch(
+                            SettingToggleRow(
+                                label = "Nur anderes Fach",
                                 checked = collisionRules.onlyDifferentSubject,
                                 onCheckedChange = {
                                     onCollisionRulesChange(
@@ -1431,14 +1471,8 @@ private fun PersonalizationDialog(
                                     )
                                 }
                             )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Nur echte Zeitüberschneidung")
-                            Switch(
+                            SettingToggleRow(
+                                label = "Nur echte Zeitüberschneidung",
                                 checked = collisionRules.requireExactTimeOverlap,
                                 onCheckedChange = {
                                     onCollisionRulesChange(
@@ -1447,36 +1481,8 @@ private fun PersonalizationDialog(
                                 }
                             )
                         }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Barrierefreiheit-Modus")
-                            Switch(
-                                checked = accessibilityModeEnabled,
-                                onCheckedChange = onAccessibilityModeChange
-                            )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Setup-Hilfe anzeigen")
-                            Switch(
-                                checked = showSetupGuideCard,
-                                onCheckedChange = onShowSetupGuideCardChange
-                            )
-                        }
                     }
                 }
-
-                Text(
-                    text = "Agenda zeigt Prüfungen, Lektionen und Events kombiniert. Kollisionsregeln und Accessibility lassen sich hier zentral steuern.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         },
         confirmButton = {
@@ -1485,6 +1491,25 @@ private fun PersonalizationDialog(
             }
         }
     )
+}
+
+@Composable
+private fun SettingToggleRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+    }
 }
 
 @Composable
@@ -2628,6 +2653,10 @@ private fun ExamListContent(
         val now = System.currentTimeMillis()
         filteredExams.firstOrNull { it.startsAtEpochMillis >= now } ?: filteredExams.firstOrNull()
     }
+    val listExams = remember(filteredExams, nextExam) {
+        val heroId = nextExam?.id ?: return@remember filteredExams
+        filteredExams.filterNot { it.id == heroId }
+    }
     val collisionMap = remember(exams, lessons, events, showCollisionBadges, collisionRules) {
         if (!showCollisionBadges) {
             emptyMap()
@@ -2744,12 +2773,29 @@ private fun ExamListContent(
                 )
             }
         } else {
-            items(items = filteredExams, key = { it.id }) { exam ->
-                ExamCard(
-                    exam = exam,
-                    collisions = collisionMap[exam.id].orEmpty(),
-                    onDelete = { onDelete(exam) }
-                )
+            if (listExams.isEmpty()) {
+                item {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text(
+                            text = "Keine weiteren Prüfungen im aktuellen Filter.",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                items(items = listExams, key = { it.id }) { exam ->
+                    ExamCard(
+                        exam = exam,
+                        collisions = collisionMap[exam.id].orEmpty(),
+                        onDelete = { onDelete(exam) }
+                    )
+                }
             }
         }
     }
