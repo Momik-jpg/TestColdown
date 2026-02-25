@@ -232,6 +232,16 @@ fun ExamCountdownScreen(
     var pendingCsvExport by remember { mutableStateOf<Pair<String, String>?>(null) }
     var pendingPdfExport by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
 
+    val triggerManualRefresh: () -> Unit = {
+        isSyncingIcal = true
+        viewModel.refreshFromSavedIcal { message ->
+            isSyncingIcal = false
+            scope.launch {
+                snackbarHostState.showSnackbar(message)
+            }
+        }
+    }
+
     LaunchedEffect(initialTab) {
         selectedTab = initialTab
     }
@@ -674,15 +684,7 @@ fun ExamCountdownScreen(
                         if (selectedTab != HomeTab.GRADES) {
                             IconButton(
                                 enabled = !isSyncingIcal,
-                                onClick = {
-                                    isSyncingIcal = true
-                                    viewModel.refreshFromSavedIcal { message ->
-                                        isSyncingIcal = false
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar(message)
-                                        }
-                                    }
-                                }
+                                onClick = triggerManualRefresh
                             ) {
                                 if (isSyncingIcal) {
                                     CircularProgressIndicator(
@@ -752,6 +754,18 @@ fun ExamCountdownScreen(
                     events = events,
                     showCollisionBadges = showExamCollisionBadges,
                     collisionRules = collisionRuleSettings,
+                    hasIcalUrl = savedIcalUrl.isNotBlank(),
+                    hasSyncedOnce = syncStatus.lastSyncAtMillis != null,
+                    lastSyncError = syncStatus.lastSyncError,
+                    onOpenIcalImport = {
+                        iCalUrl = savedIcalUrl
+                        importEventsToggle = importEventsEnabled
+                        showIcalDialog = true
+                    },
+                    onRefreshNow = triggerManualRefresh,
+                    onOpenHelp = {
+                        showHelpDialog = true
+                    },
                     onAddClick = { showAddDialog = true },
                     onDelete = { exam ->
                         viewModel.deleteExam(exam.id)
@@ -1231,6 +1245,41 @@ private fun HelpDialog(
                 )
                 Text(
                     text = "1) iCal-Link einfügen 2) Verbindung testen 3) Fertig. Danach oben mit dem Pfeil aktualisieren.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = "Was danach passiert",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Prüfungen: Liste mit Countdown, Suche und Filter.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = "Stundenplan: Lektionen inkl. Verschiebungen und Raumänderungen.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = "Events: Gesamtagenda (Prüfungen/Lektionen/Events) nach Zeit.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = "Notenrechner: Durchschnitt, Zielnote und Punkte-Rechner.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Text(
+                    text = "Tägliche Nutzung",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "1) App öffnen 2) oben auf Aktualisieren tippen 3) offene Prüfungen prüfen.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = "Optional: Auto-Sync, Reminder und Export im Menü 'Werkzeuge'.",
                     style = MaterialTheme.typography.bodySmall
                 )
 
@@ -2497,6 +2546,12 @@ private fun ExamListContent(
     events: List<SchoolEvent>,
     showCollisionBadges: Boolean,
     collisionRules: CollisionRuleSettings,
+    hasIcalUrl: Boolean,
+    hasSyncedOnce: Boolean,
+    lastSyncError: String?,
+    onOpenIcalImport: () -> Unit,
+    onRefreshNow: () -> Unit,
+    onOpenHelp: () -> Unit,
     onAddClick: () -> Unit,
     onDelete: (Exam) -> Unit
 ) {
@@ -2591,6 +2646,17 @@ private fun ExamListContent(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            item("setup-guide-empty") {
+                SetupGuideCard(
+                    examCount = exams.size,
+                    hasIcalUrl = hasIcalUrl,
+                    hasSyncedOnce = hasSyncedOnce,
+                    lastSyncError = lastSyncError,
+                    onOpenIcalImport = onOpenIcalImport,
+                    onRefreshNow = onRefreshNow,
+                    onOpenHelp = onOpenHelp
+                )
+            }
             item {
                 EmptyState(
                     onAddClick = onAddClick,
@@ -2606,6 +2672,17 @@ private fun ExamListContent(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item("setup-guide") {
+            SetupGuideCard(
+                examCount = exams.size,
+                hasIcalUrl = hasIcalUrl,
+                hasSyncedOnce = hasSyncedOnce,
+                lastSyncError = lastSyncError,
+                onOpenIcalImport = onOpenIcalImport,
+                onRefreshNow = onRefreshNow,
+                onOpenHelp = onOpenHelp
+            )
+        }
         item {
             ExamSearchAndFilterCard(
                 query = searchQuery,
@@ -2707,6 +2784,80 @@ private fun ExamInsightsCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun SetupGuideCard(
+    examCount: Int,
+    hasIcalUrl: Boolean,
+    hasSyncedOnce: Boolean,
+    lastSyncError: String?,
+    onOpenIcalImport: () -> Unit,
+    onRefreshNow: () -> Unit,
+    onOpenHelp: () -> Unit
+) {
+    val nextStep = when {
+        !hasIcalUrl -> "1) iCal-Link aus schulNetz einfügen."
+        !hasSyncedOnce -> "2) Ersten Sync starten (Aktualisieren)."
+        examCount == 0 -> "3) Prüfungen prüfen oder manuell hinzufügen."
+        else -> "Alles bereit. Du kannst jetzt normal nutzen."
+    }
+
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Erste Schritte",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = nextStep,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = "iCal-Link: ${if (hasIcalUrl) "verbunden" else "fehlt"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Erster Sync: ${if (hasSyncedOnce) "gemacht" else "offen"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Prüfungen sichtbar: $examCount",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (!lastSyncError.isNullOrBlank()) {
+                Text(
+                    text = "Letzter Fehler: $lastSyncError",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = if (hasIcalUrl) onRefreshNow else onOpenIcalImport,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (hasIcalUrl) "Jetzt synchronisieren" else "iCal einrichten")
+                }
+                OutlinedButton(
+                    onClick = onOpenHelp,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("So funktioniert's")
+                }
+            }
         }
     }
 }
@@ -3523,6 +3674,13 @@ private fun SyncSettingsDialog(
 
 private fun changelogEntriesFor(versionName: String): List<String> {
     return when (versionName) {
+        "1.6.0" -> listOf(
+            "Neue 'Erste Schritte'-Karte im Prüfungs-Tab mit klarer nächster Aktion.",
+            "Bessere In-App-Hilfe: Was jeder Tab macht + täglicher Ablauf.",
+            "Schneller Zugriff auf Einrichtung/Sync direkt aus der Start-Hilfe.",
+            "Fehlermeldungen sichtbarer für schnellere Problemlösung.",
+            "Allgemeine Bedienung und Orientierung verbessert."
+        )
         "1.5.0" -> listOf(
             "Sync-Diagnose mit letzter Dauer, HTTP-Status und klarer Fehlerursache.",
             "Delta-Sync per ETag/Last-Modified für stabilere und sparsamere Synchronisierung.",

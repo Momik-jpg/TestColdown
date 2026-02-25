@@ -23,6 +23,7 @@ Android-App für Prüfungen, Stundenplan, Events, Benachrichtigungen und Widgets
 - `Notenrechner`: Durchschnitt, Zielnote und Noten-Punkte-Rechner.
 
 ## Neu (Pro-Features)
+- `Erste-Schritte Karte`: klare "Was muss ich als Nächstes tun?"-Anleitung direkt im Prüfungs-Tab.
 - `Sync-Diagnose`: zeigt letzten Versuch, Dauer, HTTP-Status, Delta-Status, Import-Zahlen und Fehlerursache.
 - `Delta-Sync`: nutzt `ETag`/`Last-Modified` (304 = keine Änderungen), spart Akku und Daten.
 - `Kollisionsregeln`: getrennte Schalter für Lektionen/Events, nur anderes Fach, echte Zeitüberschneidung.
