@@ -31,6 +31,7 @@ data class AppBackup(
     val collisionOnlyDifferentSubject: Boolean = true,
     val collisionRequireExactTimeOverlap: Boolean = true,
     val accessibilityModeEnabled: Boolean = false,
+    val showSetupGuideCard: Boolean = true,
     val onboardingDone: Boolean = false,
     val onboardingPromptSeen: Boolean = false,
     val quietHours: QuietHoursConfig = QuietHoursConfig(),

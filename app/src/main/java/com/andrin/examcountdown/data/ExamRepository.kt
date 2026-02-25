@@ -78,6 +78,7 @@ class ExamRepository(private val appContext: Context) {
     private val collisionRequireExactOverlapKey = booleanPreferencesKey("collision_require_exact_overlap")
     private val accessibilityModeEnabledKey = booleanPreferencesKey("accessibility_mode_enabled")
     private val lastSeenVersionKey = stringPreferencesKey("last_seen_version")
+    private val showSetupGuideCardKey = booleanPreferencesKey("show_setup_guide_card")
     private val iCalEtagKey = stringPreferencesKey("ical_etag")
     private val iCalLastModifiedKey = stringPreferencesKey("ical_last_modified")
     private val lastSyncAtMillisKey = longPreferencesKey("last_sync_at_ms")
@@ -224,6 +225,11 @@ class ExamRepository(private val appContext: Context) {
     val lastSeenVersionFlow: Flow<String> = preferencesFlow
         .map { preferences ->
             preferences[lastSeenVersionKey].orEmpty()
+        }
+
+    val showSetupGuideCardFlow: Flow<Boolean> = preferencesFlow
+        .map { preferences ->
+            preferences[showSetupGuideCardKey] ?: true
         }
 
     suspend fun addExam(exam: Exam) {
@@ -479,6 +485,12 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun setShowSetupGuideCard(enabled: Boolean) {
+        appContext.dataStore.edit { preferences ->
+            preferences[showSetupGuideCardKey] = enabled
+        }
+    }
+
     suspend fun readIcalUrl(): String? = iCalUrlFlow.first().takeIf { it.isNotBlank() }
     suspend fun readImportEventsEnabled(): Boolean = importEventsEnabledFlow.first()
     suspend fun readSyncIntervalMinutes(): Long = syncIntervalMinutesFlow.first()
@@ -516,6 +528,7 @@ class ExamRepository(private val appContext: Context) {
             collisionOnlyDifferentSubject = collisionRules.onlyDifferentSubject,
             collisionRequireExactTimeOverlap = collisionRules.requireExactTimeOverlap,
             accessibilityModeEnabled = readAccessibilityModeEnabled(),
+            showSetupGuideCard = showSetupGuideCardFlow.first(),
             onboardingDone = onboardingDoneFlow.first(),
             onboardingPromptSeen = onboardingPromptSeenFlow.first(),
             quietHours = readQuietHoursConfig(),
@@ -599,6 +612,7 @@ class ExamRepository(private val appContext: Context) {
             preferences[collisionOnlyDifferentSubjectKey] = backup.collisionOnlyDifferentSubject
             preferences[collisionRequireExactOverlapKey] = backup.collisionRequireExactTimeOverlap
             preferences[accessibilityModeEnabledKey] = backup.accessibilityModeEnabled
+            preferences[showSetupGuideCardKey] = backup.showSetupGuideCard
             preferences[onboardingDoneKey] = backup.onboardingDone
             preferences[onboardingPromptSeenKey] = backup.onboardingPromptSeen
             preferences[quietHoursEnabledKey] = sanitizedQuietHours.enabled

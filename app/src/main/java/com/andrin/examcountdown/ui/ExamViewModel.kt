@@ -125,6 +125,11 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = ""
     )
+    val showSetupGuideCard = repository.showSetupGuideCardFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = true
+    )
 
     fun addExam(
         subject: String?,
@@ -408,6 +413,12 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
     fun setLastSeenVersion(versionName: String) {
         viewModelScope.launch {
             repository.setLastSeenVersion(versionName)
+        }
+    }
+
+    fun setShowSetupGuideCard(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setShowSetupGuideCard(enabled)
         }
     }
 }

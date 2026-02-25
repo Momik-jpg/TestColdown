@@ -158,8 +158,8 @@ private enum class ExamWindowFilter(val title: String, val maxDaysAhead: Int?) {
 }
 
 private enum class ExamSortMode(val title: String) {
-    NEXT_FIRST("Nächste zuerst"),
-    LATEST_FIRST("Späteste zuerst"),
+    NEXT_FIRST("Nächste"),
+    LATEST_FIRST("Späteste"),
     SUBJECT_AZ("Fach A-Z"),
     TITLE_AZ("Titel A-Z")
 }
@@ -205,6 +205,7 @@ fun ExamCountdownScreen(
     val collisionRuleSettings by viewModel.collisionRuleSettings.collectAsStateWithLifecycle()
     val accessibilityModeEnabled by viewModel.accessibilityModeEnabled.collectAsStateWithLifecycle()
     val lastSeenVersion by viewModel.lastSeenVersion.collectAsStateWithLifecycle()
+    val showSetupGuideCard by viewModel.showSetupGuideCard.collectAsStateWithLifecycle()
     val isDarkMode = isSystemInDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
@@ -627,6 +628,7 @@ fun ExamCountdownScreen(
             showExamCollisionBadges = showExamCollisionBadges,
             collisionRules = collisionRuleSettings,
             accessibilityModeEnabled = accessibilityModeEnabled,
+            showSetupGuideCard = showSetupGuideCard,
             onDismiss = { showPersonalizationDialog = false },
             onShowTimetableTabChange = { enabled ->
                 if (!enabled && !showAgendaTab) {
@@ -648,6 +650,9 @@ fun ExamCountdownScreen(
             },
             onAccessibilityModeChange = { enabled ->
                 viewModel.setAccessibilityModeEnabled(enabled)
+            },
+            onShowSetupGuideCardChange = { enabled ->
+                viewModel.setShowSetupGuideCard(enabled)
             }
         )
     }
@@ -757,6 +762,7 @@ fun ExamCountdownScreen(
                     hasIcalUrl = savedIcalUrl.isNotBlank(),
                     hasSyncedOnce = syncStatus.lastSyncAtMillis != null,
                     lastSyncError = syncStatus.lastSyncError,
+                    showSetupGuideCard = showSetupGuideCard,
                     onOpenIcalImport = {
                         iCalUrl = savedIcalUrl
                         importEventsToggle = importEventsEnabled
@@ -765,6 +771,9 @@ fun ExamCountdownScreen(
                     onRefreshNow = triggerManualRefresh,
                     onOpenHelp = {
                         showHelpDialog = true
+                    },
+                    onHideSetupGuide = {
+                        viewModel.setShowSetupGuideCard(false)
                     },
                     onAddClick = { showAddDialog = true },
                     onDelete = { exam ->
@@ -1321,12 +1330,14 @@ private fun PersonalizationDialog(
     showExamCollisionBadges: Boolean,
     collisionRules: CollisionRuleSettings,
     accessibilityModeEnabled: Boolean,
+    showSetupGuideCard: Boolean,
     onDismiss: () -> Unit,
     onShowTimetableTabChange: (Boolean) -> Unit,
     onShowAgendaTabChange: (Boolean) -> Unit,
     onShowExamCollisionBadgesChange: (Boolean) -> Unit,
     onCollisionRulesChange: (CollisionRuleSettings) -> Unit,
-    onAccessibilityModeChange: (Boolean) -> Unit
+    onAccessibilityModeChange: (Boolean) -> Unit,
+    onShowSetupGuideCardChange: (Boolean) -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1445,6 +1456,17 @@ private fun PersonalizationDialog(
                             Switch(
                                 checked = accessibilityModeEnabled,
                                 onCheckedChange = onAccessibilityModeChange
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Setup-Hilfe anzeigen")
+                            Switch(
+                                checked = showSetupGuideCard,
+                                onCheckedChange = onShowSetupGuideCardChange
                             )
                         }
                     }
@@ -1907,20 +1929,6 @@ private fun TimetableContent(
                 activeLesson = activeLesson,
                 upcomingLesson = upcomingLesson
             )
-        }
-
-        item(key = "timezone-note") {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-            ) {
-                Text(
-                    text = "Zeiten sind in Schweizer Zeit. Filter und Wochenansicht verfügbar.",
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
         }
 
         item(key = "timetable-controls") {
@@ -2549,9 +2557,11 @@ private fun ExamListContent(
     hasIcalUrl: Boolean,
     hasSyncedOnce: Boolean,
     lastSyncError: String?,
+    showSetupGuideCard: Boolean,
     onOpenIcalImport: () -> Unit,
     onRefreshNow: () -> Unit,
     onOpenHelp: () -> Unit,
+    onHideSetupGuide: () -> Unit,
     onAddClick: () -> Unit,
     onDelete: (Exam) -> Unit
 ) {
@@ -2639,6 +2649,9 @@ private fun ExamListContent(
     val collisionCount = remember(collisionMap) {
         collisionMap.values.flatten().size
     }
+    val showSetupGuide = remember(showSetupGuideCard, hasIcalUrl, hasSyncedOnce, exams.size, lastSyncError) {
+        showSetupGuideCard && (!hasIcalUrl || !hasSyncedOnce || exams.isEmpty() || !lastSyncError.isNullOrBlank())
+    }
 
     if (exams.isEmpty()) {
         LazyColumn(
@@ -2646,16 +2659,19 @@ private fun ExamListContent(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item("setup-guide-empty") {
-                SetupGuideCard(
-                    examCount = exams.size,
-                    hasIcalUrl = hasIcalUrl,
-                    hasSyncedOnce = hasSyncedOnce,
-                    lastSyncError = lastSyncError,
-                    onOpenIcalImport = onOpenIcalImport,
-                    onRefreshNow = onRefreshNow,
-                    onOpenHelp = onOpenHelp
-                )
+            if (showSetupGuide) {
+                item("setup-guide-empty") {
+                    SetupGuideCard(
+                        examCount = exams.size,
+                        hasIcalUrl = hasIcalUrl,
+                        hasSyncedOnce = hasSyncedOnce,
+                        lastSyncError = lastSyncError,
+                        onOpenIcalImport = onOpenIcalImport,
+                        onRefreshNow = onRefreshNow,
+                        onOpenHelp = onOpenHelp,
+                        onHide = onHideSetupGuide
+                    )
+                }
             }
             item {
                 EmptyState(
@@ -2672,16 +2688,19 @@ private fun ExamListContent(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item("setup-guide") {
-            SetupGuideCard(
-                examCount = exams.size,
-                hasIcalUrl = hasIcalUrl,
-                hasSyncedOnce = hasSyncedOnce,
-                lastSyncError = lastSyncError,
-                onOpenIcalImport = onOpenIcalImport,
-                onRefreshNow = onRefreshNow,
-                onOpenHelp = onOpenHelp
-            )
+        if (showSetupGuide) {
+            item("setup-guide") {
+                SetupGuideCard(
+                    examCount = exams.size,
+                    hasIcalUrl = hasIcalUrl,
+                    hasSyncedOnce = hasSyncedOnce,
+                    lastSyncError = lastSyncError,
+                    onOpenIcalImport = onOpenIcalImport,
+                    onRefreshNow = onRefreshNow,
+                    onOpenHelp = onOpenHelp,
+                    onHide = onHideSetupGuide
+                )
+            }
         }
         item {
             ExamSearchAndFilterCard(
@@ -2796,13 +2815,19 @@ private fun SetupGuideCard(
     lastSyncError: String?,
     onOpenIcalImport: () -> Unit,
     onRefreshNow: () -> Unit,
-    onOpenHelp: () -> Unit
+    onOpenHelp: () -> Unit,
+    onHide: () -> Unit
 ) {
-    val nextStep = when {
-        !hasIcalUrl -> "1) iCal-Link aus schulNetz einfügen."
-        !hasSyncedOnce -> "2) Ersten Sync starten (Aktualisieren)."
-        examCount == 0 -> "3) Prüfungen prüfen oder manuell hinzufügen."
-        else -> "Alles bereit. Du kannst jetzt normal nutzen."
+    val actionText = when {
+        !hasIcalUrl -> "iCal einrichten"
+        else -> "Jetzt synchronisieren"
+    }
+    val statusText = when {
+        !hasIcalUrl -> "iCal-Link fehlt"
+        !hasSyncedOnce -> "Erster Sync offen"
+        examCount == 0 -> "Keine Prüfungen gefunden"
+        !lastSyncError.isNullOrBlank() -> "Sync prüfen"
+        else -> "Bereit"
     }
 
     Card(
@@ -2814,51 +2839,90 @@ private fun SetupGuideCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Erste Schritte",
-                style = MaterialTheme.typography.titleSmall,
+                text = "Setup",
+                style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold
             )
-            Text(
-                text = nextStep,
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Text(
-                text = "iCal-Link: ${if (hasIcalUrl) "verbunden" else "fehlt"}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = "Erster Sync: ${if (hasSyncedOnce) "gemacht" else "offen"}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = "Prüfungen sichtbar: $examCount",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SetupStatusPill(
+                    label = if (hasIcalUrl) "Link ok" else "Link fehlt",
+                    ok = hasIcalUrl
+                )
+                SetupStatusPill(
+                    label = if (hasSyncedOnce) "Sync ok" else "Sync offen",
+                    ok = hasSyncedOnce
+                )
+                SetupStatusPill(
+                    label = "$examCount Prüfungen",
+                    ok = examCount > 0
+                )
+            }
+
             if (!lastSyncError.isNullOrBlank()) {
                 Text(
-                    text = "Letzter Fehler: $lastSyncError",
+                    text = lastSyncError,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error
                 )
+            } else {
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
+
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = if (hasIcalUrl) onRefreshNow else onOpenIcalImport,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(if (hasIcalUrl) "Jetzt synchronisieren" else "iCal einrichten")
+                    Text(actionText)
                 }
                 OutlinedButton(
                     onClick = onOpenHelp,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("So funktioniert's")
+                    Text("Hilfe")
                 }
             }
+            TextButton(
+                onClick = onHide,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text("Nicht mehr anzeigen")
+            }
         }
+    }
+}
+
+@Composable
+private fun SetupStatusPill(label: String, ok: Boolean) {
+    val bg = if (ok) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val fg = if (ok) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(
+        color = bg,
+        shape = MaterialTheme.shapes.small
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = fg
+        )
     }
 }
 
@@ -2963,8 +3027,7 @@ private fun ExamSearchAndFilterCard(
                 onValueChange = onQueryChange,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text("Suche") },
-                placeholder = { Text("Titel, Fach oder Ort") },
+                placeholder = { Text("Suche") },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Outlined.Search,
