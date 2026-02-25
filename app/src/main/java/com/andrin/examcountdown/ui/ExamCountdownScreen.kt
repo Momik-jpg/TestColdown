@@ -8,12 +8,15 @@ import android.graphics.pdf.PdfDocument
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -169,8 +172,8 @@ private enum class TimetableViewMode(val title: String) {
 private enum class TimetableFilter(val title: String) {
     ALL("Alle"),
     ONLY_TODAY("Nur heute"),
-    ONLY_MOVED("Nur verschoben"),
-    ONLY_ROOM_CHANGED("Nur Raum geändert")
+    ONLY_MOVED("Verschoben"),
+    ONLY_ROOM_CHANGED("Nur Raum")
 }
 
 private enum class ExamWindowFilter(val title: String, val maxDaysAhead: Int?) {
@@ -1936,10 +1939,17 @@ private fun SettingToggleRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 12.dp),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange
@@ -2297,6 +2307,7 @@ private fun formatTimetableChangeDescription(change: TimetableChangeEntry): Stri
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun TimetableContent(
     lessons: List<TimetableLesson>,
     changes: List<TimetableChangeEntry>,
@@ -2404,34 +2415,56 @@ private fun TimetableContent(
         }
 
         item(key = "timetable-controls") {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    TimetableViewMode.entries.forEach { mode ->
-                        FilterChip(
-                            selected = viewMode == mode,
-                            onClick = { viewMode = mode },
-                            label = { Text(mode.title) }
-                        )
-                    }
-                }
+                    Text(
+                        text = "Stundenplan-Ansicht",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TimetableFilter.entries.forEach { filter ->
-                        FilterChip(
-                            selected = selectedFilter == filter,
-                            onClick = { selectedFilter = filter },
-                            label = { Text(filter.title) }
-                        )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TimetableViewMode.entries.forEach { mode ->
+                            FilterChip(
+                                selected = viewMode == mode,
+                                onClick = { viewMode = mode },
+                                label = { Text(mode.title) }
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+
+                    Text(
+                        text = "Filter",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TimetableFilter.entries.forEach { filter ->
+                            FilterChip(
+                                selected = selectedFilter == filter,
+                                onClick = { selectedFilter = filter },
+                                label = { Text(filter.title) }
+                            )
+                        }
                     }
                 }
             }
@@ -2578,6 +2611,7 @@ private fun TimetableNowNextCard(
     upcomingLesson: TimetableLessonBlock?
 ) {
     Card(
+        modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
@@ -2586,7 +2620,7 @@ private fun TimetableNowNextCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Orientierung",
+                text = "Jetzt & Nächste Lektion",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -2599,6 +2633,7 @@ private fun TimetableNowNextCard(
                 )
             } else {
                 activeLesson?.let { lesson ->
+                    val displayTitle = formatLessonDisplayTitle(lesson.title)
                     Surface(
                         color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f),
                         shape = MaterialTheme.shapes.medium
@@ -2610,7 +2645,7 @@ private fun TimetableNowNextCard(
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             Text(
-                                text = "Jetzt: ${lesson.title}",
+                                text = "Jetzt: $displayTitle",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                                 fontWeight = FontWeight.SemiBold
@@ -2625,6 +2660,7 @@ private fun TimetableNowNextCard(
                 }
 
                 upcomingLesson?.let { lesson ->
+                    val displayTitle = formatLessonDisplayTitle(lesson.title)
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
                         shape = MaterialTheme.shapes.medium
@@ -2636,7 +2672,7 @@ private fun TimetableNowNextCard(
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             Text(
-                                text = "Nächste: ${lesson.title}",
+                                text = "Nächste: $displayTitle",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 fontWeight = FontWeight.SemiBold
@@ -2672,7 +2708,7 @@ private fun WeekGridLessonRow(lesson: TimetableLessonBlock) {
 
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
-            text = lesson.title,
+            text = formatLessonDisplayTitle(lesson.title),
             style = MaterialTheme.typography.labelLarge,
             color = titleColor,
             textDecoration = if (lesson.isCancelledSlot) TextDecoration.LineThrough else TextDecoration.None
@@ -2717,7 +2753,7 @@ private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = lesson.title,
+                    text = formatLessonDisplayTitle(lesson.title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
@@ -3581,7 +3617,7 @@ private fun ExamSearchAndFilterCard(
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OutlinedTextField(
                 value = query,
@@ -3626,11 +3662,18 @@ private fun ExamSearchAndFilterCard(
                 }
             }
             if (simpleModeEnabled) {
-                TextButton(
-                    onClick = { showExtendedFilters = !showExtendedFilters },
-                    modifier = Modifier.align(Alignment.End)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    Text(if (showExtendedFilters) "Weniger Filter" else "Weitere Filter")
+                    Text(
+                        text = if (showExtendedFilters) "Weniger Filter" else "Weitere Filter",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clickable { showExtendedFilters = !showExtendedFilters }
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
                 }
             }
             val showSubjectFilters = subjects.size > 1 && (!simpleModeEnabled || showExtendedFilters)
@@ -4776,6 +4819,28 @@ private fun normalizeExamDisplayText(raw: String): String {
     text = replaceWordCaseInsensitive(text, "nachpruefungen", "Nachprüfungen")
     text = replaceWordCaseInsensitive(text, "nachpruefung", "Nachprüfung")
     return text
+}
+
+private fun formatLessonDisplayTitle(raw: String): String {
+    val trimmed = raw.trim()
+    if (trimmed.isBlank()) return "Lektion"
+
+    val underscoreParts = trimmed.split('_')
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+
+    if (underscoreParts.size >= 2) {
+        val subject = underscoreParts[0].uppercase()
+        val clazz = underscoreParts[1].uppercase()
+        val teacher = underscoreParts.getOrNull(2)
+            ?.replace(Regex("[^A-Za-zÄÖÜäöü]"), "")
+            ?.takeIf { it.length in 2..10 }
+        return listOf(subject, clazz, teacher).filterNotNull().joinToString(" · ")
+    }
+
+    return trimmed
+        .replace('_', ' ')
+        .replace(Regex("\\s+"), " ")
 }
 
 private fun replaceWordCaseInsensitive(input: String, from: String, replacement: String): String {

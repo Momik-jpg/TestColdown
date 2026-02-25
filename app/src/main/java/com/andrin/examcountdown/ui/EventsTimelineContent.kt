@@ -191,6 +191,7 @@ fun EventsTimelineContent(
     ) {
         item("calendar-search") {
             Card(
+                modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
@@ -255,6 +256,7 @@ fun EventsTimelineContent(
         if (filteredItems.isEmpty()) {
             item("calendar-empty-filtered") {
                 Card(
+                    modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.large,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
@@ -312,6 +314,7 @@ private fun CalendarTimelineCard(
     }
 
     Card(
+        modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
@@ -413,6 +416,7 @@ private fun EventEmptyState(
     ) {
         item("events-empty") {
             Card(
+                modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.extraLarge,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
