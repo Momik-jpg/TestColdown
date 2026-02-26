@@ -5,6 +5,9 @@ import android.app.TimePickerDialog
 import android.content.Context
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
+import android.os.Build
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -136,6 +139,7 @@ import com.andrin.examcountdown.util.formatSyncDateTime
 import com.andrin.examcountdown.util.formatTimeRange
 import java.io.BufferedReader
 import java.io.OutputStream
+import java.security.KeyStore
 import java.time.LocalTime
 import java.time.DayOfWeek
 import java.time.Instant
@@ -144,6 +148,9 @@ import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
 import kotlinx.coroutines.launch
 
 enum class HomeTab(
@@ -211,6 +218,10 @@ private data class TimetableLessonBlock(
 private const val SUBJECT_FILTER_ALL = "Alle Fächer"
 private const val APP_LOCK_MIN_PIN_DIGITS = 4
 private const val APP_LOCK_MAX_PIN_DIGITS = 10
+private const val BIOMETRIC_KEYSTORE_PROVIDER = "AndroidKeyStore"
+private const val BIOMETRIC_KEY_ALIAS = "examcountdown.app.lock.biometric"
+private const val BIOMETRIC_CIPHER_TRANSFORMATION = "AES/GCM/NoPadding"
+private val BIOMETRIC_UNLOCK_CHALLENGE = "examcountdown-unlock".toByteArray(Charsets.UTF_8)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -4868,7 +4879,7 @@ private fun isIcalLinkRepairRecommended(lastSyncError: String?): Boolean {
 
 private fun isBiometricUnlockAvailable(context: Context): Boolean {
     val result = BiometricManager.from(context).canAuthenticate(
-        BiometricManager.Authenticators.BIOMETRIC_WEAK
+        BiometricManager.Authenticators.BIOMETRIC_STRONG
     )
     return result == BiometricManager.BIOMETRIC_SUCCESS
 }
@@ -4880,10 +4891,16 @@ private fun runBiometricUnlock(
     onSuccess: () -> Unit,
     onFailure: (String?) -> Unit
 ) {
+    val cryptoCipher = runCatching { createBiometricCipher() }
+        .getOrElse {
+            onFailure("Biometrie konnte nicht sicher initialisiert werden. Bitte PIN verwenden.")
+            return
+        }
+
     val promptInfo = BiometricPrompt.PromptInfo.Builder()
         .setTitle(title)
         .setSubtitle(subtitle)
-        .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
+        .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
         .setNegativeButtonText("PIN verwenden")
         .setConfirmationRequired(false)
         .build()
@@ -4893,6 +4910,15 @@ private fun runBiometricUnlock(
         ContextCompat.getMainExecutor(activity),
         object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                val isVerified = runCatching {
+                    val cipher = result.cryptoObject?.cipher ?: return@runCatching false
+                    cipher.doFinal(BIOMETRIC_UNLOCK_CHALLENGE).isNotEmpty()
+                }.getOrDefault(false)
+
+                if (!isVerified) {
+                    onFailure("Biometrie-Validierung fehlgeschlagen. Bitte PIN verwenden.")
+                    return
+                }
                 onSuccess()
             }
 
@@ -4913,7 +4939,47 @@ private fun runBiometricUnlock(
         }
     )
 
-    prompt.authenticate(promptInfo)
+    prompt.authenticate(promptInfo, BiometricPrompt.CryptoObject(cryptoCipher))
+}
+
+private fun createBiometricCipher(): Cipher {
+    val secretKey = getOrCreateBiometricSecretKey()
+    return Cipher.getInstance(BIOMETRIC_CIPHER_TRANSFORMATION).apply {
+        init(Cipher.ENCRYPT_MODE, secretKey)
+    }
+}
+
+private fun getOrCreateBiometricSecretKey(): SecretKey {
+    val keyStore = KeyStore.getInstance(BIOMETRIC_KEYSTORE_PROVIDER).apply { load(null) }
+    val existing = keyStore.getKey(BIOMETRIC_KEY_ALIAS, null) as? SecretKey
+    if (existing != null) return existing
+
+    val keyGenerator = KeyGenerator.getInstance(
+        KeyProperties.KEY_ALGORITHM_AES,
+        BIOMETRIC_KEYSTORE_PROVIDER
+    )
+
+    val builder = KeyGenParameterSpec.Builder(
+        BIOMETRIC_KEY_ALIAS,
+        KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+    )
+        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+        .setUserAuthenticationRequired(true)
+        .setInvalidatedByBiometricEnrollment(true)
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        builder.setUserAuthenticationParameters(
+            0,
+            KeyProperties.AUTH_BIOMETRIC_STRONG
+        )
+    } else {
+        @Suppress("DEPRECATION")
+        builder.setUserAuthenticationValidityDurationSeconds(-1)
+    }
+
+    keyGenerator.init(builder.build())
+    return keyGenerator.generateKey()
 }
 
 private fun parseLeadTimesMinutes(raw: String): List<Long> {
