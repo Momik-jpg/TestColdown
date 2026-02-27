@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrin.examcountdown.data.AppBackup
+import com.andrin.examcountdown.data.AppLockVerificationResult
 import com.andrin.examcountdown.data.CollisionRuleSettings
 import com.andrin.examcountdown.data.ExamRepository
 import com.andrin.examcountdown.data.IcalSyncEngine
@@ -12,6 +13,7 @@ import com.andrin.examcountdown.data.QuietHoursConfig
 import com.andrin.examcountdown.data.SyncStatus
 import com.andrin.examcountdown.data.toSyncErrorMessage
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.reminder.ExamNotificationManager
 import com.andrin.examcountdown.reminder.ExamReminderScheduler
 import com.andrin.examcountdown.worker.IcalSyncScheduler
@@ -158,7 +160,8 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         location: String?,
         startsAtMillis: Long,
         reminderAtMillis: Long?,
-        reminderLeadTimesMinutes: List<Long> = emptyList()
+        reminderLeadTimesMinutes: List<Long> = emptyList(),
+        studySessions: List<SchoolEvent> = emptyList()
     ) {
         if (title.isBlank()) return
         viewModelScope.launch {
@@ -176,6 +179,9 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
                 reminderLeadTimesMinutes = normalizedLeadTimes
             )
             repository.addExam(exam)
+            if (studySessions.isNotEmpty()) {
+                repository.addCustomEvents(studySessions)
+            }
             ExamReminderScheduler.scheduleExamReminder(getApplication(), exam)
             WidgetUpdater.updateAll(getApplication())
         }
@@ -464,9 +470,9 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
 
     fun disableAppLock(pin: String, onDone: (Boolean, String) -> Unit) {
         viewModelScope.launch {
-            val verified = repository.verifyAppLockPin(pin)
-            if (!verified) {
-                onDone(false, "PIN falsch.")
+            val verifyResult = repository.verifyAppLockPinDetailed(pin)
+            if (!verifyResult.success) {
+                onDone(false, verifyResult.message ?: "PIN falsch.")
                 return@launch
             }
             repository.disableAppLock()
@@ -474,15 +480,39 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun verifyAppLockPin(pin: String, onDone: (Boolean) -> Unit) {
+    fun verifyAppLockPin(pin: String, onDone: (AppLockVerificationResult) -> Unit) {
         viewModelScope.launch {
-            onDone(repository.verifyAppLockPin(pin))
+            onDone(repository.verifyAppLockPinDetailed(pin))
         }
     }
 
     fun setAppLockBiometricEnabled(enabled: Boolean) {
         viewModelScope.launch {
             repository.setAppLockBiometricEnabled(enabled)
+        }
+    }
+
+    fun addCustomEvents(events: List<SchoolEvent>) {
+        if (events.isEmpty()) return
+        viewModelScope.launch {
+            repository.addCustomEvents(events)
+            WidgetUpdater.updateAll(getApplication())
+        }
+    }
+
+    fun deleteCalendarEvent(eventId: String) {
+        if (eventId.isBlank()) return
+        viewModelScope.launch {
+            repository.deleteEvent(eventId)
+            WidgetUpdater.updateAll(getApplication())
+        }
+    }
+
+    fun updateCalendarEvent(event: SchoolEvent) {
+        if (event.id.isBlank()) return
+        viewModelScope.launch {
+            repository.updateEvent(event)
+            WidgetUpdater.updateAll(getApplication())
         }
     }
 }
