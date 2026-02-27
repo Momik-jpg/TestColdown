@@ -855,15 +855,15 @@ fun ExamCountdownScreen(
     val backgroundBrush = remember(isDarkMode) {
         val colors = if (isDarkMode) {
             listOf(
-                Color(0xFF0A1422),
-                Color(0xFF132338),
-                Color(0xFF0A1422)
+                Color(0xFF030406),
+                Color(0xFF070A0F),
+                Color(0xFF030406)
             )
         } else {
             listOf(
-                Color(0xFFF4F8FF),
-                Color(0xFFEAF2FF),
-                Color(0xFFE0ECFF)
+                Color(0xFFF7F9FC),
+                Color(0xFFF1F5FA),
+                Color(0xFFE9EFF7)
             )
         }
         Brush.verticalGradient(colors)
