@@ -12,11 +12,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -81,7 +79,8 @@ private enum class CalendarSourceFilter(val title: String) {
 
 private enum class AgendaLayoutMode(val title: String) {
     LIST("Liste"),
-    MONTH("Kalender")
+    MONTH("Kalender"),
+    DAY("Tag")
 }
 
 private enum class CalendarItemKind {
@@ -122,13 +121,14 @@ fun EventsTimelineContent(
     var showAddCustomEventDialog by rememberSaveable { mutableStateOf(false) }
     var eventDialogInitialStartsAtMillis by rememberSaveable { mutableStateOf<Long?>(null) }
     var editingEventId by rememberSaveable { mutableStateOf<String?>(null) }
-    var dayDialogEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
+    val todayEpochDay = remember { LocalDate.now(ZoneId.of("Europe/Zurich")).toEpochDay() }
+    var dayFocusEpochDay by rememberSaveable { mutableStateOf(todayEpochDay) }
     val schoolZone = remember { ZoneId.of("Europe/Zurich") }
     val editingEvent = remember(editingEventId, events) {
         editingEventId?.let { id -> events.firstOrNull { it.id == id } }
     }
-    val selectedDayForDialog = remember(dayDialogEpochDay) {
-        dayDialogEpochDay?.let { LocalDate.ofEpochDay(it) }
+    val selectedDayForTimeline = remember(dayFocusEpochDay) {
+        LocalDate.ofEpochDay(dayFocusEpochDay)
     }
 
     val items = remember(exams, lessons, events) {
@@ -224,36 +224,6 @@ fun EventsTimelineContent(
                     onAddCustomEvents(listOf(createdEvent))
                 }
             }
-        )
-    }
-
-    if (selectedDayForDialog != null) {
-        val dayItems = filteredItems.filter { item ->
-            Instant.ofEpochMilli(item.startsAtEpochMillis)
-                .atZone(schoolZone)
-                .toLocalDate() == selectedDayForDialog
-        }
-        DayAgendaDialog(
-            date = selectedDayForDialog,
-            items = dayItems.sortedBy { it.startsAtEpochMillis },
-            schoolZone = schoolZone,
-            onDismiss = { dayDialogEpochDay = null },
-            onAddEvent = {
-                val startAt = selectedDayForDialog
-                    .atTime(17, 0)
-                    .atZone(schoolZone)
-                    .toInstant()
-                    .toEpochMilli()
-                eventDialogInitialStartsAtMillis = startAt
-                editingEventId = null
-                showAddCustomEventDialog = true
-            },
-            onEditEvent = { eventId ->
-                editingEventId = eventId
-                eventDialogInitialStartsAtMillis = null
-                showAddCustomEventDialog = true
-            },
-            onDeleteEvent = onDeleteCustomEvent
         )
     }
 
@@ -398,8 +368,36 @@ fun EventsTimelineContent(
                     schoolZone = schoolZone,
                     onDeleteCustomEvent = onDeleteCustomEvent,
                     onOpenDay = { day ->
-                        dayDialogEpochDay = day.toEpochDay()
+                        dayFocusEpochDay = day.toEpochDay()
+                        layoutMode = AgendaLayoutMode.DAY
                     }
+                )
+            }
+        } else if (layoutMode == AgendaLayoutMode.DAY) {
+            item("day-timeline") {
+                AgendaDayTimelineContent(
+                    date = selectedDayForTimeline,
+                    items = filteredItems,
+                    schoolZone = schoolZone,
+                    onPreviousDay = { dayFocusEpochDay -= 1L },
+                    onNextDay = { dayFocusEpochDay += 1L },
+                    onJumpToToday = { dayFocusEpochDay = todayEpochDay },
+                    onAddEvent = {
+                        val startAt = selectedDayForTimeline
+                            .atTime(17, 0)
+                            .atZone(schoolZone)
+                            .toInstant()
+                            .toEpochMilli()
+                        eventDialogInitialStartsAtMillis = startAt
+                        editingEventId = null
+                        showAddCustomEventDialog = true
+                    },
+                    onEditEvent = { eventId ->
+                        editingEventId = eventId
+                        eventDialogInitialStartsAtMillis = null
+                        showAddCustomEventDialog = true
+                    },
+                    onDeleteEvent = onDeleteCustomEvent
                 )
             }
         } else {
@@ -699,17 +697,27 @@ private fun CalendarDayCell(
 }
 
 @Composable
-private fun DayAgendaDialog(
+private fun AgendaDayTimelineContent(
     date: LocalDate,
     items: List<CalendarTimelineItem>,
     schoolZone: ZoneId,
-    onDismiss: () -> Unit,
+    onPreviousDay: () -> Unit,
+    onNextDay: () -> Unit,
+    onJumpToToday: () -> Unit,
     onAddEvent: () -> Unit,
     onEditEvent: (String) -> Unit,
     onDeleteEvent: (String) -> Unit
 ) {
-    val timedItems = remember(items) { items.filter { !it.isAllDay } }
-    val dayStartEndText = remember(timedItems, items, schoolZone) {
+    val dayItems = remember(items, date, schoolZone) {
+        items.filter { item ->
+            Instant.ofEpochMilli(item.startsAtEpochMillis)
+                .atZone(schoolZone)
+                .toLocalDate() == date
+        }.sortedBy { it.startsAtEpochMillis }
+    }
+    val timedItems = remember(dayItems) { dayItems.filter { !it.isAllDay } }
+    val allDayItems = remember(dayItems) { dayItems.filter { it.isAllDay } }
+    val dayStartEndText = remember(timedItems, dayItems, schoolZone) {
         if (timedItems.isNotEmpty()) {
             val startsAt = timedItems.minOf { it.startsAtEpochMillis }
             val endsAt = timedItems.maxOf { it.endsAtEpochMillis ?: it.startsAtEpochMillis }
@@ -722,37 +730,78 @@ private fun DayAgendaDialog(
                 .toLocalTime()
                 .format(DateTimeFormatter.ofPattern("HH:mm"))
             "Tag: $startText - $endText"
-        } else if (items.any { it.isAllDay }) {
+        } else if (dayItems.any { it.isAllDay }) {
             "Tag: ganztägige Einträge"
         } else {
             "Keine Einträge"
         }
     }
+    val hoursRange = remember(timedItems, schoolZone) {
+        if (timedItems.isEmpty()) {
+            6..22
+        } else {
+            val earliest = timedItems.minOf {
+                Instant.ofEpochMilli(it.startsAtEpochMillis).atZone(schoolZone).hour
+            }
+            val latest = timedItems.maxOf {
+                Instant.ofEpochMilli(it.endsAtEpochMillis ?: it.startsAtEpochMillis)
+                    .atZone(schoolZone)
+                    .hour
+            }
+            (earliest - 1).coerceAtLeast(0)..(latest + 1).coerceAtMost(23)
+        }
+    }
+    val hourBuckets = remember(timedItems, schoolZone) {
+        timedItems.groupBy { item ->
+            Instant.ofEpochMilli(item.startsAtEpochMillis)
+                .atZone(schoolZone)
+                .hour
+        }
+    }
+    val today = remember { LocalDate.now(schoolZone) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = date.format(DateTimeFormatter.ofPattern("EEEE, dd.MM.yyyy", Locale.GERMAN))
-            )
-        },
-        text = {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
             Column(
-                modifier = Modifier
-                    .heightIn(max = 460.dp)
-                    .verticalScroll(rememberScrollState()),
+                modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = MaterialTheme.shapes.medium
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = dayStartEndText,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                    IconButton(onClick = onPreviousDay) {
+                        Icon(Icons.Outlined.KeyboardArrowLeft, contentDescription = "Vorheriger Tag")
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = date.format(DateTimeFormatter.ofPattern("EEEE, dd.MM.yyyy", Locale.GERMAN)),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = dayStartEndText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = onNextDay) {
+                        Icon(Icons.Outlined.KeyboardArrowRight, contentDescription = "Nächster Tag")
+                    }
+                }
+
+                if (date != today) {
+                    TextButton(
+                        onClick = onJumpToToday,
+                        modifier = Modifier.align(Alignment.Start)
+                    ) {
+                        Text("Heute")
+                    }
                 }
 
                 OutlinedButton(
@@ -766,94 +815,166 @@ private fun DayAgendaDialog(
                     )
                     Text("Termin hinzufügen")
                 }
+            }
+        }
 
-                if (items.isEmpty()) {
-                    Surface(
-                        shape = MaterialTheme.shapes.medium,
-                        color = MaterialTheme.colorScheme.surface
-                    ) {
-                        Text(
-                            text = "Für diesen Tag gibt es keine Einträge.",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.bodySmall
+        if (allDayItems.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Ganzer Tag",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    allDayItems.forEach { item ->
+                        DayTimelineItemCard(
+                            item = item,
+                            schoolZone = schoolZone,
+                            onEditEvent = onEditEvent,
+                            onDeleteEvent = onDeleteEvent
                         )
                     }
+                }
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier.padding(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                if (timedItems.isEmpty()) {
+                    Text(
+                        text = "Keine Uhrzeit-Einträge für diesen Tag.",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 } else {
-                    items.forEach { item ->
-                        val manualEventId = if (item.kind == CalendarItemKind.EVENT && item.canDelete) {
-                            item.id.removePrefix("event-")
-                        } else {
-                            null
-                        }
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.medium,
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            )
+                    hoursRange.forEach { hour ->
+                        val hourLabel = "%02d:00".format(hour)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.Top
                         ) {
+                            Text(
+                                text = hourLabel,
+                                modifier = Modifier.padding(top = 2.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                             Column(
-                                modifier = Modifier.padding(10.dp),
+                                modifier = Modifier
+                                    .padding(start = 10.dp)
+                                    .weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text(
-                                    text = item.title,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = item.subtitle,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = formatCalendarItemTimeLabel(item, schoolZone),
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                                item.location?.takeIf { it.isNotBlank() }?.let { location ->
-                                    Text(
-                                        text = "Ort: $location",
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                                    shape = MaterialTheme.shapes.extraSmall
+                                ) {
+                                    Spacer(modifier = Modifier.height(1.dp))
                                 }
-                                if (manualEventId != null) {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(
-                                            onClick = { onEditEvent(manualEventId) },
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Edit,
-                                                contentDescription = null,
-                                                modifier = Modifier.padding(end = 6.dp)
-                                            )
-                                            Text("Bearbeiten")
-                                        }
-                                        OutlinedButton(
-                                            onClick = { onDeleteEvent(manualEventId) },
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Delete,
-                                                contentDescription = null,
-                                                modifier = Modifier.padding(end = 6.dp)
-                                            )
-                                            Text("Löschen")
-                                        }
-                                    }
+                                hourBuckets[hour].orEmpty().forEach { item ->
+                                    DayTimelineItemCard(
+                                        item = item,
+                                        schoolZone = schoolZone,
+                                        onEditEvent = onEditEvent,
+                                        onDeleteEvent = onDeleteEvent
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Schließen")
+        }
+    }
+}
+
+@Composable
+private fun DayTimelineItemCard(
+    item: CalendarTimelineItem,
+    schoolZone: ZoneId,
+    onEditEvent: (String) -> Unit,
+    onDeleteEvent: (String) -> Unit
+) {
+    val manualEventId = if (item.kind == CalendarItemKind.EVENT && item.canDelete) {
+        item.id.removePrefix("event-")
+    } else {
+        null
+    }
+    val containerColor = when (item.kind) {
+        CalendarItemKind.EXAM -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+        CalendarItemKind.LESSON -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.42f)
+        CalendarItemKind.EVENT -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.42f)
+    }
+
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = containerColor
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = item.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = formatCalendarItemTimeLabel(item, schoolZone),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            item.location?.takeIf { it.isNotBlank() }?.let { location ->
+                Text(
+                    text = "Ort: $location",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            if (manualEventId != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { onEditEvent(manualEventId) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Text("Bearbeiten")
+                    }
+                    OutlinedButton(
+                        onClick = { onDeleteEvent(manualEventId) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Text("Löschen")
+                    }
+                }
             }
         }
-    )
+    }
 }
 
 @Composable
