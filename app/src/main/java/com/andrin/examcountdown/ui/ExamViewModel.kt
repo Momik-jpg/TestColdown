@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrin.examcountdown.data.AppBackup
+import com.andrin.examcountdown.data.AppLockVerificationResult
 import com.andrin.examcountdown.data.CollisionRuleSettings
 import com.andrin.examcountdown.data.ExamRepository
 import com.andrin.examcountdown.data.IcalSyncEngine
@@ -469,9 +470,9 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
 
     fun disableAppLock(pin: String, onDone: (Boolean, String) -> Unit) {
         viewModelScope.launch {
-            val verified = repository.verifyAppLockPin(pin)
-            if (!verified) {
-                onDone(false, "PIN falsch.")
+            val verifyResult = repository.verifyAppLockPinDetailed(pin)
+            if (!verifyResult.success) {
+                onDone(false, verifyResult.message ?: "PIN falsch.")
                 return@launch
             }
             repository.disableAppLock()
@@ -479,9 +480,9 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun verifyAppLockPin(pin: String, onDone: (Boolean) -> Unit) {
+    fun verifyAppLockPin(pin: String, onDone: (AppLockVerificationResult) -> Unit) {
         viewModelScope.launch {
-            onDone(repository.verifyAppLockPin(pin))
+            onDone(repository.verifyAppLockPinDetailed(pin))
         }
     }
 

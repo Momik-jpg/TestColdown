@@ -46,3 +46,14 @@ Android-App für Prüfungen, Stundenplan, Events, Benachrichtigungen und Widgets
 - Schüler-Kurzanleitung: `docs/kurzanleitung-schueler.md`
 - Troubleshooting: `docs/troubleshooting.md`
 - School-Ready Betrieb/QA: `docs/school-ready.md`
+
+## Sicherheit
+- iCal-Links werden lokal verschlüsselt gespeichert.
+- Die App nutzt nur `https`-Links (keine unverschlüsselten Verbindungen).
+- Screenshot-/Screenrecord-Schutz ist aktiv (`FLAG_SECURE`).
+- App-Schutz mit PIN/Biometrie ist verfügbar.
+- Fehlermeldungen werden für sensible URL-Daten redigiert.
+- Große iCal-Antworten werden begrenzt, um Missbrauch zu verhindern.
+
+## Lizenz
+Dieses Projekt steht unter der MIT-Lizenz. Details: `LICENSE`

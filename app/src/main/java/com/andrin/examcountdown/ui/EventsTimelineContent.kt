@@ -3,9 +3,11 @@ package com.andrin.examcountdown.ui
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,9 +16,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarToday
@@ -53,6 +57,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.model.Exam
@@ -101,6 +106,35 @@ private data class CalendarTimelineItem(
     val eventType: SchoolEventType? = null,
     val canDelete: Boolean = false
 )
+
+private data class DayKindSummary(
+    val hasExam: Boolean,
+    val hasLesson: Boolean,
+    val hasEvent: Boolean
+)
+
+@Composable
+private fun EventControlsSectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.Medium
+    )
+}
+
+@Composable
+private fun EventChoiceChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    )
+}
 
 @Composable
 fun EventsTimelineContent(
@@ -250,7 +284,7 @@ fun EventsTimelineContent(
             ) {
                 Column(
                     modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     OutlinedTextField(
                         value = searchQuery,
@@ -273,6 +307,7 @@ fun EventsTimelineContent(
                         }
                     )
 
+                    EventControlsSectionLabel("Ansicht")
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -280,14 +315,15 @@ fun EventsTimelineContent(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         AgendaLayoutMode.entries.forEach { mode ->
-                            FilterChip(
+                            EventChoiceChip(
+                                text = mode.title,
                                 selected = layoutMode == mode,
-                                onClick = { layoutMode = mode },
-                                label = { Text(mode.title) }
+                                onClick = { layoutMode = mode }
                             )
                         }
                     }
 
+                    EventControlsSectionLabel("Typ")
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -295,10 +331,10 @@ fun EventsTimelineContent(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         CalendarSourceFilter.entries.forEach { filter ->
-                            FilterChip(
+                            EventChoiceChip(
+                                text = filter.title,
                                 selected = sourceFilter == filter,
-                                onClick = { sourceFilter = filter },
-                                label = { Text(filter.title) }
+                                onClick = { sourceFilter = filter }
                             )
                         }
                     }
@@ -317,6 +353,23 @@ fun EventsTimelineContent(
                             modifier = Modifier.padding(end = 6.dp)
                         )
                         Text("Eigenes Event")
+                    }
+
+                    if (
+                        searchQuery.isNotBlank() ||
+                        sourceFilter != CalendarSourceFilter.ALL ||
+                        layoutMode != AgendaLayoutMode.MONTH
+                    ) {
+                        TextButton(
+                            onClick = {
+                                searchQuery = ""
+                                sourceFilter = CalendarSourceFilter.ALL
+                                layoutMode = AgendaLayoutMode.MONTH
+                            },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Filter zurücksetzen")
+                        }
                     }
 
                     if (sourceFilter == CalendarSourceFilter.EVENTS_ONLY && !importEventsEnabled) {
@@ -366,7 +419,6 @@ fun EventsTimelineContent(
                 AgendaMonthContent(
                     items = filteredItems,
                     schoolZone = schoolZone,
-                    onDeleteCustomEvent = onDeleteCustomEvent,
                     onOpenDay = { day ->
                         dayFocusEpochDay = day.toEpochDay()
                         layoutMode = AgendaLayoutMode.DAY
@@ -416,7 +468,6 @@ fun EventsTimelineContent(
 private fun AgendaMonthContent(
     items: List<CalendarTimelineItem>,
     schoolZone: ZoneId,
-    onDeleteCustomEvent: (String) -> Unit,
     onOpenDay: (LocalDate) -> Unit
 ) {
     val today = remember { LocalDate.now(schoolZone) }
@@ -438,9 +489,6 @@ private fun AgendaMonthContent(
                 .toLocalDate()
         }
     }
-    val selectedItems = remember(itemsByDate, selectedDate) {
-        itemsByDate[selectedDate].orEmpty().sortedBy { it.startsAtEpochMillis }
-    }
     val dayTimeBounds = remember(itemsByDate) {
         itemsByDate.mapValues { (_, dayItems) ->
             val timed = dayItems.filter { !it.isAllDay }
@@ -453,6 +501,18 @@ private fun AgendaMonthContent(
             }
         }
     }
+    val dayKindSummary = remember(itemsByDate) {
+        itemsByDate.mapValues { (_, dayItems) ->
+            DayKindSummary(
+                hasExam = dayItems.any { it.kind == CalendarItemKind.EXAM },
+                hasLesson = dayItems.any { it.kind == CalendarItemKind.LESSON },
+                hasEvent = dayItems.any { it.kind == CalendarItemKind.EVENT }
+            )
+        }
+    }
+    val monthFormatter = remember { DateTimeFormatter.ofPattern("MMMM yyyy", Locale.GERMAN) }
+    val selectedDayFormatter = remember { DateTimeFormatter.ofPattern("EEE, dd.MM.", Locale.GERMAN) }
+    val selectedCount = itemsByDate[selectedDate].orEmpty().size
 
     val firstDayOfMonth = month.atDay(1)
     val leadingEmpty = firstDayOfMonth.dayOfWeek.value - 1
@@ -468,7 +528,7 @@ private fun AgendaMonthContent(
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -482,11 +542,18 @@ private fun AgendaMonthContent(
                     }) {
                         Icon(Icons.Outlined.KeyboardArrowLeft, contentDescription = "Vorheriger Monat")
                     }
-                    Text(
-                        text = month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.GERMAN)),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = month.format(monthFormatter),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "$selectedCount Einträge am gewählten Tag",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     IconButton(onClick = {
                         val next = month.plusMonths(1).atDay(1)
                         monthAnchorEpochDay = next.toEpochDay()
@@ -496,27 +563,52 @@ private fun AgendaMonthContent(
                     }
                 }
 
-                TextButton(
-                    onClick = {
-                        monthAnchorEpochDay = today.withDayOfMonth(1).toEpochDay()
-                        selectedEpochDay = today.toEpochDay()
-                    },
-                    modifier = Modifier.align(Alignment.Start)
-                ) {
-                    Text("Heute")
-                }
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    weekdayLabels.forEach { label ->
+                    TextButton(
+                        onClick = {
+                            monthAnchorEpochDay = today.withDayOfMonth(1).toEpochDay()
+                            selectedEpochDay = today.toEpochDay()
+                        }
+                    ) {
+                        Text("Heute")
+                    }
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                    ) {
                         Text(
-                            text = label,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = selectedDate.format(selectedDayFormatter),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        weekdayLabels.forEach { label ->
+                            Text(
+                                text = label,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
 
@@ -530,12 +622,20 @@ private fun AgendaMonthContent(
                             val dayNumber = cellIndex - leadingEmpty + 1
                             if (dayNumber in 1..month.lengthOfMonth()) {
                                 val day = month.atDay(dayNumber)
+                                val kindSummary = dayKindSummary[day] ?: DayKindSummary(
+                                    hasExam = false,
+                                    hasLesson = false,
+                                    hasEvent = false
+                                )
                                 CalendarDayCell(
                                     modifier = Modifier.weight(1f),
                                     day = day,
                                     isSelected = day == selectedDate,
                                     isToday = day == today,
                                     itemCount = itemsByDate[day].orEmpty().size,
+                                    hasExam = kindSummary.hasExam,
+                                    hasLesson = kindSummary.hasLesson,
+                                    hasEvent = kindSummary.hasEvent,
                                     dayTimeBounds = dayTimeBounds[day],
                                     schoolZone = schoolZone,
                                     onClick = {
@@ -558,60 +658,40 @@ private fun AgendaMonthContent(
 
         Surface(
             shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.primaryContainer
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
         ) {
-            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                Text(
-                    text = "Einträge: ${formatExamDateShort(selectedDate.atStartOfDay(schoolZone).toInstant().toEpochMilli())}",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontWeight = FontWeight.SemiBold
-                )
-                val dayBounds = dayTimeBounds[selectedDate]
-                if (dayBounds != null) {
-                    val startText = Instant.ofEpochMilli(dayBounds.first)
-                        .atZone(schoolZone)
-                        .toLocalTime()
-                        .format(DateTimeFormatter.ofPattern("HH:mm"))
-                    val endText = Instant.ofEpochMilli(dayBounds.second)
-                        .atZone(schoolZone)
-                        .toLocalTime()
-                        .format(DateTimeFormatter.ofPattern("HH:mm"))
-                    Text(
-                        text = "Tag: $startText - $endText",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                } else if (selectedItems.any { it.isAllDay }) {
-                    Text(
-                        text = "Tag: ganztägige Einträge",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
+            val dayBounds = dayTimeBounds[selectedDate]
+            val infoText = if (dayBounds != null) {
+                val startText = Instant.ofEpochMilli(dayBounds.first)
+                    .atZone(schoolZone)
+                    .toLocalTime()
+                    .format(DateTimeFormatter.ofPattern("HH:mm"))
+                val endText = Instant.ofEpochMilli(dayBounds.second)
+                    .atZone(schoolZone)
+                    .toLocalTime()
+                    .format(DateTimeFormatter.ofPattern("HH:mm"))
+                "Tag tippen für Details ($startText-$endText)"
+            } else {
+                "Tag tippen für Details"
             }
-        }
-
-        if (selectedItems.isEmpty()) {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surface
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "Keine Einträge für den gewählten Tag.",
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    style = MaterialTheme.typography.bodyMedium
+                Icon(
+                    imageVector = Icons.Outlined.CalendarToday,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                selectedItems.forEach { item ->
-                    CalendarTimelineCard(
-                        item = item,
-                        schoolZone = schoolZone,
-                        onDeleteCustomEvent = onDeleteCustomEvent
-                    )
-                }
+                Text(
+                    text = infoText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -624,6 +704,9 @@ private fun CalendarDayCell(
     isSelected: Boolean,
     isToday: Boolean,
     itemCount: Int,
+    hasExam: Boolean,
+    hasLesson: Boolean,
+    hasEvent: Boolean,
     dayTimeBounds: Pair<Long, Long>?,
     schoolZone: ZoneId,
     onClick: () -> Unit
@@ -641,7 +724,7 @@ private fun CalendarDayCell(
 
     Surface(
         modifier = modifier
-            .height(86.dp)
+            .height(82.dp)
             .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.small,
         color = containerColor,
@@ -653,22 +736,54 @@ private fun CalendarDayCell(
                 .padding(horizontal = 6.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = day.dayOfMonth.toString(),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-            )
-            if (itemCount > 0) {
-                Surface(
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Text(
-                        text = "$itemCount",
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = day.dayOfMonth.toString(),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                )
+                if (isToday) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = CircleShape
+                            )
                     )
+                }
+            }
+            if (itemCount > 0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    if (hasExam) {
+                        DayKindDot(color = MaterialTheme.colorScheme.primary)
+                    }
+                    if (hasLesson) {
+                        DayKindDot(color = MaterialTheme.colorScheme.tertiary)
+                    }
+                    if (hasEvent) {
+                        DayKindDot(color = MaterialTheme.colorScheme.secondary)
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.secondaryContainer
+                    ) {
+                        Text(
+                            text = "$itemCount",
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
                 }
                 val bounds = dayTimeBounds
                 val timeText = if (bounds == null) {
@@ -684,16 +799,27 @@ private fun CalendarDayCell(
                         .format(DateTimeFormatter.ofPattern("HH:mm"))
                     "$start-$end"
                 }
-                Text(
-                    text = timeText,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                if (isSelected || isToday) {
+                    Text(
+                        text = timeText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun DayKindDot(color: Color) {
+    Box(
+        modifier = Modifier
+            .size(6.dp)
+            .background(color = color, shape = CircleShape)
+    )
 }
 
 @Composable

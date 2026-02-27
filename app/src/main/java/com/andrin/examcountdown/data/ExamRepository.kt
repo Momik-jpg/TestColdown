@@ -17,6 +17,8 @@ import com.andrin.examcountdown.model.TimetableLesson
 import java.io.IOException
 import java.security.MessageDigest
 import java.security.SecureRandom
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -58,6 +60,12 @@ data class CollisionRuleSettings(
     val requireExactTimeOverlap: Boolean = true
 )
 
+data class AppLockVerificationResult(
+    val success: Boolean,
+    val message: String? = null,
+    val lockoutRemainingMillis: Long = 0L
+)
+
 class ExamRepository(private val appContext: Context) {
     private val examsKey = stringPreferencesKey("exams_json")
     private val lessonsKey = stringPreferencesKey("lessons_json")
@@ -89,6 +97,8 @@ class ExamRepository(private val appContext: Context) {
     private val appLockPinHashKey = stringPreferencesKey("app_lock_pin_hash")
     private val appLockPinSaltKey = stringPreferencesKey("app_lock_pin_salt")
     private val appLockBiometricEnabledKey = booleanPreferencesKey("app_lock_biometric_enabled")
+    private val appLockFailedAttemptsKey = longPreferencesKey("app_lock_failed_attempts")
+    private val appLockLockUntilMillisKey = longPreferencesKey("app_lock_lock_until_ms")
     private val iCalEtagKey = stringPreferencesKey("ical_etag")
     private val iCalLastModifiedKey = stringPreferencesKey("ical_last_modified")
     private val lastSyncAtMillisKey = longPreferencesKey("last_sync_at_ms")
@@ -588,13 +598,15 @@ class ExamRepository(private val appContext: Context) {
         val normalizedPin = requireValidPin(pin)
         val saltBytes = ByteArray(APP_LOCK_SALT_BYTES).also { SecureRandom().nextBytes(it) }
         val encodedSalt = Base64.encodeToString(saltBytes, Base64.NO_WRAP)
-        val encodedHash = hashPin(normalizedPin, saltBytes)
+        val encodedHash = encodePinHashV2(normalizedPin, saltBytes)
 
         appContext.dataStore.edit { preferences ->
             preferences[appLockEnabledKey] = true
             preferences[appLockPinSaltKey] = encodedSalt
             preferences[appLockPinHashKey] = encodedHash
             preferences[appLockBiometricEnabledKey] = biometricEnabled
+            preferences[appLockFailedAttemptsKey] = 0L
+            preferences.remove(appLockLockUntilMillisKey)
         }
     }
 
@@ -604,6 +616,8 @@ class ExamRepository(private val appContext: Context) {
             preferences.remove(appLockPinSaltKey)
             preferences.remove(appLockPinHashKey)
             preferences.remove(appLockBiometricEnabledKey)
+            preferences.remove(appLockFailedAttemptsKey)
+            preferences.remove(appLockLockUntilMillisKey)
         }
     }
 
@@ -618,26 +632,78 @@ class ExamRepository(private val appContext: Context) {
     }
 
     suspend fun verifyAppLockPin(pin: String): Boolean {
+        return verifyAppLockPinDetailed(pin).success
+    }
+
+    suspend fun verifyAppLockPinDetailed(pin: String): AppLockVerificationResult {
         val normalizedPin = pin.trim()
-        if (normalizedPin.isEmpty()) return false
+        if (normalizedPin.isEmpty()) {
+            return AppLockVerificationResult(success = false, message = "PIN fehlt.")
+        }
 
         val preferences = preferencesFlow.first()
         if (!(preferences[appLockEnabledKey] ?: false)) {
-            return true
+            return AppLockVerificationResult(success = true)
+        }
+
+        val now = System.currentTimeMillis()
+        val lockUntil = preferences[appLockLockUntilMillisKey] ?: 0L
+        if (lockUntil > now) {
+            val remaining = (lockUntil - now).coerceAtLeast(0L)
+            return AppLockVerificationResult(
+                success = false,
+                message = "Zu viele Fehlversuche. Warte ${formatLockoutDuration(remaining)}.",
+                lockoutRemainingMillis = remaining
+            )
         }
 
         val encodedSalt = preferences[appLockPinSaltKey].orEmpty()
         val encodedHash = preferences[appLockPinHashKey].orEmpty()
         if (encodedSalt.isBlank() || encodedHash.isBlank()) {
-            return false
+            return AppLockVerificationResult(success = false, message = "App-Schutz ist fehlerhaft konfiguriert.")
         }
 
         val saltBytes = runCatching {
             Base64.decode(encodedSalt, Base64.NO_WRAP)
-        }.getOrNull() ?: return false
+        }.getOrNull() ?: return AppLockVerificationResult(success = false, message = "PIN-Prüfung fehlgeschlagen.")
 
-        val candidateHash = hashPin(normalizedPin, saltBytes)
-        return candidateHash == encodedHash
+        val isValid = verifyStoredPinHash(
+            pin = normalizedPin,
+            saltBytes = saltBytes,
+            storedHash = encodedHash
+        )
+
+        if (isValid) {
+            appContext.dataStore.edit { editable ->
+                editable[appLockFailedAttemptsKey] = 0L
+                editable.remove(appLockLockUntilMillisKey)
+                if (!encodedHash.startsWith(PIN_HASH_PREFIX_V2)) {
+                    editable[appLockPinHashKey] = encodePinHashV2(normalizedPin, saltBytes)
+                }
+            }
+            return AppLockVerificationResult(success = true)
+        }
+
+        val failedAttempts = (preferences[appLockFailedAttemptsKey] ?: 0L) + 1L
+        val lockoutDuration = computeLockoutDurationMillis(failedAttempts)
+        appContext.dataStore.edit { editable ->
+            editable[appLockFailedAttemptsKey] = failedAttempts
+            if (lockoutDuration > 0L) {
+                editable[appLockLockUntilMillisKey] = now + lockoutDuration
+            } else {
+                editable.remove(appLockLockUntilMillisKey)
+            }
+        }
+
+        return if (lockoutDuration > 0L) {
+            AppLockVerificationResult(
+                success = false,
+                message = "Zu viele Fehlversuche. Warte ${formatLockoutDuration(lockoutDuration)}.",
+                lockoutRemainingMillis = lockoutDuration
+            )
+        } else {
+            AppLockVerificationResult(success = false, message = "PIN falsch.")
+        }
     }
 
     suspend fun readIcalUrl(): String? = iCalUrlFlow.first().takeIf { it.isNotBlank() }
@@ -857,18 +923,79 @@ class ExamRepository(private val appContext: Context) {
         return normalized
     }
 
-    private fun hashPin(pin: String, saltBytes: ByteArray): String {
+    private fun encodePinHashV2(pin: String, saltBytes: ByteArray): String {
+        val hash = hashPinV2(pin, saltBytes)
+        val encoded = Base64.encodeToString(hash, Base64.NO_WRAP)
+        return "$PIN_HASH_PREFIX_V2$encoded"
+    }
+
+    private fun verifyStoredPinHash(pin: String, saltBytes: ByteArray, storedHash: String): Boolean {
+        return if (storedHash.startsWith(PIN_HASH_PREFIX_V2)) {
+            val encoded = storedHash.removePrefix(PIN_HASH_PREFIX_V2)
+            val storedBytes = runCatching { Base64.decode(encoded, Base64.NO_WRAP) }.getOrNull() ?: return false
+            val candidate = hashPinV2(pin, saltBytes)
+            MessageDigest.isEqual(candidate, storedBytes)
+        } else {
+            val storedBytes = runCatching { Base64.decode(storedHash, Base64.NO_WRAP) }.getOrNull() ?: return false
+            val candidate = hashPinLegacy(pin, saltBytes)
+            MessageDigest.isEqual(candidate, storedBytes)
+        }
+    }
+
+    private fun hashPinV2(pin: String, saltBytes: ByteArray): ByteArray {
+        val spec = PBEKeySpec(
+            pin.toCharArray(),
+            saltBytes,
+            PIN_HASH_ITERATIONS,
+            PIN_HASH_KEY_LENGTH_BITS
+        )
+        return runCatching {
+            SecretKeyFactory.getInstance(PIN_HASH_ALGORITHM).generateSecret(spec).encoded
+        }.getOrElse {
+            // Fallback for older devices: still deterministic and stronger than plain SHA.
+            hashPinLegacy(pin, saltBytes)
+        }.also {
+            spec.clearPassword()
+        }
+    }
+
+    private fun hashPinLegacy(pin: String, saltBytes: ByteArray): ByteArray {
         val digest = MessageDigest.getInstance("SHA-256")
         digest.update(saltBytes)
-        val hash = digest.digest(pin.toByteArray(Charsets.UTF_8))
-        return Base64.encodeToString(hash, Base64.NO_WRAP)
+        return digest.digest(pin.toByteArray(Charsets.UTF_8))
+    }
+
+    private fun computeLockoutDurationMillis(failedAttempts: Long): Long {
+        return when {
+            failedAttempts < APP_LOCK_LOCKOUT_THRESHOLD -> 0L
+            failedAttempts == APP_LOCK_LOCKOUT_THRESHOLD -> 30_000L
+            failedAttempts == APP_LOCK_LOCKOUT_THRESHOLD + 1L -> 60_000L
+            failedAttempts == APP_LOCK_LOCKOUT_THRESHOLD + 2L -> 120_000L
+            else -> 300_000L
+        }
+    }
+
+    private fun formatLockoutDuration(durationMillis: Long): String {
+        val totalSeconds = (durationMillis / 1000L).coerceAtLeast(1L)
+        val minutes = totalSeconds / 60L
+        val seconds = totalSeconds % 60L
+        return if (minutes > 0L) {
+            "$minutes Min ${seconds.toString().padStart(2, '0')} Sek"
+        } else {
+            "$seconds Sek"
+        }
     }
 
     companion object {
         const val DEFAULT_SYNC_INTERVAL_MINUTES: Long = 6L * 60L
         const val APP_LOCK_PIN_MIN_DIGITS: Int = 4
         const val APP_LOCK_PIN_MAX_DIGITS: Int = 10
+        private const val APP_LOCK_LOCKOUT_THRESHOLD: Long = 5L
         private const val APP_LOCK_SALT_BYTES: Int = 16
+        private const val PIN_HASH_PREFIX_V2: String = "v2:"
+        private const val PIN_HASH_ALGORITHM: String = "PBKDF2WithHmacSHA256"
+        private const val PIN_HASH_ITERATIONS: Int = 120_000
+        private const val PIN_HASH_KEY_LENGTH_BITS: Int = 256
         private const val MAX_BACKUP_CHARS: Int = 1_000_000
         private const val MAX_BACKUP_EXAMS: Int = 5_000
         private const val MAX_BACKUP_LESSONS: Int = 15_000

@@ -52,12 +52,15 @@ import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -102,6 +105,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -139,6 +143,7 @@ import com.andrin.examcountdown.util.formatSyncDateTime
 import com.andrin.examcountdown.util.formatTimeRange
 import java.io.BufferedReader
 import java.io.OutputStream
+import java.net.URI
 import java.security.KeyStore
 import java.time.LocalTime
 import java.time.DayOfWeek
@@ -197,13 +202,6 @@ private enum class ExamSortMode(val title: String) {
     TITLE_AZ("Titel A-Z")
 }
 
-private enum class StudySessionRhythm(val title: String, val stepDays: Long) {
-    DAILY("Jeden Tag", 1L),
-    EVERY_SECOND_DAY("Jeden 2. Tag", 2L),
-    EVERY_THIRD_DAY("Jeden 3. Tag", 3L),
-    WEEKLY("Wöchentlich", 7L)
-}
-
 private data class TimetableLessonBlock(
     val id: String,
     val title: String,
@@ -215,6 +213,21 @@ private data class TimetableLessonBlock(
     val isLocationChanged: Boolean,
     val isCancelledSlot: Boolean,
     val lessonCount: Int
+)
+
+private data class StudyWeekdayOption(
+    val dayOfWeek: DayOfWeek,
+    val shortLabel: String
+)
+
+private fun studyWeekdayOptions(): List<StudyWeekdayOption> = listOf(
+    StudyWeekdayOption(DayOfWeek.MONDAY, "Mo"),
+    StudyWeekdayOption(DayOfWeek.TUESDAY, "Di"),
+    StudyWeekdayOption(DayOfWeek.WEDNESDAY, "Mi"),
+    StudyWeekdayOption(DayOfWeek.THURSDAY, "Do"),
+    StudyWeekdayOption(DayOfWeek.FRIDAY, "Fr"),
+    StudyWeekdayOption(DayOfWeek.SATURDAY, "Sa"),
+    StudyWeekdayOption(DayOfWeek.SUNDAY, "So")
 )
 
 private const val SUBJECT_FILTER_ALL = "Alle Fächer"
@@ -841,12 +854,12 @@ fun ExamCountdownScreen(
                 )
             },
             onUnlock = { pin, onResult ->
-                viewModel.verifyAppLockPin(pin) { isValid ->
-                    if (isValid) {
+                viewModel.verifyAppLockPin(pin) { result ->
+                    if (result.success) {
                         isAppUnlocked = true
                         biometricUnlockError = null
                     }
-                    onResult(isValid)
+                    onResult(result.success, result.message)
                 }
             }
         )
@@ -1105,6 +1118,8 @@ private fun IcalImportDialog(
     onDismiss: () -> Unit,
     onImport: () -> Unit
 ) {
+    var showUrl by rememberSaveable { mutableStateOf(url.isBlank()) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("iCal-Kalender verbinden") },
@@ -1116,7 +1131,38 @@ private fun IcalImportDialog(
                     label = { Text("iCal-URL") },
                     placeholder = { Text("https://...") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = if (showUrl) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { showUrl = !showUrl }) {
+                            Icon(
+                                imageVector = if (showUrl) {
+                                    Icons.Outlined.VisibilityOff
+                                } else {
+                                    Icons.Outlined.Visibility
+                                },
+                                contentDescription = if (showUrl) {
+                                    "Link ausblenden"
+                                } else {
+                                    "Link anzeigen"
+                                }
+                            )
+                        }
+                    }
+                )
+
+                Text(
+                    text = if (showUrl) {
+                        "Der Link wird lokal verschlüsselt gespeichert."
+                    } else {
+                        "Link aus Sicherheitsgründen ausgeblendet. Tippe auf das Auge zum Anzeigen."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Row(
@@ -1224,61 +1270,31 @@ private fun QuickActionsDialog(
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold
                 )
-                OutlinedButton(
-                    onClick = onOpenIcalImport,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.CloudDownload,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text("iCal-Link")
-                }
-                OutlinedButton(
-                    onClick = onOpenReminderSettings,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.NotificationsActive,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text("Erinnerungen")
-                }
-                OutlinedButton(
-                    onClick = onOpenSyncSettings,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Sync,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text("Auto-Sync")
-                }
-                OutlinedButton(
-                    onClick = onOpenPersonalization,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.MoreVert,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text("Personalisieren")
-                }
-                OutlinedButton(
-                    onClick = onOpenAppLock,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Lock,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text("App-Schutz (PIN)")
-                }
+                QuickActionPrimaryButton(
+                    text = "iCal-Link verwalten",
+                    icon = Icons.Outlined.CloudDownload,
+                    onClick = onOpenIcalImport
+                )
+                QuickActionPrimaryButton(
+                    text = "Erinnerungen",
+                    icon = Icons.Outlined.NotificationsActive,
+                    onClick = onOpenReminderSettings
+                )
+                QuickActionPrimaryButton(
+                    text = "Auto-Sync",
+                    icon = Icons.Outlined.Sync,
+                    onClick = onOpenSyncSettings
+                )
+                QuickActionPrimaryButton(
+                    text = "Personalisieren",
+                    icon = Icons.Outlined.MoreVert,
+                    onClick = onOpenPersonalization
+                )
+                QuickActionPrimaryButton(
+                    text = "App-Schutz (PIN)",
+                    icon = Icons.Outlined.Lock,
+                    onClick = onOpenAppLock
+                )
                 if (showAdvancedActions) {
                     OutlinedButton(
                         onClick = onOpenSyncDiagnostics,
@@ -1352,6 +1368,25 @@ private fun QuickActionsDialog(
             }
         }
     )
+}
+
+@Composable
+private fun QuickActionPrimaryButton(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.padding(end = 6.dp)
+        )
+        Text(text)
+    }
 }
 
 @Composable
@@ -1453,11 +1488,11 @@ private fun AppUnlockDialog(
     showBiometricButton: Boolean,
     biometricError: String?,
     onUseBiometric: (() -> Unit)?,
-    onUnlock: (String, (Boolean) -> Unit) -> Unit
+    onUnlock: (String, (Boolean, String?) -> Unit) -> Unit
 ) {
     var pin by rememberSaveable { mutableStateOf("") }
     var isChecking by rememberSaveable { mutableStateOf(false) }
-    var showError by rememberSaveable { mutableStateOf(false) }
+    var localErrorMessage by rememberSaveable { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = {},
@@ -1477,7 +1512,7 @@ private fun AppUnlockDialog(
                     value = pin,
                     onValueChange = { value ->
                         pin = value.filter { it.isDigit() }.take(APP_LOCK_MAX_PIN_DIGITS)
-                        showError = false
+                        localErrorMessage = null
                     },
                     label = { Text("PIN") },
                     singleLine = true,
@@ -1485,9 +1520,9 @@ private fun AppUnlockDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                     visualTransformation = PasswordVisualTransformation()
                 )
-                if (showError) {
+                if (!localErrorMessage.isNullOrBlank()) {
                     Text(
-                        text = "PIN falsch. Bitte erneut versuchen.",
+                        text = localErrorMessage.orEmpty(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -1506,9 +1541,9 @@ private fun AppUnlockDialog(
                 enabled = !isChecking && pin.trim().isNotBlank(),
                 onClick = {
                     isChecking = true
-                    onUnlock(pin.trim()) { success ->
+                    onUnlock(pin.trim()) { success, message ->
                         isChecking = false
-                        showError = !success
+                        localErrorMessage = if (success) null else (message ?: "PIN falsch.")
                         if (success) {
                             pin = ""
                         }
@@ -1542,6 +1577,7 @@ private fun OnboardingDialog(
     onDismiss: () -> Unit
 ) {
     var step by rememberSaveable { mutableIntStateOf(0) }
+    var showUrl by rememberSaveable { mutableStateOf(url.isBlank()) }
     val statusColor = when {
         statusMessage.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant
         canFinish -> MaterialTheme.colorScheme.primary
@@ -1579,7 +1615,38 @@ private fun OnboardingDialog(
                         label = { Text("iCal-URL") },
                         placeholder = { Text("https://...") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = if (showUrl) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = { showUrl = !showUrl }) {
+                                Icon(
+                                    imageVector = if (showUrl) {
+                                        Icons.Outlined.VisibilityOff
+                                    } else {
+                                        Icons.Outlined.Visibility
+                                    },
+                                    contentDescription = if (showUrl) {
+                                        "Link ausblenden"
+                                    } else {
+                                        "Link anzeigen"
+                                    }
+                                )
+                            }
+                        }
+                    )
+
+                    Text(
+                        text = if (showUrl) {
+                            "Der Link wird lokal verschlüsselt gespeichert."
+                        } else {
+                            "Link aus Sicherheitsgründen ausgeblendet."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Row(
@@ -1623,7 +1690,11 @@ private fun OnboardingDialog(
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(
-                                text = if (url.isBlank()) "Noch kein Link eingegeben" else url.take(64),
+                                text = if (url.isBlank()) {
+                                    "Noch kein Link eingegeben"
+                                } else {
+                                    maskUrlForDisplay(url)
+                                },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -2456,14 +2527,30 @@ private fun TimetableContent(
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
                         text = "Ansicht & Filter",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.SemiBold
                     )
 
+                    TimetableSectionLabel("Ansicht")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TimetableViewMode.entries.forEach { mode ->
+                            TimetableChoiceChip(
+                                text = mode.title,
+                                selected = viewMode == mode,
+                                onClick = { viewMode = mode }
+                            )
+                        }
+                    }
+
+                    TimetableSectionLabel("Filter")
                     FlowRow(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2471,19 +2558,29 @@ private fun TimetableContent(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        TimetableViewMode.entries.forEach { mode ->
-                            FilterChip(
-                                selected = viewMode == mode,
-                                onClick = { viewMode = mode },
-                                label = { Text(mode.title) }
+                        TimetableFilter.entries.forEach { filter ->
+                            TimetableChoiceChip(
+                                text = filter.title,
+                                selected = selectedFilter == filter,
+                                onClick = { selectedFilter = filter }
                             )
                         }
-                        TimetableFilter.entries.forEach { filter ->
-                            FilterChip(
-                                selected = selectedFilter == filter,
-                                onClick = { selectedFilter = filter },
-                                label = { Text(filter.title) }
-                            )
+                    }
+
+                    if (
+                        viewMode != TimetableViewMode.LIST ||
+                        selectedFilter != TimetableFilter.ALL ||
+                        weekOffset != 0
+                    ) {
+                        TextButton(
+                            onClick = {
+                                viewMode = TimetableViewMode.LIST
+                                selectedFilter = TimetableFilter.ALL
+                                weekOffset = 0
+                            },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Zurücksetzen")
                         }
                     }
                 }
@@ -2626,6 +2723,29 @@ private fun TimetableWeekGrid(
 }
 
 @Composable
+private fun TimetableSectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.Medium
+    )
+}
+
+@Composable
+private fun TimetableChoiceChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    )
+}
+
+@Composable
 private fun TimetableNowNextCard(
     activeLesson: TimetableLessonBlock?,
     upcomingLesson: TimetableLessonBlock?
@@ -2637,7 +2757,7 @@ private fun TimetableNowNextCard(
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
                 text = "Jetzt & Nächste Lektion",
@@ -2653,64 +2773,116 @@ private fun TimetableNowNextCard(
                 )
             } else {
                 activeLesson?.let { lesson ->
-                    val displayTitle = formatLessonDisplayTitle(lesson.title)
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f),
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Text(
-                                text = "Jetzt: $displayTitle",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "${formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis)}${lesson.location?.let { " · $it" }.orEmpty()}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                        }
-                    }
+                    TimetableNowNextLessonTile(
+                        label = "Jetzt",
+                        lesson = lesson,
+                        accentColor = MaterialTheme.colorScheme.tertiary,
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.42f),
+                        dateHint = null
+                    )
                 }
 
                 upcomingLesson?.let { lesson ->
-                    val displayTitle = formatLessonDisplayTitle(lesson.title)
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Text(
-                                text = "Nächste: $displayTitle",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            val lessonDay = Instant.ofEpochMilli(lesson.startsAtEpochMillis)
-                                .atZone(ZoneId.of("Europe/Zurich"))
-                                .toLocalDate()
-                            val roomText = lesson.location
-                                ?.takeIf { it.isNotBlank() }
-                                ?.let { " · Raum $it" }
-                                .orEmpty()
-                            Text(
-                                text = "${formatCompactDay(lessonDay)} · ${formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis)}$roomText",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
+                    val lessonDay = Instant.ofEpochMilli(lesson.startsAtEpochMillis)
+                        .atZone(ZoneId.of("Europe/Zurich"))
+                        .toLocalDate()
+                    TimetableNowNextLessonTile(
+                        label = "Nächste",
+                        lesson = lesson,
+                        accentColor = MaterialTheme.colorScheme.primary,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.36f),
+                        dateHint = formatCompactDay(lessonDay)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimetableNowNextLessonTile(
+    label: String,
+    lesson: TimetableLessonBlock,
+    accentColor: Color,
+    containerColor: Color,
+    dateHint: String?
+) {
+    val room = lesson.location?.trim().orEmpty()
+    Surface(
+        color = containerColor,
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Surface(
+                color = accentColor.copy(alpha = 0.16f),
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text(
+                    text = label,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = accentColor,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Text(
+                text = formatLessonDisplayTitle(lesson.title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Schedule,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            dateHint?.let { day ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.CalendarToday,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = day,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            if (room.isNotBlank()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.LocationOn,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Raum $room",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -2743,6 +2915,7 @@ private fun WeekGridLessonRow(lesson: TimetableLessonBlock) {
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
     val isCancelled = lesson.isCancelledSlot
     val nowMillis = System.currentTimeMillis()
@@ -2785,73 +2958,78 @@ private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                     }
                 )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (isCurrent) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
-                            shape = MaterialTheme.shapes.small
-                        ) {
-                            Text(
-                                text = "Jetzt",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.tertiary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
+                if (isCurrent) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = "Jetzt",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
                     }
-                    if (!isCancelled && lesson.lessonCount > 1) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = MaterialTheme.shapes.small
-                        ) {
-                            val lessonLabel = if (lesson.lessonCount == 1) "Lektion" else "Lektionen"
-                            Text(
-                                text = "${lesson.lessonCount} $lessonLabel",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
+                }
+            }
 
-                    if (isCancelled) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
-                            shape = MaterialTheme.shapes.small
-                        ) {
-                            Text(
-                                text = "Ausfall (verschoben)",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    } else if (lesson.isMoved) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f),
-                            shape = MaterialTheme.shapes.small
-                        ) {
-                            Text(
-                                text = "Verschoben",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (!isCancelled && lesson.lessonCount > 1) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        val lessonLabel = if (lesson.lessonCount == 1) "Lektion" else "Lektionen"
+                        Text(
+                            text = "${lesson.lessonCount} $lessonLabel",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
                     }
+                }
 
-                    if (!isCancelled && lesson.isLocationChanged) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = MaterialTheme.shapes.small
-                        ) {
-                            Text(
-                                text = "Raum geändert",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
+                if (isCancelled) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = "Ausfall (verschoben)",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                } else if (lesson.isMoved) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = "Verschoben",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
+                if (!isCancelled && lesson.isLocationChanged) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = "Raum geändert",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
                     }
                 }
             }
@@ -4084,10 +4262,10 @@ private fun AddExamDialog(
         mutableLongStateOf(System.currentTimeMillis() + 24L * 60L * 60L * 1000L - 30L * 60L * 1000L)
     }
     var studyPlanEnabled by rememberSaveable { mutableStateOf(false) }
-    var studyStartDaysBeforeRaw by rememberSaveable { mutableStateOf("14") }
-    var studyDurationMinutesRaw by rememberSaveable { mutableStateOf("45") }
-    var studyMaxSessionsRaw by rememberSaveable { mutableStateOf("") }
-    var studyRhythm by rememberSaveable { mutableStateOf(StudySessionRhythm.DAILY) }
+    var studyStartWeeksBeforeRaw by rememberSaveable { mutableStateOf("3") }
+    var studyDurationMinutesRaw by rememberSaveable { mutableStateOf("60") }
+    var studySessionCountRaw by rememberSaveable { mutableStateOf("10") }
+    var studyWeekdayValuesRaw by rememberSaveable { mutableStateOf("1,2,3,7") }
     var studyStartMinutesOfDay by rememberSaveable { mutableIntStateOf(17 * 60) }
     var studyValidationError by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -4110,21 +4288,36 @@ private fun AddExamDialog(
         else -> null
     }
     val studyDurationPreview = studyDurationMinutesRaw.toIntOrNull()
-    val studyStartDaysPreview = studyStartDaysBeforeRaw.toIntOrNull()
-    val studyMaxSessionsPreview = studyMaxSessionsRaw.toIntOrNull()
+    val studyStartWeeksPreview = studyStartWeeksBeforeRaw.toIntOrNull()
+    val studySessionCountPreview = studySessionCountRaw.toIntOrNull()
+    val selectedStudyWeekdays = remember(studyWeekdayValuesRaw) {
+        studyWeekdayValuesRaw
+            .split(',')
+            .mapNotNull { it.trim().toIntOrNull() }
+            .filter { it in 1..7 }
+            .distinct()
+            .sorted()
+            .map { DayOfWeek.of(it) }
+    }
     val studyPreviewCount = remember(
         studyPlanEnabled,
         subject,
         title,
         location,
         selectedExamMillis,
-        studyStartDaysPreview,
+        studyStartWeeksPreview,
         studyDurationPreview,
-        studyMaxSessionsPreview,
-        studyRhythm,
+        studySessionCountPreview,
+        selectedStudyWeekdays,
         studyStartMinutesOfDay
     ) {
-        if (!studyPlanEnabled || studyStartDaysPreview == null || studyDurationPreview == null) {
+        if (
+            !studyPlanEnabled ||
+            studyStartWeeksPreview == null ||
+            studyDurationPreview == null ||
+            studySessionCountPreview == null ||
+            selectedStudyWeekdays.isEmpty()
+        ) {
             null
         } else {
             buildExamStudySessions(
@@ -4132,10 +4325,10 @@ private fun AddExamDialog(
                 examTitle = title.ifBlank { "Prüfung" },
                 examLocation = location,
                 examStartsAtMillis = selectedExamMillis,
-                startDaysBefore = studyStartDaysPreview,
+                startWeeksBefore = studyStartWeeksPreview,
                 durationMinutes = studyDurationPreview,
-                maxSessions = studyMaxSessionsPreview,
-                rhythm = studyRhythm,
+                targetSessions = studySessionCountPreview,
+                weekdays = selectedStudyWeekdays.toSet(),
                 startMinutesOfDay = studyStartMinutesOfDay,
                 schoolZone = schoolZone
             ).size
@@ -4329,27 +4522,12 @@ private fun AddExamDialog(
                         }
 
                         if (studyPlanEnabled) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                StudySessionRhythm.entries.forEach { option ->
-                                    FilterChip(
-                                        selected = studyRhythm == option,
-                                        onClick = { studyRhythm = option },
-                                        label = { Text(option.title) }
-                                    )
-                                }
-                            }
-
                             OutlinedTextField(
-                                value = studyStartDaysBeforeRaw,
+                                value = studyStartWeeksBeforeRaw,
                                 onValueChange = {
-                                    studyStartDaysBeforeRaw = it.filter(Char::isDigit).take(3)
+                                    studyStartWeeksBeforeRaw = it.filter(Char::isDigit).take(2)
                                 },
-                                label = { Text("Start vor Prüfung (Tage)") },
+                                label = { Text("Start vor Prüfung (Wochen)") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
@@ -4367,15 +4545,49 @@ private fun AddExamDialog(
                             )
 
                             OutlinedTextField(
-                                value = studyMaxSessionsRaw,
+                                value = studySessionCountRaw,
                                 onValueChange = {
-                                    studyMaxSessionsRaw = it.filter(Char::isDigit).take(3)
+                                    studySessionCountRaw = it.filter(Char::isDigit).take(3)
                                 },
-                                label = { Text("Max. Sessions (optional)") },
+                                label = { Text("Anzahl Sessions") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                             )
+
+                            Text(
+                                text = "Wochentage",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                studyWeekdayOptions().forEach { option ->
+                                    val isSelected = option.dayOfWeek in selectedStudyWeekdays
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            val nextValues = selectedStudyWeekdays
+                                                .map { it.value }
+                                                .toMutableSet()
+                                            if (isSelected) {
+                                                nextValues.remove(option.dayOfWeek.value)
+                                            } else {
+                                                nextValues.add(option.dayOfWeek.value)
+                                            }
+                                            studyWeekdayValuesRaw = nextValues
+                                                .toList()
+                                                .sorted()
+                                                .joinToString(",")
+                                        },
+                                        label = { Text(option.shortLabel) }
+                                    )
+                                }
+                            }
 
                             OutlinedButton(
                                 onClick = {
@@ -4394,7 +4606,9 @@ private fun AddExamDialog(
                                 studyPreviewCount == null -> null
                                 studyPreviewCount == 0 -> "Aktuell würden keine Lern-Sessions vor der Prüfung entstehen."
                                 studyPreviewCount == 1 -> "Es wird 1 Lern-Session erstellt."
-                                else -> "Es werden ca. $studyPreviewCount Lern-Sessions erstellt."
+                                studySessionCountPreview != null && studyPreviewCount < studySessionCountPreview ->
+                                    "Es passen nur $studyPreviewCount von ${studySessionCountPreview} Sessions in den Zeitraum."
+                                else -> "Es werden $studyPreviewCount Lern-Sessions erstellt."
                             }
                             previewText?.let { message ->
                                 Text(
@@ -4421,20 +4635,32 @@ private fun AddExamDialog(
                 enabled = title.isNotBlank() && reminderValidationError == null,
                 onClick = {
                     val generatedStudySessions = if (studyPlanEnabled) {
-                        val startDaysBefore = studyStartDaysBeforeRaw.toIntOrNull()
+                        val startWeeksBefore = studyStartWeeksBeforeRaw.toIntOrNull()
                         val durationMinutes = studyDurationMinutesRaw.toIntOrNull()
-                        val maxSessions = studyMaxSessionsRaw.trim().takeIf { it.isNotBlank() }?.toIntOrNull()
+                        val targetSessions = studySessionCountRaw.toIntOrNull()
+                        val selectedWeekdays = studyWeekdayValuesRaw
+                            .split(',')
+                            .mapNotNull { it.trim().toIntOrNull() }
+                            .filter { it in 1..7 }
+                            .distinct()
+                            .sorted()
+                            .map { DayOfWeek.of(it) }
+                            .toSet()
                         when {
-                            startDaysBefore == null || startDaysBefore !in 1..180 -> {
-                                studyValidationError = "Bitte 1 bis 180 Tage wählen."
+                            startWeeksBefore == null || startWeeksBefore !in 1..26 -> {
+                                studyValidationError = "Bitte 1 bis 26 Wochen wählen."
                                 return@TextButton
                             }
                             durationMinutes == null || durationMinutes !in 15..240 -> {
                                 studyValidationError = "Bitte 15 bis 240 Minuten wählen."
                                 return@TextButton
                             }
-                            maxSessions != null && maxSessions !in 1..400 -> {
-                                studyValidationError = "Max. Sessions: bitte 1 bis 400."
+                            targetSessions == null || targetSessions !in 1..400 -> {
+                                studyValidationError = "Anzahl Sessions: bitte 1 bis 400."
+                                return@TextButton
+                            }
+                            selectedWeekdays.isEmpty() -> {
+                                studyValidationError = "Wähle mindestens einen Wochentag."
                                 return@TextButton
                             }
                             else -> {
@@ -4443,15 +4669,19 @@ private fun AddExamDialog(
                                     examTitle = title,
                                     examLocation = location,
                                     examStartsAtMillis = selectedExamMillis,
-                                    startDaysBefore = startDaysBefore,
+                                    startWeeksBefore = startWeeksBefore,
                                     durationMinutes = durationMinutes,
-                                    maxSessions = maxSessions,
-                                    rhythm = studyRhythm,
+                                    targetSessions = targetSessions,
+                                    weekdays = selectedWeekdays,
                                     startMinutesOfDay = studyStartMinutesOfDay,
                                     schoolZone = schoolZone
                                 )
                                 if (sessions.isEmpty()) {
                                     studyValidationError = "Keine Lern-Sessions vor der Prüfung möglich. Prüfe Tage/Uhrzeit."
+                                    return@TextButton
+                                }
+                                if (sessions.size < targetSessions) {
+                                    studyValidationError = "Es passen nur ${sessions.size} von $targetSessions Sessions bis zur Prüfung."
                                     return@TextButton
                                 }
                                 studyValidationError = null
@@ -4490,19 +4720,21 @@ private fun buildExamStudySessions(
     examTitle: String,
     examLocation: String?,
     examStartsAtMillis: Long,
-    startDaysBefore: Int,
+    startWeeksBefore: Int,
     durationMinutes: Int,
-    maxSessions: Int?,
-    rhythm: StudySessionRhythm,
+    targetSessions: Int,
+    weekdays: Set<DayOfWeek>,
     startMinutesOfDay: Int,
     schoolZone: ZoneId
 ): List<SchoolEvent> {
-    if (startDaysBefore <= 0 || durationMinutes <= 0) return emptyList()
+    if (startWeeksBefore <= 0 || durationMinutes <= 0 || targetSessions <= 0 || weekdays.isEmpty()) {
+        return emptyList()
+    }
 
     val nowMillis = System.currentTimeMillis()
     val examStart = Instant.ofEpochMilli(examStartsAtMillis).atZone(schoolZone)
     val examDate = examStart.toLocalDate()
-    val firstDateByRule = examDate.minusDays(startDaysBefore.toLong())
+    val firstDateByRule = examDate.minusWeeks(startWeeksBefore.toLong())
     val todayDate = Instant.ofEpochMilli(nowMillis).atZone(schoolZone).toLocalDate()
     val startDate = if (firstDateByRule.isBefore(todayDate)) todayDate else firstDateByRule
     val lastDate = examDate.minusDays(1)
@@ -4519,30 +4751,32 @@ private fun buildExamStudySessions(
     }
     val safeLocation = examLocation.orEmpty().trim().takeIf { it.isNotBlank() }
     val seed = System.currentTimeMillis()
-    val maxCount = maxSessions?.coerceIn(1, 400) ?: 400
+    val maxCount = targetSessions.coerceIn(1, 400)
 
     val sessions = mutableListOf<SchoolEvent>()
     var currentDate = startDate
     var index = 0
-    while (!currentDate.isAfter(lastDate) && index < 400 && sessions.size < maxCount) {
-        val sessionStart = currentDate
-            .atTime(hour, minute)
-            .atZone(schoolZone)
-        val startsAtMillis = sessionStart.toInstant().toEpochMilli()
-        if (startsAtMillis > nowMillis && startsAtMillis < examStartsAtMillis) {
-            sessions += SchoolEvent(
-                id = "manual-study:$seed:$index",
-                title = baseTitle,
-                type = com.andrin.examcountdown.model.SchoolEventType.INFO,
-                location = safeLocation,
-                description = "Lern-Session für ${examTitle.trim()}",
-                startsAtEpochMillis = startsAtMillis,
-                endsAtEpochMillis = sessionStart.plusMinutes(durationMinutes.toLong()).toInstant().toEpochMilli(),
-                isAllDay = false,
-                source = "manual"
-            )
+    while (!currentDate.isAfter(lastDate) && index < 500 && sessions.size < maxCount) {
+        if (currentDate.dayOfWeek in weekdays) {
+            val sessionStart = currentDate
+                .atTime(hour, minute)
+                .atZone(schoolZone)
+            val startsAtMillis = sessionStart.toInstant().toEpochMilli()
+            if (startsAtMillis > nowMillis && startsAtMillis < examStartsAtMillis) {
+                sessions += SchoolEvent(
+                    id = "manual-study:$seed:$index",
+                    title = baseTitle,
+                    type = com.andrin.examcountdown.model.SchoolEventType.INFO,
+                    location = safeLocation,
+                    description = "Lern-Session für ${examTitle.trim()}",
+                    startsAtEpochMillis = startsAtMillis,
+                    endsAtEpochMillis = sessionStart.plusMinutes(durationMinutes.toLong()).toInstant().toEpochMilli(),
+                    isAllDay = false,
+                    source = "manual"
+                )
+            }
         }
-        currentDate = currentDate.plusDays(rhythm.stepDays)
+        currentDate = currentDate.plusDays(1)
         index += 1
     }
     return sessions
@@ -5295,6 +5529,35 @@ private fun collisionSourceLabel(source: CollisionSource): String {
     return when (source) {
         CollisionSource.LESSON -> "Lektion"
         CollisionSource.EVENT -> "Event"
+    }
+}
+
+private fun maskUrlForDisplay(raw: String): String {
+    val trimmed = raw.trim()
+    if (trimmed.isBlank()) return ""
+    return runCatching {
+        val uri = URI(trimmed)
+        val host = uri.host.orEmpty()
+        val path = uri.path.orEmpty()
+        val safePath = if (path.length > 18) {
+            "${path.take(9)}...${path.takeLast(6)}"
+        } else {
+            path
+        }
+        val hasQuery = !uri.rawQuery.isNullOrBlank()
+        buildString {
+            append(uri.scheme ?: "https")
+            append("://")
+            append(if (host.isBlank()) "***" else host)
+            if (safePath.isNotBlank()) append(safePath)
+            if (hasQuery) append("?***")
+        }
+    }.getOrElse {
+        if (trimmed.length > 24) {
+            "${trimmed.take(12)}...${trimmed.takeLast(8)}"
+        } else {
+            "***"
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 package com.andrin.examcountdown.data
 
+import java.io.BufferedReader
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -16,6 +17,7 @@ internal object IcalHttpClient {
     private const val CONNECT_TIMEOUT_MS = 15_000
     private const val READ_TIMEOUT_MS = 20_000
     private const val MAX_REDIRECTS = 4
+    private const val MAX_RESPONSE_CHARS = 2_000_000
 
     fun download(url: String): String {
         val response = download(
@@ -93,7 +95,7 @@ internal object IcalHttpClient {
                 }
 
                 val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
-                    reader.readText()
+                    readResponseWithLimit(reader, MAX_RESPONSE_CHARS)
                 }.ifBlank {
                     throw IOException("Leere iCal-Antwort")
                 }
@@ -109,5 +111,21 @@ internal object IcalHttpClient {
                 connection.disconnect()
             }
         }
+    }
+
+    private fun readResponseWithLimit(reader: BufferedReader, maxChars: Int): String {
+        val out = StringBuilder()
+        val buffer = CharArray(8_192)
+        var totalChars = 0
+        while (true) {
+            val read = reader.read(buffer)
+            if (read < 0) break
+            totalChars += read
+            if (totalChars > maxChars) {
+                throw IOException("iCal-Antwort zu groß")
+            }
+            out.append(buffer, 0, read)
+        }
+        return out.toString()
     }
 }

@@ -33,6 +33,9 @@ If private reporting is not available, open a normal issue only for non-sensitiv
 
 ## App-Specific Notes
 
-- The app may store school iCal URLs locally on device.
-- Treat iCal links as sensitive data and do not share them publicly.
-- Backup files can contain personal schedule data.
+- The app stores iCal URLs locally in encrypted storage.
+- Only secure `https` iCal links are accepted.
+- Sensitive URL parts are redacted from sync error messages.
+- App content is protected against screenshots/screen recording (`FLAG_SECURE`).
+- App lock supports PIN and optional biometrics, with lockout after repeated failed attempts.
+- Backup files can contain personal schedule data; share only with trusted persons.
