@@ -1060,6 +1060,19 @@ fun ExamCountdownScreen(
                                 snackbarHostState.showSnackbar(message)
                             }
                         }
+                    },
+                    onAddCustomEvents = { createdEvents ->
+                        viewModel.addCustomEvents(createdEvents)
+                        scope.launch {
+                            val label = if (createdEvents.size == 1) "Event gespeichert." else "${createdEvents.size} Events gespeichert."
+                            snackbarHostState.showSnackbar(label)
+                        }
+                    },
+                    onDeleteCustomEvent = { eventId ->
+                        viewModel.deleteCalendarEvent(eventId)
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Event gelöscht.")
+                        }
                     }
                 )
 
