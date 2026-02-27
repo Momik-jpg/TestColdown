@@ -151,11 +151,7 @@ object ExamReminderScheduler {
             val triggerAt = exam.startsAtEpochMillis - minutes * 60_000L
             raw += ReminderTrigger(
                 triggerAtMillis = triggerAt,
-                label = when {
-                    minutes < 60L -> "$minutes Min vorher"
-                    minutes % 60L == 0L -> "${minutes / 60L} Std vorher"
-                    else -> "$minutes Min vorher"
-                }
+                label = formatLeadTimeLabel(minutes)
             )
         }
 
@@ -171,6 +167,19 @@ object ExamReminderScheduler {
             .filter { it.triggerAtMillis > System.currentTimeMillis() }
             .distinctBy { it.triggerAtMillis }
             .sortedBy { it.triggerAtMillis }
+    }
+
+    private fun formatLeadTimeLabel(minutes: Long): String {
+        val safe = minutes.coerceAtLeast(1L)
+        val days = safe / (24L * 60L)
+        val hours = (safe % (24L * 60L)) / 60L
+        val mins = safe % 60L
+        val parts = buildList {
+            if (days > 0L) add("$days Tag${if (days > 1L) "e" else ""}")
+            if (hours > 0L) add("$hours Std")
+            if (mins > 0L) add("$mins Min")
+        }
+        return "${parts.joinToString(" ")} vorher".trim()
     }
 
     private fun adjustTriggerForQuietHours(

@@ -159,7 +159,8 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         location: String?,
         startsAtMillis: Long,
         reminderAtMillis: Long?,
-        reminderLeadTimesMinutes: List<Long> = emptyList()
+        reminderLeadTimesMinutes: List<Long> = emptyList(),
+        studySessions: List<SchoolEvent> = emptyList()
     ) {
         if (title.isBlank()) return
         viewModelScope.launch {
@@ -177,6 +178,9 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
                 reminderLeadTimesMinutes = normalizedLeadTimes
             )
             repository.addExam(exam)
+            if (studySessions.isNotEmpty()) {
+                repository.addCustomEvents(studySessions)
+            }
             ExamReminderScheduler.scheduleExamReminder(getApplication(), exam)
             WidgetUpdater.updateAll(getApplication())
         }
@@ -499,6 +503,14 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         if (eventId.isBlank()) return
         viewModelScope.launch {
             repository.deleteEvent(eventId)
+            WidgetUpdater.updateAll(getApplication())
+        }
+    }
+
+    fun updateCalendarEvent(event: SchoolEvent) {
+        if (event.id.isBlank()) return
+        viewModelScope.launch {
+            repository.updateEvent(event)
             WidgetUpdater.updateAll(getApplication())
         }
     }

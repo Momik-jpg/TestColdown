@@ -62,7 +62,7 @@ class TimetableIcalImporter {
         val lessons = parsedLessons.map { event ->
             val uniqueKey = event.uniqueKey()
             val seed = event.uid?.takeIf { it.isNotBlank() }
-                ?: "${event.summary}|${event.startsAtEpochMillis}|${event.endsAtEpochMillis}|${event.location.orEmpty()}"
+                ?: "${event.summary}|${event.startsAtEpochMillis}|${event.endsAtEpochMillis}"
             val isMoved = movementHints.movedIds.contains(uniqueKey) || hasShiftKeyword(event)
             val isLocationChanged = movementHints.locationChangedIds.contains(uniqueKey)
             val originalSlot = movementHints.originalSlotByEventId[uniqueKey]

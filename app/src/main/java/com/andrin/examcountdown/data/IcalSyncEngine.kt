@@ -273,6 +273,19 @@ class IcalSyncEngine(
             )
         }
 
+        val oldWindowStart = oldLessons.minOfOrNull { it.startsAtEpochMillis } ?: Long.MIN_VALUE
+        val oldWindowEnd = oldLessons.maxOfOrNull { it.endsAtEpochMillis } ?: Long.MAX_VALUE
+        val newWindowStart = newLessons.minOfOrNull { it.startsAtEpochMillis } ?: Long.MIN_VALUE
+        val newWindowEnd = newLessons.maxOfOrNull { it.endsAtEpochMillis } ?: Long.MAX_VALUE
+        val overlapStart = maxOf(oldWindowStart, newWindowStart)
+        val overlapEnd = minOf(oldWindowEnd, newWindowEnd)
+        val hasOverlap = overlapStart <= overlapEnd
+
+        fun isInsideOverlap(startMillis: Long, endMillis: Long): Boolean {
+            if (!hasOverlap) return false
+            return endMillis >= overlapStart && startMillis <= overlapEnd
+        }
+
         val oldById = oldLessons.associateBy { it.id }
         val newById = newLessons.associateBy { it.id }
 
@@ -283,6 +296,9 @@ class IcalSyncEngine(
 
         oldById.forEach { (id, oldLesson) ->
             if (id in newById) return@forEach
+            if (!isInsideOverlap(oldLesson.startsAtEpochMillis, oldLesson.endsAtEpochMillis)) {
+                return@forEach
+            }
             changedLessonIds += id
             entries += TimetableChangeEntry(
                 lessonId = id,
@@ -295,6 +311,9 @@ class IcalSyncEngine(
         newById.forEach { (id, newLesson) ->
             val oldLesson = oldById[id]
             if (oldLesson == null) {
+                if (!isInsideOverlap(newLesson.startsAtEpochMillis, newLesson.endsAtEpochMillis)) {
+                    return@forEach
+                }
                 changedLessonIds += id
                 if (newLesson.isMoved) moved += 1
                 if (newLesson.isLocationChanged) roomChanged += 1
