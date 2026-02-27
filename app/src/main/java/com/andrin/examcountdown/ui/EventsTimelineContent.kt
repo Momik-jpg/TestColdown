@@ -12,9 +12,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.LocationOn
@@ -76,23 +79,9 @@ private enum class CalendarSourceFilter(val title: String) {
     EVENTS_ONLY("Nur Events")
 }
 
-private enum class CalendarWindowFilter(val title: String, val maxDaysAhead: Int?) {
-    TODAY("Heute", 1),
-    NEXT_7("7 Tage", 7),
-    NEXT_30("30 Tage", 30),
-    ALL("Alle", null)
-}
-
 private enum class AgendaLayoutMode(val title: String) {
     LIST("Liste"),
     MONTH("Kalender")
-}
-
-private enum class CustomEventRepeat(val title: String) {
-    NONE("Einmalig"),
-    DAILY("Täglich"),
-    WEEKLY("Wöchentlich"),
-    MONTHLY("Monatlich")
 }
 
 private enum class CalendarItemKind {
@@ -124,14 +113,23 @@ fun EventsTimelineContent(
     onOpenIcalImport: () -> Unit,
     onEnableEventsImportAndSync: () -> Unit,
     onAddCustomEvents: (List<SchoolEvent>) -> Unit,
-    onDeleteCustomEvent: (String) -> Unit
+    onDeleteCustomEvent: (String) -> Unit,
+    onUpdateCustomEvent: (SchoolEvent) -> Unit
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var sourceFilter by rememberSaveable { mutableStateOf(CalendarSourceFilter.ALL) }
-    var windowFilter by rememberSaveable { mutableStateOf(CalendarWindowFilter.NEXT_30) }
     var layoutMode by rememberSaveable { mutableStateOf(AgendaLayoutMode.MONTH) }
     var showAddCustomEventDialog by rememberSaveable { mutableStateOf(false) }
+    var eventDialogInitialStartsAtMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editingEventId by rememberSaveable { mutableStateOf<String?>(null) }
+    var dayDialogEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
     val schoolZone = remember { ZoneId.of("Europe/Zurich") }
+    val editingEvent = remember(editingEventId, events) {
+        editingEventId?.let { id -> events.firstOrNull { it.id == id } }
+    }
+    val selectedDayForDialog = remember(dayDialogEpochDay) {
+        dayDialogEpochDay?.let { LocalDate.ofEpochDay(it) }
+    }
 
     val items = remember(exams, lessons, events) {
         buildList {
@@ -184,11 +182,8 @@ fun EventsTimelineContent(
         }.sortedBy { it.startsAtEpochMillis }
     }
 
-    val filteredItems = remember(items, sourceFilter, windowFilter, searchQuery) {
+    val filteredItems = remember(items, sourceFilter, searchQuery) {
         val now = System.currentTimeMillis()
-        val windowEnd = windowFilter.maxDaysAhead?.let { days ->
-            now + days * 24L * 60L * 60L * 1000L
-        }
         val query = searchQuery.trim().lowercase()
 
         items.filter { item ->
@@ -199,11 +194,7 @@ fun EventsTimelineContent(
                 CalendarSourceFilter.EVENTS_ONLY -> item.kind == CalendarItemKind.EVENT
             }
             val itemEnd = item.endsAtEpochMillis ?: item.startsAtEpochMillis
-            val matchesWindow = if (windowEnd == null) {
-                itemEnd >= now
-            } else {
-                itemEnd >= now && item.startsAtEpochMillis <= windowEnd
-            }
+            val matchesWindow = itemEnd >= now
             val matchesQuery = query.isBlank() || listOf(
                 item.title,
                 item.subtitle,
@@ -216,11 +207,53 @@ fun EventsTimelineContent(
 
     if (showAddCustomEventDialog) {
         AddCustomEventDialog(
-            onDismiss = { showAddCustomEventDialog = false },
-            onSave = { createdEvents ->
+            initialStartsAtMillis = eventDialogInitialStartsAtMillis,
+            editingEvent = editingEvent,
+            onDismiss = {
                 showAddCustomEventDialog = false
-                onAddCustomEvents(createdEvents)
+                eventDialogInitialStartsAtMillis = null
+                editingEventId = null
+            },
+            onSave = { createdEvent ->
+                showAddCustomEventDialog = false
+                eventDialogInitialStartsAtMillis = null
+                editingEventId = null
+                if (editingEvent != null) {
+                    onUpdateCustomEvent(createdEvent)
+                } else {
+                    onAddCustomEvents(listOf(createdEvent))
+                }
             }
+        )
+    }
+
+    if (selectedDayForDialog != null) {
+        val dayItems = filteredItems.filter { item ->
+            Instant.ofEpochMilli(item.startsAtEpochMillis)
+                .atZone(schoolZone)
+                .toLocalDate() == selectedDayForDialog
+        }
+        DayAgendaDialog(
+            date = selectedDayForDialog,
+            items = dayItems.sortedBy { it.startsAtEpochMillis },
+            schoolZone = schoolZone,
+            onDismiss = { dayDialogEpochDay = null },
+            onAddEvent = {
+                val startAt = selectedDayForDialog
+                    .atTime(17, 0)
+                    .atZone(schoolZone)
+                    .toInstant()
+                    .toEpochMilli()
+                eventDialogInitialStartsAtMillis = startAt
+                editingEventId = null
+                showAddCustomEventDialog = true
+            },
+            onEditEvent = { eventId ->
+                editingEventId = eventId
+                eventDialogInitialStartsAtMillis = null
+                showAddCustomEventDialog = true
+            },
+            onDeleteEvent = onDeleteCustomEvent
         )
     }
 
@@ -300,41 +333,28 @@ fun EventsTimelineContent(
                         }
                     }
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    OutlinedButton(
+                        onClick = {
+                            showAddCustomEventDialog = true
+                            editingEventId = null
+                            eventDialogInitialStartsAtMillis = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        CalendarWindowFilter.entries.forEach { filter ->
-                            FilterChip(
-                                selected = windowFilter == filter,
-                                onClick = { windowFilter = filter },
-                                label = { Text(filter.title) }
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Outlined.Add,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Text("Eigenes Event")
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (sourceFilter == CalendarSourceFilter.EVENTS_ONLY && !importEventsEnabled) {
                         OutlinedButton(
-                            onClick = { showAddCustomEventDialog = true },
-                            modifier = Modifier.weight(1f)
+                            onClick = onEnableEventsImportAndSync,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Add,
-                                contentDescription = null,
-                                modifier = Modifier.padding(end = 6.dp)
-                            )
-                            Text("Eigenes Event")
-                        }
-
-                        if (sourceFilter == CalendarSourceFilter.EVENTS_ONLY && !importEventsEnabled) {
-                            OutlinedButton(
-                                onClick = onEnableEventsImportAndSync,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Event-Import aktivieren")
-                            }
+                            Text("Event-Import aktivieren")
                         }
                     }
                 }
@@ -365,7 +385,6 @@ fun EventsTimelineContent(
                         OutlinedButton(onClick = {
                             searchQuery = ""
                             sourceFilter = CalendarSourceFilter.ALL
-                            windowFilter = CalendarWindowFilter.NEXT_30
                         }) {
                             Text("Filter zurücksetzen")
                         }
@@ -377,7 +396,10 @@ fun EventsTimelineContent(
                 AgendaMonthContent(
                     items = filteredItems,
                     schoolZone = schoolZone,
-                    onDeleteCustomEvent = onDeleteCustomEvent
+                    onDeleteCustomEvent = onDeleteCustomEvent,
+                    onOpenDay = { day ->
+                        dayDialogEpochDay = day.toEpochDay()
+                    }
                 )
             }
         } else {
@@ -396,7 +418,8 @@ fun EventsTimelineContent(
 private fun AgendaMonthContent(
     items: List<CalendarTimelineItem>,
     schoolZone: ZoneId,
-    onDeleteCustomEvent: (String) -> Unit
+    onDeleteCustomEvent: (String) -> Unit,
+    onOpenDay: (LocalDate) -> Unit
 ) {
     val today = remember { LocalDate.now(schoolZone) }
     var monthAnchorEpochDay by rememberSaveable { mutableStateOf(today.withDayOfMonth(1).toEpochDay()) }
@@ -419,6 +442,18 @@ private fun AgendaMonthContent(
     }
     val selectedItems = remember(itemsByDate, selectedDate) {
         itemsByDate[selectedDate].orEmpty().sortedBy { it.startsAtEpochMillis }
+    }
+    val dayTimeBounds = remember(itemsByDate) {
+        itemsByDate.mapValues { (_, dayItems) ->
+            val timed = dayItems.filter { !it.isAllDay }
+            if (timed.isEmpty()) {
+                null
+            } else {
+                val startsAt = timed.minOf { it.startsAtEpochMillis }
+                val endsAt = timed.maxOf { it.endsAtEpochMillis ?: it.startsAtEpochMillis }
+                startsAt to endsAt
+            }
+        }
     }
 
     val firstDayOfMonth = month.atDay(1)
@@ -503,7 +538,12 @@ private fun AgendaMonthContent(
                                     isSelected = day == selectedDate,
                                     isToday = day == today,
                                     itemCount = itemsByDate[day].orEmpty().size,
-                                    onClick = { selectedEpochDay = day.toEpochDay() }
+                                    dayTimeBounds = dayTimeBounds[day],
+                                    schoolZone = schoolZone,
+                                    onClick = {
+                                        selectedEpochDay = day.toEpochDay()
+                                        onOpenDay(day)
+                                    }
                                 )
                             } else {
                                 Spacer(
@@ -522,13 +562,36 @@ private fun AgendaMonthContent(
             shape = MaterialTheme.shapes.medium,
             color = MaterialTheme.colorScheme.primaryContainer
         ) {
-            Text(
-                text = "Einträge: ${formatExamDateShort(selectedDate.atStartOfDay(schoolZone).toInstant().toEpochMilli())}",
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                fontWeight = FontWeight.SemiBold
-            )
+            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                Text(
+                    text = "Einträge: ${formatExamDateShort(selectedDate.atStartOfDay(schoolZone).toInstant().toEpochMilli())}",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.SemiBold
+                )
+                val dayBounds = dayTimeBounds[selectedDate]
+                if (dayBounds != null) {
+                    val startText = Instant.ofEpochMilli(dayBounds.first)
+                        .atZone(schoolZone)
+                        .toLocalTime()
+                        .format(DateTimeFormatter.ofPattern("HH:mm"))
+                    val endText = Instant.ofEpochMilli(dayBounds.second)
+                        .atZone(schoolZone)
+                        .toLocalTime()
+                        .format(DateTimeFormatter.ofPattern("HH:mm"))
+                    Text(
+                        text = "Tag: $startText - $endText",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                } else if (selectedItems.any { it.isAllDay }) {
+                    Text(
+                        text = "Tag: ganztägige Einträge",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
         }
 
         if (selectedItems.isEmpty()) {
@@ -563,6 +626,8 @@ private fun CalendarDayCell(
     isSelected: Boolean,
     isToday: Boolean,
     itemCount: Int,
+    dayTimeBounds: Pair<Long, Long>?,
+    schoolZone: ZoneId,
     onClick: () -> Unit
 ) {
     val containerColor = when {
@@ -578,7 +643,7 @@ private fun CalendarDayCell(
 
     Surface(
         modifier = modifier
-            .height(74.dp)
+            .height(86.dp)
             .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.small,
         color = containerColor,
@@ -607,26 +672,223 @@ private fun CalendarDayCell(
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 }
+                val bounds = dayTimeBounds
+                val timeText = if (bounds == null) {
+                    "ganztägig"
+                } else {
+                    val start = Instant.ofEpochMilli(bounds.first)
+                        .atZone(schoolZone)
+                        .toLocalTime()
+                        .format(DateTimeFormatter.ofPattern("HH:mm"))
+                    val end = Instant.ofEpochMilli(bounds.second)
+                        .atZone(schoolZone)
+                        .toLocalTime()
+                        .format(DateTimeFormatter.ofPattern("HH:mm"))
+                    "$start-$end"
+                }
+                Text(
+                    text = timeText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
 }
 
 @Composable
-private fun AddCustomEventDialog(
+private fun DayAgendaDialog(
+    date: LocalDate,
+    items: List<CalendarTimelineItem>,
+    schoolZone: ZoneId,
     onDismiss: () -> Unit,
-    onSave: (List<SchoolEvent>) -> Unit
+    onAddEvent: () -> Unit,
+    onEditEvent: (String) -> Unit,
+    onDeleteEvent: (String) -> Unit
+) {
+    val timedItems = remember(items) { items.filter { !it.isAllDay } }
+    val dayStartEndText = remember(timedItems, items, schoolZone) {
+        if (timedItems.isNotEmpty()) {
+            val startsAt = timedItems.minOf { it.startsAtEpochMillis }
+            val endsAt = timedItems.maxOf { it.endsAtEpochMillis ?: it.startsAtEpochMillis }
+            val startText = Instant.ofEpochMilli(startsAt)
+                .atZone(schoolZone)
+                .toLocalTime()
+                .format(DateTimeFormatter.ofPattern("HH:mm"))
+            val endText = Instant.ofEpochMilli(endsAt)
+                .atZone(schoolZone)
+                .toLocalTime()
+                .format(DateTimeFormatter.ofPattern("HH:mm"))
+            "Tag: $startText - $endText"
+        } else if (items.any { it.isAllDay }) {
+            "Tag: ganztägige Einträge"
+        } else {
+            "Keine Einträge"
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = date.format(DateTimeFormatter.ofPattern("EEEE, dd.MM.yyyy", Locale.GERMAN))
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Text(
+                        text = dayStartEndText,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onAddEvent,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Add,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text("Termin hinzufügen")
+                }
+
+                if (items.isEmpty()) {
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Text(
+                            text = "Für diesen Tag gibt es keine Einträge.",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                } else {
+                    items.forEach { item ->
+                        val manualEventId = if (item.kind == CalendarItemKind.EVENT && item.canDelete) {
+                            item.id.removePrefix("event-")
+                        } else {
+                            null
+                        }
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = item.title,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = item.subtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = formatCalendarItemTimeLabel(item, schoolZone),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                item.location?.takeIf { it.isNotBlank() }?.let { location ->
+                                    Text(
+                                        text = "Ort: $location",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                if (manualEventId != null) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(
+                                            onClick = { onEditEvent(manualEventId) },
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Edit,
+                                                contentDescription = null,
+                                                modifier = Modifier.padding(end = 6.dp)
+                                            )
+                                            Text("Bearbeiten")
+                                        }
+                                        OutlinedButton(
+                                            onClick = { onDeleteEvent(manualEventId) },
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Delete,
+                                                contentDescription = null,
+                                                modifier = Modifier.padding(end = 6.dp)
+                                            )
+                                            Text("Löschen")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Schließen")
+            }
+        }
+    )
+}
+
+@Composable
+private fun AddCustomEventDialog(
+    initialStartsAtMillis: Long?,
+    editingEvent: SchoolEvent?,
+    onDismiss: () -> Unit,
+    onSave: (SchoolEvent) -> Unit
 ) {
     val context = LocalContext.current
     val schoolZone = remember { ZoneId.of("Europe/Zurich") }
     val now = remember { System.currentTimeMillis() }
+    val initialStart = remember(editingEvent, initialStartsAtMillis, now) {
+        editingEvent?.startsAtEpochMillis ?: initialStartsAtMillis ?: now
+    }
+    val initialDuration = remember(editingEvent) {
+        editingEvent?.let { event ->
+            ((event.endsAtEpochMillis - event.startsAtEpochMillis) / 60_000L)
+                .coerceIn(5L, 720L)
+                .toInt()
+        } ?: 60
+    }
     var title by rememberSaveable { mutableStateOf("") }
     var location by rememberSaveable { mutableStateOf("") }
-    var startsAtMillis by rememberSaveable { mutableStateOf(now) }
+    var startsAtMillis by rememberSaveable { mutableStateOf(initialStart) }
     var durationMinutesRaw by rememberSaveable { mutableStateOf("60") }
-    var sessionsRaw by rememberSaveable { mutableStateOf("1") }
-    var repeat by rememberSaveable { mutableStateOf(CustomEventRepeat.NONE) }
     var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(editingEvent?.id, initialStartsAtMillis) {
+        title = editingEvent?.title.orEmpty()
+        location = editingEvent?.location.orEmpty()
+        startsAtMillis = initialStart
+        durationMinutesRaw = initialDuration.toString()
+        errorMessage = null
+    }
 
     val startDateText = formatExamDateShort(startsAtMillis)
     val startTimeText = Instant.ofEpochMilli(startsAtMillis)
@@ -636,7 +898,7 @@ private fun AddCustomEventDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Eigenes Event hinzufügen") },
+        title = { Text(if (editingEvent != null) "Event bearbeiten" else "Eigenes Event hinzufügen") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
@@ -715,37 +977,6 @@ private fun AddCustomEventDialog(
                     ),
                     label = { Text("Dauer in Minuten") }
                 )
-                OutlinedTextField(
-                    value = sessionsRaw,
-                    onValueChange = { sessionsRaw = it.filter { ch -> ch.isDigit() }.take(3) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = KeyboardType.Number
-                    ),
-                    label = { Text("Anzahl Sessions") }
-                )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    CustomEventRepeat.entries.forEach { option ->
-                        FilterChip(
-                            selected = repeat == option,
-                            onClick = { repeat = option },
-                            label = { Text(option.title) }
-                        )
-                    }
-                }
-
-                Text(
-                    text = "Sessions + Wiederholung helfen beim Lernplan (z. B. 6 Sessions wöchentlich).",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
 
                 errorMessage?.let { error ->
                     Text(
@@ -761,7 +992,6 @@ private fun AddCustomEventDialog(
                 onClick = {
                     val normalizedTitle = title.trim()
                     val durationMinutes = durationMinutesRaw.toIntOrNull()
-                    val sessions = sessionsRaw.toIntOrNull()
 
                     if (normalizedTitle.isBlank()) {
                         errorMessage = "Bitte einen Titel eingeben."
@@ -771,25 +1001,15 @@ private fun AddCustomEventDialog(
                         errorMessage = "Dauer muss zwischen 5 und 720 Minuten liegen."
                         return@TextButton
                     }
-                    if (sessions == null || sessions !in 1..60) {
-                        errorMessage = "Sessions müssen zwischen 1 und 60 liegen."
-                        return@TextButton
-                    }
-                    if (sessions > 1 && repeat == CustomEventRepeat.NONE) {
-                        errorMessage = "Für mehrere Sessions bitte eine Wiederholung wählen."
-                        return@TextButton
-                    }
-
-                    val createdEvents = buildCustomEventSeries(
+                    val createdEvent = buildSingleCustomEvent(
+                        eventId = editingEvent?.id,
                         title = normalizedTitle,
                         location = location.trim().takeIf { it.isNotBlank() },
                         startsAtEpochMillis = startsAtMillis,
                         durationMinutes = durationMinutes,
-                        sessions = sessions,
-                        repeat = repeat,
                         schoolZone = schoolZone
                     )
-                    onSave(createdEvents)
+                    onSave(createdEvent)
                 }
             ) {
                 Text("Speichern")
@@ -803,37 +1023,27 @@ private fun AddCustomEventDialog(
     )
 }
 
-private fun buildCustomEventSeries(
+private fun buildSingleCustomEvent(
+    eventId: String?,
     title: String,
     location: String?,
     startsAtEpochMillis: Long,
     durationMinutes: Int,
-    sessions: Int,
-    repeat: CustomEventRepeat,
     schoolZone: ZoneId
-): List<SchoolEvent> {
+): SchoolEvent {
     val baseStart = Instant.ofEpochMilli(startsAtEpochMillis).atZone(schoolZone)
     val seed = System.currentTimeMillis()
-    return (0 until sessions).map { index ->
-        val start = when (repeat) {
-            CustomEventRepeat.NONE -> baseStart
-            CustomEventRepeat.DAILY -> baseStart.plusDays(index.toLong())
-            CustomEventRepeat.WEEKLY -> baseStart.plusWeeks(index.toLong())
-            CustomEventRepeat.MONTHLY -> baseStart.plusMonths(index.toLong())
-        }
-        val end = start.plusMinutes(durationMinutes.toLong())
-        val sessionSuffix = if (sessions > 1) " (${index + 1}/$sessions)" else ""
-        SchoolEvent(
-            id = "manual-event:$seed:$index",
-            title = "$title$sessionSuffix",
-            type = SchoolEventType.OTHER,
-            location = location,
-            startsAtEpochMillis = start.toInstant().toEpochMilli(),
-            endsAtEpochMillis = end.toInstant().toEpochMilli(),
-            isAllDay = false,
-            source = "manual"
-        )
-    }
+    val end = baseStart.plusMinutes(durationMinutes.toLong())
+    return SchoolEvent(
+        id = eventId ?: "manual-event:$seed",
+        title = title,
+        type = SchoolEventType.OTHER,
+        location = location,
+        startsAtEpochMillis = baseStart.toInstant().toEpochMilli(),
+        endsAtEpochMillis = end.toInstant().toEpochMilli(),
+        isAllDay = false,
+        source = "manual"
+    )
 }
 
 @Composable
@@ -904,16 +1114,7 @@ private fun CalendarTimelineCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            val timeLabel = when {
-                item.isAllDay -> formatAllDayLabel(
-                    startsAtMillis = item.startsAtEpochMillis,
-                    endsAtMillis = item.endsAtEpochMillis
-                        ?: (item.startsAtEpochMillis + 24L * 60L * 60L * 1000L),
-                    zoneId = schoolZone
-                )
-                item.endsAtEpochMillis != null -> "${formatExamDateShort(item.startsAtEpochMillis)} · ${formatTimeRange(item.startsAtEpochMillis, item.endsAtEpochMillis)}"
-                else -> formatExamDateShort(item.startsAtEpochMillis)
-            }
+            val timeLabel = formatCalendarItemTimeLabel(item, schoolZone)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = if (item.isAllDay) Icons.Outlined.CalendarToday else Icons.Outlined.Schedule,
@@ -956,6 +1157,19 @@ private fun CalendarTimelineCard(
                 }
             }
         }
+    }
+}
+
+private fun formatCalendarItemTimeLabel(item: CalendarTimelineItem, schoolZone: ZoneId): String {
+    return when {
+        item.isAllDay -> formatAllDayLabel(
+            startsAtMillis = item.startsAtEpochMillis,
+            endsAtMillis = item.endsAtEpochMillis
+                ?: (item.startsAtEpochMillis + 24L * 60L * 60L * 1000L),
+            zoneId = schoolZone
+        )
+        item.endsAtEpochMillis != null -> "${formatExamDateShort(item.startsAtEpochMillis)} · ${formatTimeRange(item.startsAtEpochMillis, item.endsAtEpochMillis)}"
+        else -> formatExamDateShort(item.startsAtEpochMillis)
     }
 }
 

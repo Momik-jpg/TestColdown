@@ -197,9 +197,11 @@ private enum class ExamSortMode(val title: String) {
     TITLE_AZ("Titel A-Z")
 }
 
-private enum class ReminderInputMode(val title: String) {
-    QUICK("Schnell"),
-    SERIES("Eigene Regel")
+private enum class StudySessionRhythm(val title: String, val stepDays: Long) {
+    DAILY("Jeden Tag", 1L),
+    EVERY_SECOND_DAY("Jeden 2. Tag", 2L),
+    EVERY_THIRD_DAY("Jeden 3. Tag", 3L),
+    WEEKLY("Wöchentlich", 7L)
 }
 
 private data class TimetableLessonBlock(
@@ -501,14 +503,15 @@ fun ExamCountdownScreen(
     if (showAddDialog) {
         AddExamDialog(
             onDismiss = { showAddDialog = false },
-            onSave = { subject, title, location, examMillis, reminderAtMillis, reminderLeadTimes ->
+            onSave = { subject, title, location, examMillis, reminderAtMillis, reminderLeadTimes, studySessions ->
                 viewModel.addExam(
                     subject = subject,
                     title = title,
                     location = location,
                     startsAtMillis = examMillis,
                     reminderAtMillis = reminderAtMillis,
-                    reminderLeadTimesMinutes = reminderLeadTimes
+                    reminderLeadTimesMinutes = reminderLeadTimes,
+                    studySessions = studySessions
                 )
             }
         )
@@ -1072,6 +1075,12 @@ fun ExamCountdownScreen(
                         viewModel.deleteCalendarEvent(eventId)
                         scope.launch {
                             snackbarHostState.showSnackbar("Event gelöscht.")
+                        }
+                    },
+                    onUpdateCustomEvent = { event ->
+                        viewModel.updateCalendarEvent(event)
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Event aktualisiert.")
                         }
                     }
                 )
@@ -2400,7 +2409,8 @@ private fun TimetableContent(
         changes.filter { entry ->
             Instant.ofEpochMilli(entry.changedAtEpochMillis)
                 .atZone(schoolZone)
-                .toLocalDate() == today
+                .toLocalDate() == today &&
+                entry.changeType != TimetableChangeType.ADDED
         }
     }
     val nowMillis = System.currentTimeMillis()
@@ -2446,19 +2456,20 @@ private fun TimetableContent(
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "Stundenplan-Ansicht",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
+                        text = "Ansicht & Filter",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    Row(
+                    FlowRow(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(top = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         TimetableViewMode.entries.forEach { mode ->
                             FilterChip(
@@ -2467,21 +2478,6 @@ private fun TimetableContent(
                                 label = { Text(mode.title) }
                             )
                         }
-                    }
-
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
-
-                    Text(
-                        text = "Filter",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
                         TimetableFilter.entries.forEach { filter ->
                             FilterChip(
                                 selected = selectedFilter == filter,
@@ -4070,9 +4066,10 @@ private fun ExamCard(
 @Composable
 private fun AddExamDialog(
     onDismiss: () -> Unit,
-    onSave: (String?, String, String?, Long, Long?, List<Long>) -> Unit
+    onSave: (String?, String, String?, Long, Long?, List<Long>, List<SchoolEvent>) -> Unit
 ) {
     val context = LocalContext.current
+    val schoolZone = remember { ZoneId.of("Europe/Zurich") }
     var subject by rememberSaveable { mutableStateOf("") }
     var title by rememberSaveable { mutableStateOf("") }
     var location by rememberSaveable { mutableStateOf("") }
@@ -4080,63 +4077,69 @@ private fun AddExamDialog(
         mutableLongStateOf(System.currentTimeMillis() + 24L * 60L * 60L * 1000L)
     }
     var reminderEnabled by rememberSaveable { mutableStateOf(true) }
-    var reminderInputMode by rememberSaveable { mutableStateOf(ReminderInputMode.QUICK) }
-    var quickLeadTimesRaw by rememberSaveable { mutableStateOf("30,1440") }
-    var seriesStartDaysRaw by rememberSaveable { mutableStateOf("0") }
-    var seriesStartHoursRaw by rememberSaveable { mutableStateOf("0") }
-    var seriesStartMinutesRaw by rememberSaveable { mutableStateOf("30") }
-    var seriesRepeatCountRaw by rememberSaveable { mutableStateOf("1") }
-    var seriesEveryDaysRaw by rememberSaveable { mutableStateOf("0") }
-    var seriesEveryHoursRaw by rememberSaveable { mutableStateOf("12") }
-    var seriesEveryMinutesRaw by rememberSaveable { mutableStateOf("0") }
+    var quickLeadTimesRaw by rememberSaveable { mutableStateOf("30, 1440") }
     var exactReminderEnabled by rememberSaveable { mutableStateOf(false) }
     var reminderManuallySet by rememberSaveable { mutableStateOf(false) }
     var selectedReminderMillis by rememberSaveable {
         mutableLongStateOf(System.currentTimeMillis() + 24L * 60L * 60L * 1000L - 30L * 60L * 1000L)
     }
+    var studyPlanEnabled by rememberSaveable { mutableStateOf(false) }
+    var studyStartDaysBeforeRaw by rememberSaveable { mutableStateOf("14") }
+    var studyDurationMinutesRaw by rememberSaveable { mutableStateOf("45") }
+    var studyMaxSessionsRaw by rememberSaveable { mutableStateOf("") }
+    var studyRhythm by rememberSaveable { mutableStateOf(StudySessionRhythm.DAILY) }
+    var studyStartMinutesOfDay by rememberSaveable { mutableIntStateOf(17 * 60) }
+    var studyValidationError by rememberSaveable { mutableStateOf<String?>(null) }
 
     val quickLeadTimes = remember(quickLeadTimesRaw) {
         parseLeadTimesMinutes(quickLeadTimesRaw)
     }
-    val seriesConfig = remember(
-        seriesStartDaysRaw,
-        seriesStartHoursRaw,
-        seriesStartMinutesRaw,
-        seriesRepeatCountRaw,
-        seriesEveryDaysRaw,
-        seriesEveryHoursRaw,
-        seriesEveryMinutesRaw
-    ) {
-        buildReminderSeriesLeadTimes(
-            startDaysRaw = seriesStartDaysRaw,
-            startHoursRaw = seriesStartHoursRaw,
-            startMinutesRaw = seriesStartMinutesRaw,
-            repeatCountRaw = seriesRepeatCountRaw,
-            intervalDaysRaw = seriesEveryDaysRaw,
-            intervalHoursRaw = seriesEveryHoursRaw,
-            intervalMinutesRaw = seriesEveryMinutesRaw
-        )
-    }
-
-    val selectedLeadTimes = remember(reminderEnabled, reminderInputMode, quickLeadTimes, seriesConfig) {
+    val selectedLeadTimes = remember(reminderEnabled, quickLeadTimes) {
         if (!reminderEnabled) {
             emptyList()
-        } else if (reminderInputMode == ReminderInputMode.QUICK) {
-            quickLeadTimes
         } else {
-            seriesConfig.leadTimes
+            quickLeadTimes
         }
     }
 
     val reminderValidationError = when {
         !reminderEnabled -> null
-        reminderInputMode == ReminderInputMode.QUICK && selectedLeadTimes.isEmpty() ->
-            "Wähle mindestens eine Erinnerungszeit."
-        reminderInputMode == ReminderInputMode.SERIES && !seriesConfig.error.isNullOrBlank() ->
-            seriesConfig.error
+        selectedLeadTimes.isEmpty() -> "Wähle mindestens eine Erinnerungszeit."
         exactReminderEnabled && selectedReminderMillis <= System.currentTimeMillis() -> "Erinnerungszeit liegt in der Vergangenheit"
         exactReminderEnabled && selectedReminderMillis >= selectedExamMillis -> "Erinnerung muss vor Prüfungsbeginn liegen"
         else -> null
+    }
+    val studyDurationPreview = studyDurationMinutesRaw.toIntOrNull()
+    val studyStartDaysPreview = studyStartDaysBeforeRaw.toIntOrNull()
+    val studyMaxSessionsPreview = studyMaxSessionsRaw.toIntOrNull()
+    val studyPreviewCount = remember(
+        studyPlanEnabled,
+        subject,
+        title,
+        location,
+        selectedExamMillis,
+        studyStartDaysPreview,
+        studyDurationPreview,
+        studyMaxSessionsPreview,
+        studyRhythm,
+        studyStartMinutesOfDay
+    ) {
+        if (!studyPlanEnabled || studyStartDaysPreview == null || studyDurationPreview == null) {
+            null
+        } else {
+            buildExamStudySessions(
+                subject = subject,
+                examTitle = title.ifBlank { "Prüfung" },
+                examLocation = location,
+                examStartsAtMillis = selectedExamMillis,
+                startDaysBefore = studyStartDaysPreview,
+                durationMinutes = studyDurationPreview,
+                maxSessions = studyMaxSessionsPreview,
+                rhythm = studyRhythm,
+                startMinutesOfDay = studyStartMinutesOfDay,
+                schoolZone = schoolZone
+            ).size
+        }
     }
 
     AlertDialog(
@@ -4212,113 +4215,40 @@ private fun AddExamDialog(
                 }
 
                 if (reminderEnabled) {
+                    val quickOptions = listOf(
+                        10L to "10 Min",
+                        30L to "30 Min",
+                        60L to "1 Std",
+                        120L to "2 Std",
+                        24L * 60L to "1 Tag",
+                        2L * 24L * 60L to "2 Tage",
+                        7L * 24L * 60L to "7 Tage"
+                    )
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        ReminderInputMode.entries.forEach { mode ->
+                        quickOptions.forEach { option ->
+                            val isSelected = option.first in quickLeadTimes
                             FilterChip(
-                                selected = reminderInputMode == mode,
-                                onClick = { reminderInputMode = mode },
-                                label = { Text(mode.title) }
+                                selected = isSelected,
+                                onClick = {
+                                    quickLeadTimesRaw = toggleLeadTimePreset(
+                                        currentRaw = quickLeadTimesRaw,
+                                        minutes = option.first
+                                    )
+                                },
+                                label = { Text(option.second) }
                             )
                         }
                     }
-
-                    if (reminderInputMode == ReminderInputMode.QUICK) {
-                        val quickOptions = listOf(
-                            10L to "10 Min",
-                            30L to "30 Min",
-                            60L to "1 Std",
-                            120L to "2 Std",
-                            360L to "6 Std",
-                            24L * 60L to "1 Tag",
-                            2L * 24L * 60L to "2 Tage",
-                            7L * 24L * 60L to "7 Tage"
-                        )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            quickOptions.forEach { option ->
-                                val isSelected = option.first in quickLeadTimes
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = {
-                                        quickLeadTimesRaw = toggleLeadTimePreset(
-                                            currentRaw = quickLeadTimesRaw,
-                                            minutes = option.first
-                                        )
-                                    },
-                                    label = { Text(option.second) }
-                                )
-                            }
-                        }
-                        Text(
-                            text = "Tippe auf die Zeiten. Mehrere sind gleichzeitig möglich.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            shape = MaterialTheme.shapes.medium
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    text = "Ab wann vor der Prüfung?",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                DurationPartsInputRow(
-                                    daysRaw = seriesStartDaysRaw,
-                                    hoursRaw = seriesStartHoursRaw,
-                                    minutesRaw = seriesStartMinutesRaw,
-                                    onDaysChange = { seriesStartDaysRaw = it },
-                                    onHoursChange = { seriesStartHoursRaw = it },
-                                    onMinutesChange = { seriesStartMinutesRaw = it }
-                                )
-                                OutlinedTextField(
-                                    value = seriesRepeatCountRaw,
-                                    onValueChange = { seriesRepeatCountRaw = it.filter(Char::isDigit).take(2) },
-                                    label = { Text("Wie oft erinnern? (1 bis 8)") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                if ((seriesRepeatCountRaw.toIntOrNull() ?: 1) > 1) {
-                                    Text(
-                                        text = "Abstand zwischen Erinnerungen:",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    DurationPartsInputRow(
-                                        daysRaw = seriesEveryDaysRaw,
-                                        hoursRaw = seriesEveryHoursRaw,
-                                        minutesRaw = seriesEveryMinutesRaw,
-                                        onDaysChange = { seriesEveryDaysRaw = it },
-                                        onHoursChange = { seriesEveryHoursRaw = it },
-                                        onMinutesChange = { seriesEveryMinutesRaw = it }
-                                    )
-                                }
-                                seriesConfig.preview?.let { preview ->
-                                    Text(
-                                        text = preview,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    Text(
+                        text = "Mehrere Erinnerungen gleichzeitig möglich.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -4334,7 +4264,6 @@ private fun AddExamDialog(
                             onCheckedChange = { checked -> exactReminderEnabled = checked }
                         )
                     }
-
                 }
 
                 if (reminderEnabled && exactReminderEnabled) {
@@ -4367,19 +4296,180 @@ private fun AddExamDialog(
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
+
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Lern-Sessions planen",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Switch(
+                                checked = studyPlanEnabled,
+                                onCheckedChange = { checked ->
+                                    studyPlanEnabled = checked
+                                    if (!checked) {
+                                        studyValidationError = null
+                                    }
+                                }
+                            )
+                        }
+
+                        if (studyPlanEnabled) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                StudySessionRhythm.entries.forEach { option ->
+                                    FilterChip(
+                                        selected = studyRhythm == option,
+                                        onClick = { studyRhythm = option },
+                                        label = { Text(option.title) }
+                                    )
+                                }
+                            }
+
+                            OutlinedTextField(
+                                value = studyStartDaysBeforeRaw,
+                                onValueChange = {
+                                    studyStartDaysBeforeRaw = it.filter(Char::isDigit).take(3)
+                                },
+                                label = { Text("Start vor Prüfung (Tage)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+
+                            OutlinedTextField(
+                                value = studyDurationMinutesRaw,
+                                onValueChange = {
+                                    studyDurationMinutesRaw = it.filter(Char::isDigit).take(3)
+                                },
+                                label = { Text("Dauer pro Session (Min)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+
+                            OutlinedTextField(
+                                value = studyMaxSessionsRaw,
+                                onValueChange = {
+                                    studyMaxSessionsRaw = it.filter(Char::isDigit).take(3)
+                                },
+                                label = { Text("Max. Sessions (optional)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+
+                            OutlinedButton(
+                                onClick = {
+                                    openTimePicker(
+                                        context = context,
+                                        initialMinutesOfDay = studyStartMinutesOfDay,
+                                        onPicked = { picked -> studyStartMinutesOfDay = picked }
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Session-Uhrzeit: ${formatMinutesOfDay(studyStartMinutesOfDay)}")
+                            }
+
+                            val previewText = when {
+                                studyPreviewCount == null -> null
+                                studyPreviewCount == 0 -> "Aktuell würden keine Lern-Sessions vor der Prüfung entstehen."
+                                studyPreviewCount == 1 -> "Es wird 1 Lern-Session erstellt."
+                                else -> "Es werden ca. $studyPreviewCount Lern-Sessions erstellt."
+                            }
+                            previewText?.let { message ->
+                                Text(
+                                    text = message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            studyValidationError?.let { error ->
+                                Text(
+                                    text = error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
                 enabled = title.isNotBlank() && reminderValidationError == null,
                 onClick = {
+                    val generatedStudySessions = if (studyPlanEnabled) {
+                        val startDaysBefore = studyStartDaysBeforeRaw.toIntOrNull()
+                        val durationMinutes = studyDurationMinutesRaw.toIntOrNull()
+                        val maxSessions = studyMaxSessionsRaw.trim().takeIf { it.isNotBlank() }?.toIntOrNull()
+                        when {
+                            startDaysBefore == null || startDaysBefore !in 1..180 -> {
+                                studyValidationError = "Bitte 1 bis 180 Tage wählen."
+                                return@TextButton
+                            }
+                            durationMinutes == null || durationMinutes !in 15..240 -> {
+                                studyValidationError = "Bitte 15 bis 240 Minuten wählen."
+                                return@TextButton
+                            }
+                            maxSessions != null && maxSessions !in 1..400 -> {
+                                studyValidationError = "Max. Sessions: bitte 1 bis 400."
+                                return@TextButton
+                            }
+                            else -> {
+                                val sessions = buildExamStudySessions(
+                                    subject = subject,
+                                    examTitle = title,
+                                    examLocation = location,
+                                    examStartsAtMillis = selectedExamMillis,
+                                    startDaysBefore = startDaysBefore,
+                                    durationMinutes = durationMinutes,
+                                    maxSessions = maxSessions,
+                                    rhythm = studyRhythm,
+                                    startMinutesOfDay = studyStartMinutesOfDay,
+                                    schoolZone = schoolZone
+                                )
+                                if (sessions.isEmpty()) {
+                                    studyValidationError = "Keine Lern-Sessions vor der Prüfung möglich. Prüfe Tage/Uhrzeit."
+                                    return@TextButton
+                                }
+                                studyValidationError = null
+                                sessions
+                            }
+                        }
+                    } else {
+                        emptyList()
+                    }
+
                     onSave(
                         subject.ifBlank { null },
                         title,
                         location.ifBlank { null },
                         selectedExamMillis,
                         if (reminderEnabled && exactReminderEnabled) selectedReminderMillis else null,
-                        if (reminderEnabled) selectedLeadTimes else emptyList()
+                        if (reminderEnabled) selectedLeadTimes else emptyList(),
+                        generatedStudySessions
                     )
                     onDismiss()
                 }
@@ -4393,6 +4483,69 @@ private fun AddExamDialog(
             }
         }
     )
+}
+
+private fun buildExamStudySessions(
+    subject: String?,
+    examTitle: String,
+    examLocation: String?,
+    examStartsAtMillis: Long,
+    startDaysBefore: Int,
+    durationMinutes: Int,
+    maxSessions: Int?,
+    rhythm: StudySessionRhythm,
+    startMinutesOfDay: Int,
+    schoolZone: ZoneId
+): List<SchoolEvent> {
+    if (startDaysBefore <= 0 || durationMinutes <= 0) return emptyList()
+
+    val nowMillis = System.currentTimeMillis()
+    val examStart = Instant.ofEpochMilli(examStartsAtMillis).atZone(schoolZone)
+    val examDate = examStart.toLocalDate()
+    val firstDateByRule = examDate.minusDays(startDaysBefore.toLong())
+    val todayDate = Instant.ofEpochMilli(nowMillis).atZone(schoolZone).toLocalDate()
+    val startDate = if (firstDateByRule.isBefore(todayDate)) todayDate else firstDateByRule
+    val lastDate = examDate.minusDays(1)
+    if (lastDate.isBefore(startDate)) return emptyList()
+
+    val hour = (startMinutesOfDay / 60).coerceIn(0, 23)
+    val minute = (startMinutesOfDay % 60).coerceIn(0, 59)
+    val baseTitle = buildString {
+        append("Lernen")
+        subject.orEmpty().trim().takeIf { it.isNotBlank() }?.let {
+            append(" $it")
+        }
+        append(": ${examTitle.trim()}")
+    }
+    val safeLocation = examLocation.orEmpty().trim().takeIf { it.isNotBlank() }
+    val seed = System.currentTimeMillis()
+    val maxCount = maxSessions?.coerceIn(1, 400) ?: 400
+
+    val sessions = mutableListOf<SchoolEvent>()
+    var currentDate = startDate
+    var index = 0
+    while (!currentDate.isAfter(lastDate) && index < 400 && sessions.size < maxCount) {
+        val sessionStart = currentDate
+            .atTime(hour, minute)
+            .atZone(schoolZone)
+        val startsAtMillis = sessionStart.toInstant().toEpochMilli()
+        if (startsAtMillis > nowMillis && startsAtMillis < examStartsAtMillis) {
+            sessions += SchoolEvent(
+                id = "manual-study:$seed:$index",
+                title = baseTitle,
+                type = com.andrin.examcountdown.model.SchoolEventType.INFO,
+                location = safeLocation,
+                description = "Lern-Session für ${examTitle.trim()}",
+                startsAtEpochMillis = startsAtMillis,
+                endsAtEpochMillis = sessionStart.plusMinutes(durationMinutes.toLong()).toInstant().toEpochMilli(),
+                isAllDay = false,
+                source = "manual"
+            )
+        }
+        currentDate = currentDate.plusDays(rhythm.stepDays)
+        index += 1
+    }
+    return sessions
 }
 
 private data class ReminderSeriesLeadTimes(
@@ -4495,6 +4648,26 @@ private fun ReminderSettingsDialog(
                         }
                     ) {
                         Text("Stille Zeit bis: ${formatMinutesOfDay(endMinutes)}")
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                startMinutes = 22 * 60
+                                endMinutes = 7 * 60
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("22:00-07:00")
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                startMinutes = 23 * 60
+                                endMinutes = 6 * 60 + 30
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("23:00-06:30")
+                        }
                     }
                     Text(
                         text = "Erinnerungen in stiller Zeit werden auf das Ende der stillen Zeit verschoben.",

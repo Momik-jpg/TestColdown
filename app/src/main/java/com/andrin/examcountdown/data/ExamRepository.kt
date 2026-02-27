@@ -344,6 +344,22 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun updateEvent(event: SchoolEvent) {
+        updateEvents { current ->
+            var found = false
+            val updated = current.map { existing ->
+                if (existing.id == event.id) {
+                    found = true
+                    event
+                } else {
+                    existing
+                }
+            }
+            val merged = if (found) updated else (updated + event)
+            merged.sortedBy { it.startsAtEpochMillis }
+        }
+    }
+
     suspend fun appendTimetableChanges(
         changes: List<TimetableChangeEntry>,
         maxEntries: Int = 120
