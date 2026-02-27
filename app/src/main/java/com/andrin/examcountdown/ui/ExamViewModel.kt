@@ -12,6 +12,7 @@ import com.andrin.examcountdown.data.QuietHoursConfig
 import com.andrin.examcountdown.data.SyncStatus
 import com.andrin.examcountdown.data.toSyncErrorMessage
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.reminder.ExamNotificationManager
 import com.andrin.examcountdown.reminder.ExamReminderScheduler
 import com.andrin.examcountdown.worker.IcalSyncScheduler
@@ -483,6 +484,22 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
     fun setAppLockBiometricEnabled(enabled: Boolean) {
         viewModelScope.launch {
             repository.setAppLockBiometricEnabled(enabled)
+        }
+    }
+
+    fun addCustomEvents(events: List<SchoolEvent>) {
+        if (events.isEmpty()) return
+        viewModelScope.launch {
+            repository.addCustomEvents(events)
+            WidgetUpdater.updateAll(getApplication())
+        }
+    }
+
+    fun deleteCalendarEvent(eventId: String) {
+        if (eventId.isBlank()) return
+        viewModelScope.launch {
+            repository.deleteEvent(eventId)
+            WidgetUpdater.updateAll(getApplication())
         }
     }
 }

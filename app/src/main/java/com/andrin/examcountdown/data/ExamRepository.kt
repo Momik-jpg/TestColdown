@@ -297,7 +297,10 @@ class ExamRepository(private val appContext: Context) {
             val mergedLessons = importedLessons
                 .distinctBy { it.id }
                 .sortedBy { it.startsAtEpochMillis }
+            val currentEvents = decodeEvents(preferences[eventsKey])
+            val manualEvents = currentEvents.filterNot { isSyncedCalendarEventId(it.id) }
             val mergedEvents = importedEvents
+                .plus(manualEvents)
                 .distinctBy { it.id }
                 .sortedBy { it.startsAtEpochMillis }
 
@@ -316,10 +319,28 @@ class ExamRepository(private val appContext: Context) {
 
     suspend fun replaceSyncedEvents(imported: List<SchoolEvent>) {
         appContext.dataStore.edit { preferences ->
+            val current = decodeEvents(preferences[eventsKey])
+            val manualEvents = current.filterNot { isSyncedCalendarEventId(it.id) }
             val updated = imported
+                .plus(manualEvents)
                 .distinctBy { it.id }
                 .sortedBy { it.startsAtEpochMillis }
             preferences[eventsKey] = json.encodeToString(updated)
+        }
+    }
+
+    suspend fun addCustomEvents(events: List<SchoolEvent>) {
+        if (events.isEmpty()) return
+        updateEvents { current ->
+            (current + events)
+                .distinctBy { it.id }
+                .sortedBy { it.startsAtEpochMillis }
+        }
+    }
+
+    suspend fun deleteEvent(eventId: String) {
+        updateEvents { current ->
+            current.filterNot { it.id == eventId }
         }
     }
 
@@ -769,6 +790,13 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    private suspend fun updateEvents(transform: (List<SchoolEvent>) -> List<SchoolEvent>) {
+        appContext.dataStore.edit { preferences ->
+            val updated = transform(decodeEvents(preferences[eventsKey]))
+            preferences[eventsKey] = json.encodeToString(updated)
+        }
+    }
+
     private fun decodeExams(raw: String?): List<Exam> {
         if (raw.isNullOrBlank()) return emptyList()
         return runCatching { json.decodeFromString<List<Exam>>(raw) }
@@ -795,6 +823,10 @@ class ExamRepository(private val appContext: Context) {
 
     private fun normalizeSyncIntervalMinutes(value: Long): Long {
         return value.coerceIn(15L, 12L * 60L)
+    }
+
+    private fun isSyncedCalendarEventId(id: String): Boolean {
+        return id.startsWith("ical-event:") || id.startsWith("ical:")
     }
 
     private fun normalizeImportedIcalUrl(raw: String?): String? {
