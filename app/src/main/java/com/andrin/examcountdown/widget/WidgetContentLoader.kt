@@ -88,9 +88,9 @@ object WidgetContentLoader {
     fun headerLabel(context: Context, appWidgetId: Int): String {
         val config = WidgetPreferences.readConfig(context, appWidgetId)
         return if (config.mode == WidgetMode.EXAMS) {
-            "Prüfungen (${config.windowDays}T)"
+            "Prüfungen · ${config.windowDays} Tage"
         } else {
-            "Agenda (${config.windowDays}T)"
+            "Agenda · ${config.windowDays} Tage"
         }
     }
 

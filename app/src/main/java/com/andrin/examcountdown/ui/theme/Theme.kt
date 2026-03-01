@@ -19,34 +19,100 @@ import androidx.core.view.WindowCompat
 
 private val LightColors = lightColorScheme(
     primary = BluePrimaryLight,
+    onPrimary = BlueOnPrimaryLight,
+    primaryContainer = BluePrimaryContainerLight,
+    onPrimaryContainer = BlueOnPrimaryContainerLight,
     secondary = BlueSecondaryLight,
+    onSecondary = BlueOnSecondaryLight,
+    secondaryContainer = BlueSecondaryContainerLight,
+    onSecondaryContainer = BlueOnSecondaryContainerLight,
     tertiary = BlueAccentLight,
+    onTertiary = BlueOnAccentLight,
+    tertiaryContainer = BlueAccentContainerLight,
+    onTertiaryContainer = BlueOnAccentContainerLight,
     background = BackgroundLight,
-    surface = SurfaceLight
+    onBackground = OnBackgroundLight,
+    surface = SurfaceLight,
+    onSurface = OnSurfaceLight,
+    surfaceVariant = SurfaceVariantLight,
+    onSurfaceVariant = OnSurfaceVariantLight,
+    outline = OutlineLight,
+    outlineVariant = OutlineVariantLight,
+    inverseSurface = InverseSurfaceLight,
+    inverseOnSurface = InverseOnSurfaceLight,
+    inversePrimary = InversePrimaryLight
 )
 
 private val DarkColors = darkColorScheme(
     primary = BluePrimaryDark,
+    onPrimary = BlueOnPrimaryDark,
+    primaryContainer = BluePrimaryContainerDark,
+    onPrimaryContainer = BlueOnPrimaryContainerDark,
     secondary = BlueSecondaryDark,
+    onSecondary = BlueOnSecondaryDark,
+    secondaryContainer = BlueSecondaryContainerDark,
+    onSecondaryContainer = BlueOnSecondaryContainerDark,
     tertiary = BlueAccentDark,
+    onTertiary = BlueOnAccentDark,
+    tertiaryContainer = BlueAccentContainerDark,
+    onTertiaryContainer = BlueOnAccentContainerDark,
     background = BackgroundDark,
-    surface = SurfaceDark
+    onBackground = OnBackgroundDark,
+    surface = SurfaceDark,
+    onSurface = OnSurfaceDark,
+    surfaceVariant = SurfaceVariantDark,
+    onSurfaceVariant = OnSurfaceVariantDark,
+    outline = OutlineDark,
+    outlineVariant = OutlineVariantDark,
+    inverseSurface = InverseSurfaceDark,
+    inverseOnSurface = InverseOnSurfaceDark,
+    inversePrimary = InversePrimaryDark
 )
 
 private val LightAccessibleColors = lightColorScheme(
     primary = Color(0xFF003A75),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFD2E4FF),
+    onPrimaryContainer = Color(0xFF001C3D),
     secondary = Color(0xFF0059B8),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFD8E7FF),
+    onSecondaryContainer = Color(0xFF002A58),
     tertiary = Color(0xFF006B87),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFB9EBFF),
+    onTertiaryContainer = Color(0xFF003141),
     background = Color(0xFFFFFFFF),
-    surface = Color(0xFFFFFFFF)
+    onBackground = Color(0xFF111111),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF111111),
+    surfaceVariant = Color(0xFFE8EEF8),
+    onSurfaceVariant = Color(0xFF213042),
+    outline = Color(0xFF425D7B),
+    outlineVariant = Color(0xFF9FB2CA)
 )
 
 private val DarkAccessibleColors = darkColorScheme(
     primary = Color(0xFF9DCCFF),
+    onPrimary = Color(0xFF002655),
+    primaryContainer = Color(0xFF00408C),
+    onPrimaryContainer = Color(0xFFDCE8FF),
     secondary = Color(0xFF8EC2FF),
+    onSecondary = Color(0xFF002855),
+    secondaryContainer = Color(0xFF00428A),
+    onSecondaryContainer = Color(0xFFD8E7FF),
     tertiary = Color(0xFF8DE7FF),
+    onTertiary = Color(0xFF00333F),
+    tertiaryContainer = Color(0xFF005464),
+    onTertiaryContainer = Color(0xFFBEEBFF),
     background = Color(0xFF000000),
-    surface = Color(0xFF0D0D0D)
+    onBackground = Color(0xFFEFEFEF),
+    surface = Color(0xFF0D0D0D),
+    onSurface = Color(0xFFEFEFEF),
+    surfaceVariant = Color(0xFF1D242E),
+    onSurfaceVariant = Color(0xFFC7D2DF),
+    outline = Color(0xFFA8BACF),
+    outlineVariant = Color(0xFF5D6F84)
 )
 
 @Composable

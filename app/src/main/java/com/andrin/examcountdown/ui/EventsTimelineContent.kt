@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -647,7 +648,7 @@ private fun AgendaMonthContent(
                                 Spacer(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(74.dp)
+                                        .aspectRatio(1f)
                                 )
                             }
                         }
@@ -724,9 +725,9 @@ private fun CalendarDayCell(
 
     Surface(
         modifier = modifier
-            .height(82.dp)
+            .aspectRatio(1f)
             .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.small,
+        shape = MaterialTheme.shapes.medium,
         color = containerColor,
         border = BorderStroke(1.dp, borderColor)
     ) {

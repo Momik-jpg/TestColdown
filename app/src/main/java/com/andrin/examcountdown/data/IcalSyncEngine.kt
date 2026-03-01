@@ -1,6 +1,8 @@
 package com.andrin.examcountdown.data
 
 import android.content.Context
+import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.model.TimetableChangeEntry
 import com.andrin.examcountdown.model.TimetableChangeType
 import com.andrin.examcountdown.model.TimetableLesson
@@ -170,6 +172,119 @@ class IcalSyncEngine(
                     lastAttemptAtMillis = startedAt,
                     lastDurationMillis = duration,
                     lastHttpStatusCode = httpStatusCode ?: extractHttpStatusCode(exception.message),
+                    lastDeltaNotModified = false,
+                    lastErrorReason = toSyncErrorMessage(exception)
+                )
+            )
+            throw exception
+        }
+    }
+
+    suspend fun syncFromUrls(
+        urls: List<String>,
+        emitChangeNotification: Boolean,
+        importEvents: Boolean? = null
+    ): IcalSyncResult {
+        val normalizedUrls = urls
+            .map { normalizeAndValidateIcalUrl(it) }
+            .distinct()
+            .take(ExamRepository.MAX_ICAL_URLS)
+        require(normalizedUrls.isNotEmpty()) { "Bitte mindestens eine iCal-URL eingeben." }
+
+        if (normalizedUrls.size == 1) {
+            return syncFromUrl(
+                url = normalizedUrls.first(),
+                emitChangeNotification = emitChangeNotification,
+                importEvents = importEvents
+            )
+        }
+
+        val startedAt = System.currentTimeMillis()
+
+        try {
+            val shouldImportEvents = importEvents ?: repository.readImportEventsEnabled()
+            val previousLessons = repository.readLessonsSnapshot()
+            val importedExams = mutableListOf<Exam>()
+            val importedLessons = mutableListOf<TimetableLesson>()
+            val importedEvents = mutableListOf<SchoolEvent>()
+
+            // Delta headers are per URL. For multi-source sync we use full fetches.
+            repository.saveIcalSyncCacheHeaders(IcalSyncCacheHeaders())
+
+            normalizedUrls.forEach { sourceUrl ->
+                val response = downloadWithRetry(
+                    url = sourceUrl,
+                    cacheHeaders = IcalSyncCacheHeaders()
+                )
+                val raw = response.body ?: throw IOException("Leere iCal-Antwort")
+
+                importedExams += examImporter.importFromRaw(raw).exams
+                importedLessons += timetableImporter.importFromRaw(raw).lessons
+                if (shouldImportEvents) {
+                    importedEvents += eventImporter.importFromRaw(raw).events
+                }
+            }
+
+            val mergedExams = dedupeExams(importedExams)
+            val mergedLessons = dedupeLessons(importedLessons)
+            val mergedEvents = dedupeEvents(importedEvents)
+
+            repository.replaceIcalSyncSnapshot(
+                importedExams = mergedExams,
+                importedLessons = mergedLessons,
+                importedEvents = mergedEvents
+            )
+            WidgetUpdater.updateAll(appContext)
+
+            val changes = detectLessonChanges(previousLessons, mergedLessons)
+            val duration = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            val result = IcalSyncResult(
+                examsImported = mergedExams.size,
+                lessonsImported = mergedLessons.size,
+                eventsImported = mergedEvents.size,
+                changedLessons = changes.total,
+                movedLessons = changes.movedCount,
+                roomChangedLessons = changes.roomChangedCount,
+                deltaNotModified = false,
+                httpStatusCode = null,
+                durationMillis = duration
+            )
+
+            repository.markSyncSuccess("${result.summaryText()} (${normalizedUrls.size} Links)")
+            repository.saveSyncDiagnostics(
+                SyncDiagnostics(
+                    lastAttemptAtMillis = startedAt,
+                    lastDurationMillis = duration,
+                    lastDeltaNotModified = false,
+                    importedExams = result.examsImported,
+                    importedLessons = result.lessonsImported,
+                    importedEvents = result.eventsImported,
+                    changedLessons = result.changedLessons,
+                    movedLessons = result.movedLessons,
+                    roomChangedLessons = result.roomChangedLessons
+                )
+            )
+
+            if (!changes.isFirstSync && changes.entries.isNotEmpty()) {
+                repository.appendTimetableChanges(changes.entries)
+            }
+
+            if (emitChangeNotification && !changes.isFirstSync && changes.total > 0) {
+                TimetableSyncNotificationManager.showChangedLessons(
+                    context = appContext,
+                    changedCount = changes.total,
+                    movedCount = changes.movedCount,
+                    roomChangedCount = changes.roomChangedCount
+                )
+            }
+
+            return result
+        } catch (exception: Exception) {
+            val duration = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            repository.saveSyncDiagnostics(
+                SyncDiagnostics(
+                    lastAttemptAtMillis = startedAt,
+                    lastDurationMillis = duration,
                     lastDeltaNotModified = false,
                     lastErrorReason = toSyncErrorMessage(exception)
                 )
@@ -390,5 +505,32 @@ class IcalSyncEngine(
         val raw = message.orEmpty()
         val match = Regex("HTTP-(\\d{3})").find(raw) ?: return null
         return match.groupValues.getOrNull(1)?.toIntOrNull()
+    }
+
+    private fun dedupeExams(items: List<Exam>): List<Exam> {
+        return items
+            .distinctBy { it.id }
+            .distinctBy { exam ->
+                "${exam.subject.orEmpty().trim().lowercase()}|${exam.title.trim().lowercase()}|${exam.startsAtEpochMillis}"
+            }
+            .sortedBy { it.startsAtEpochMillis }
+    }
+
+    private fun dedupeLessons(items: List<TimetableLesson>): List<TimetableLesson> {
+        return items
+            .distinctBy { it.id }
+            .distinctBy { lesson ->
+                "${lesson.title.trim().lowercase()}|${lesson.startsAtEpochMillis}|${lesson.endsAtEpochMillis}|${lesson.location.orEmpty().trim().lowercase()}"
+            }
+            .sortedBy { it.startsAtEpochMillis }
+    }
+
+    private fun dedupeEvents(items: List<SchoolEvent>): List<SchoolEvent> {
+        return items
+            .distinctBy { it.id }
+            .distinctBy { event ->
+                "${event.title.trim().lowercase()}|${event.startsAtEpochMillis}|${event.endsAtEpochMillis}|${event.location.orEmpty().trim().lowercase()}|${event.type.name}"
+            }
+            .sortedBy { it.startsAtEpochMillis }
     }
 }

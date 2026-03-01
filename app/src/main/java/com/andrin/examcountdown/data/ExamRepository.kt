@@ -93,6 +93,7 @@ class ExamRepository(private val appContext: Context) {
     private val simpleModeEnabledKey = booleanPreferencesKey("simple_mode_enabled")
     private val lastSeenVersionKey = stringPreferencesKey("last_seen_version")
     private val showSetupGuideCardKey = booleanPreferencesKey("show_setup_guide_card")
+    private val screenshotProtectionEnabledKey = booleanPreferencesKey("screenshot_protection_enabled")
     private val appLockEnabledKey = booleanPreferencesKey("app_lock_enabled")
     private val appLockPinHashKey = stringPreferencesKey("app_lock_pin_hash")
     private val appLockPinSaltKey = stringPreferencesKey("app_lock_pin_salt")
@@ -151,13 +152,25 @@ class ExamRepository(private val appContext: Context) {
                 .sortedByDescending { it.changedAtEpochMillis }
         }
 
-    val iCalUrlFlow: Flow<String> = preferencesFlow
+    val iCalUrlsFlow: Flow<List<String>> = preferencesFlow
         .map { preferences ->
             // Touch revision key so changes in encrypted storage trigger flow refresh.
             preferences[iCalUrlRevisionKey]
-            secureIcalUrlStore.read()
-                ?: preferences[iCalUrlKey].orEmpty().trim()
+            val secureUrls = secureIcalUrlStore.readAll()
+            if (secureUrls.isNotEmpty()) {
+                secureUrls
+            } else {
+                preferences[iCalUrlKey]
+                    .orEmpty()
+                    .trim()
+                    .takeIf { it.isNotBlank() }
+                    ?.let { listOf(it) }
+                    ?: emptyList()
+            }
         }
+
+    val iCalUrlFlow: Flow<String> = iCalUrlsFlow
+        .map { urls -> urls.firstOrNull().orEmpty() }
 
     val importEventsEnabledFlow: Flow<Boolean> = preferencesFlow
         .map { preferences -> preferences[importEventsEnabledKey] ?: false }
@@ -261,6 +274,11 @@ class ExamRepository(private val appContext: Context) {
     val showSetupGuideCardFlow: Flow<Boolean> = preferencesFlow
         .map { preferences ->
             preferences[showSetupGuideCardKey] ?: true
+        }
+
+    val screenshotProtectionEnabledFlow: Flow<Boolean> = preferencesFlow
+        .map { preferences ->
+            preferences[screenshotProtectionEnabledKey] ?: false
         }
 
     val appLockEnabledFlow: Flow<Boolean> = preferencesFlow
@@ -400,9 +418,18 @@ class ExamRepository(private val appContext: Context) {
     }
 
     suspend fun saveIcalUrl(url: String) {
-        val normalized = normalizeAndValidateIcalUrl(url)
-        val previous = secureIcalUrlStore.read().orEmpty()
-        secureIcalUrlStore.write(normalized)
+        saveIcalUrls(listOf(url))
+    }
+
+    suspend fun saveIcalUrls(urls: List<String>) {
+        val normalized = urls
+            .map { normalizeAndValidateIcalUrl(it) }
+            .distinct()
+            .take(MAX_ICAL_URLS)
+        require(normalized.isNotEmpty()) { "Bitte mindestens eine iCal-URL eingeben." }
+
+        val previous = secureIcalUrlStore.readAll()
+        secureIcalUrlStore.writeAll(normalized)
         appContext.dataStore.edit { preferences ->
             // Remove legacy plain-text value after migration/update.
             preferences.remove(iCalUrlKey)
@@ -429,11 +456,10 @@ class ExamRepository(private val appContext: Context) {
     }
 
     suspend fun migrateLegacyIcalUrlIfNeeded() {
-        val secureUrl = secureIcalUrlStore.read()
-        if (!secureUrl.isNullOrBlank()) return
+        if (secureIcalUrlStore.readAll().isNotEmpty()) return
         val preferences = preferencesFlow.first()
         val legacyUrl = normalizeImportedIcalUrlOrNull(preferences[iCalUrlKey]) ?: return
-        secureIcalUrlStore.write(legacyUrl)
+        secureIcalUrlStore.writeAll(listOf(legacyUrl))
         appContext.dataStore.edit { editable ->
             editable.remove(iCalUrlKey)
             editable[iCalUrlRevisionKey] = System.currentTimeMillis()
@@ -594,6 +620,12 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
+    suspend fun setScreenshotProtectionEnabled(enabled: Boolean) {
+        appContext.dataStore.edit { preferences ->
+            preferences[screenshotProtectionEnabledKey] = enabled
+        }
+    }
+
     suspend fun enableAppLockWithPin(pin: String, biometricEnabled: Boolean = false) {
         val normalizedPin = requireValidPin(pin)
         val saltBytes = ByteArray(APP_LOCK_SALT_BYTES).also { SecureRandom().nextBytes(it) }
@@ -706,11 +738,13 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
-    suspend fun readIcalUrl(): String? = iCalUrlFlow.first().takeIf { it.isNotBlank() }
+    suspend fun readIcalUrls(): List<String> = iCalUrlsFlow.first()
+    suspend fun readIcalUrl(): String? = readIcalUrls().firstOrNull()
     suspend fun readImportEventsEnabled(): Boolean = importEventsEnabledFlow.first()
     suspend fun readSyncIntervalMinutes(): Long = syncIntervalMinutesFlow.first()
     suspend fun readCollisionRuleSettings(): CollisionRuleSettings = collisionRuleSettingsFlow.first()
     suspend fun readAccessibilityModeEnabled(): Boolean = accessibilityModeEnabledFlow.first()
+    suspend fun readScreenshotProtectionEnabled(): Boolean = screenshotProtectionEnabledFlow.first()
     suspend fun readIcalSyncCacheHeaders(): IcalSyncCacheHeaders {
         val preferences = preferencesFlow.first()
         return IcalSyncCacheHeaders(
@@ -746,6 +780,7 @@ class ExamRepository(private val appContext: Context) {
             accessibilityModeEnabled = readAccessibilityModeEnabled(),
             simpleModeEnabled = simpleModeEnabledFlow.first(),
             appLockBiometricEnabled = appLockBiometricEnabledFlow.first(),
+            screenshotProtectionEnabled = readScreenshotProtectionEnabled(),
             showSetupGuideCard = showSetupGuideCardFlow.first(),
             onboardingDone = onboardingDoneFlow.first(),
             onboardingPromptSeen = onboardingPromptSeenFlow.first(),
@@ -816,7 +851,7 @@ class ExamRepository(private val appContext: Context) {
             )
 
             if (sanitizedUrl != null) {
-                secureIcalUrlStore.write(sanitizedUrl)
+                secureIcalUrlStore.writeAll(listOf(sanitizedUrl))
                 preferences[iCalUrlRevisionKey] = System.currentTimeMillis()
             }
             preferences.remove(iCalUrlKey)
@@ -836,6 +871,7 @@ class ExamRepository(private val appContext: Context) {
             } else {
                 preferences.remove(appLockBiometricEnabledKey)
             }
+            preferences[screenshotProtectionEnabledKey] = backup.screenshotProtectionEnabled
             preferences[showSetupGuideCardKey] = backup.showSetupGuideCard
             preferences[onboardingDoneKey] = backup.onboardingDone
             preferences[onboardingPromptSeenKey] = backup.onboardingPromptSeen
@@ -863,6 +899,13 @@ class ExamRepository(private val appContext: Context) {
             preferences.remove(lastSeenVersionKey)
         }
         return backup
+    }
+
+    suspend fun clearAllLocalData() {
+        secureIcalUrlStore.writeAll(emptyList())
+        appContext.dataStore.edit { preferences ->
+            preferences.clear()
+        }
     }
 
     private suspend fun updateExams(transform: (List<Exam>) -> List<Exam>) {
@@ -988,6 +1031,7 @@ class ExamRepository(private val appContext: Context) {
 
     companion object {
         const val DEFAULT_SYNC_INTERVAL_MINUTES: Long = 6L * 60L
+        const val MAX_ICAL_URLS: Int = 2
         const val APP_LOCK_PIN_MIN_DIGITS: Int = 4
         const val APP_LOCK_PIN_MAX_DIGITS: Int = 10
         private const val APP_LOCK_LOCKOUT_THRESHOLD: Long = 5L
