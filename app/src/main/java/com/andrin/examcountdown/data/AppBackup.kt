@@ -33,6 +33,7 @@ data class AppBackup(
     val accessibilityModeEnabled: Boolean = false,
     val simpleModeEnabled: Boolean = true,
     val appLockBiometricEnabled: Boolean = false,
+    val screenshotProtectionEnabled: Boolean = false,
     val showSetupGuideCard: Boolean = true,
     val onboardingDone: Boolean = false,
     val onboardingPromptSeen: Boolean = false,
@@ -41,6 +42,6 @@ data class AppBackup(
     val showSyncStatusStrip: Boolean = true
 ) {
     companion object {
-        const val CURRENT_SCHEMA_VERSION: Int = 9
+        const val CURRENT_SCHEMA_VERSION: Int = 10
     }
 }

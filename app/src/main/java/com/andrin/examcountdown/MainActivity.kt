@@ -1,11 +1,6 @@
 package com.andrin.examcountdown
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
-import android.view.WindowManager
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -13,7 +8,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.core.content.ContextCompat
 import com.andrin.examcountdown.ui.ExamCountdownScreen
 import com.andrin.examcountdown.ui.ExamViewModel
 import com.andrin.examcountdown.ui.HomeTab
@@ -25,17 +19,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 class MainActivity : FragmentActivity() {
     private val startTabRoute = mutableStateOf(HomeTab.EXAMS.route)
 
-    private val notificationPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE
-        )
         updateStartTabFromIntent()
-        requestNotificationPermissionIfNeeded()
         setContent {
             val examViewModel: ExamViewModel = viewModel()
             val accessibilityModeEnabled by examViewModel.accessibilityModeEnabled.collectAsStateWithLifecycle()
@@ -57,17 +43,6 @@ class MainActivity : FragmentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         updateStartTabFromIntent()
-    }
-
-    private fun requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        val granted = ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.POST_NOTIFICATIONS
-        ) == PackageManager.PERMISSION_GRANTED
-        if (!granted) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
     }
 
     private fun updateStartTabFromIntent() {

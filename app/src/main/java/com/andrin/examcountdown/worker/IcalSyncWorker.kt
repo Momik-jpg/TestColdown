@@ -27,12 +27,13 @@ class IcalSyncWorker(
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
         val repository = ExamRepository(applicationContext)
-        val iCalUrl = repository.readIcalUrl() ?: return Result.success()
+        val iCalUrls = repository.readIcalUrls()
+        if (iCalUrls.isEmpty()) return Result.success()
         val importEvents = repository.readImportEventsEnabled()
 
         return try {
-            IcalSyncEngine(applicationContext).syncFromUrl(
-                url = iCalUrl,
+            IcalSyncEngine(applicationContext).syncFromUrls(
+                urls = iCalUrls,
                 emitChangeNotification = true,
                 importEvents = importEvents
             )

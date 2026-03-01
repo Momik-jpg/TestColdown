@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.view.View
 import android.widget.RemoteViews
 import com.andrin.examcountdown.MainActivity
 import com.andrin.examcountdown.R
@@ -60,13 +61,13 @@ class NextExamWidgetProvider : AppWidgetProvider() {
                 )
                 views.setTextViewText(
                     R.id.nextWidgetOpenTimetable,
-                    if (config.mode == WidgetMode.EXAMS) "Stundenplan" else "Prüfungen"
+                    if (config.mode == WidgetMode.EXAMS) "Zum Plan" else "Zu Prüfungen"
                 )
 
                 if (nextItem == null) {
-                    views.setTextViewText(R.id.nextExamTitle, "Keine kommenden Einträge")
-                    views.setTextViewText(R.id.nextExamTime, "Widget konfigurieren oder in der App synchronisieren")
-                    views.setTextViewText(R.id.nextExamCountdown, "")
+                    views.setTextViewText(R.id.nextExamTitle, "Keine Einträge")
+                    views.setTextViewText(R.id.nextExamTime, "App öffnen und jetzt synchronisieren")
+                    views.setViewVisibility(R.id.nextExamCountdown, View.GONE)
                 } else {
                     val kindPrefix = when (nextItem.kind) {
                         WidgetItemKind.EXAM -> ""
@@ -76,6 +77,7 @@ class NextExamWidgetProvider : AppWidgetProvider() {
                     views.setTextViewText(R.id.nextExamTitle, "$kindPrefix${nextItem.title}")
                     views.setTextViewText(R.id.nextExamTime, formatExamDateShort(nextItem.startsAtEpochMillis))
                     views.setTextViewText(R.id.nextExamCountdown, formatCountdown(nextItem.startsAtEpochMillis))
+                    views.setViewVisibility(R.id.nextExamCountdown, View.VISIBLE)
                 }
 
                 val mainRoute = WidgetContentLoader.openTabForConfig(context, widgetId)

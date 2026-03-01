@@ -1,5 +1,12 @@
 <resources>
-    <color name="widget_surface">#122F53</color>
+    <color name="widget_surface">#102D50</color>
     <color name="widget_on_surface">#FFFFFF</color>
-    <color name="widget_muted">#CFE2FF</color>
+    <color name="widget_muted">#D7E7FF</color>
+    <color name="widget_accent">#8ED6FF</color>
+    <color name="widget_badge_bg">#2A69C7</color>
+    <color name="widget_badge_text">#FFFFFF</color>
+    <color name="widget_chip_bg">#2A4F7A</color>
+    <color name="widget_chip_text">#E7F1FF</color>
+    <color name="widget_row_bg">#223F63</color>
+    <color name="widget_row_stroke">#406A97</color>
 </resources>

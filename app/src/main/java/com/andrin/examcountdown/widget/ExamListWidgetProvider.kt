@@ -57,7 +57,7 @@ class ExamListWidgetProvider : AppWidgetProvider() {
                 views.setTextViewText(R.id.listWidgetHeader, WidgetContentLoader.headerLabel(context, widgetId))
                 views.setTextViewText(
                     R.id.listWidgetOpenTimetable,
-                    if (config.mode == WidgetMode.EXAMS) "Stundenplan" else "Prüfungen"
+                    if (config.mode == WidgetMode.EXAMS) "Zum Plan" else "Zu Prüfungen"
                 )
 
                 if (upcoming.isEmpty()) {
@@ -97,11 +97,7 @@ class ExamListWidgetProvider : AppWidgetProvider() {
             rowIds.forEachIndexed { index, rowId ->
                 if (index < items.size) {
                     val item = items[index]
-                    val typePrefix = when (item.kind) {
-                        WidgetItemKind.EXAM -> ""
-                        WidgetItemKind.LESSON -> "[L] "
-                        WidgetItemKind.EVENT -> "[E] "
-                    }
+                    val typePrefix = kindLabel(item.kind)
                     views.setViewVisibility(rowId, View.VISIBLE)
                     views.setTextViewText(
                         rowId,
@@ -118,6 +114,14 @@ class ExamListWidgetProvider : AppWidgetProvider() {
             rowIds.forEach { rowId ->
                 views.setTextViewText(rowId, "")
                 views.setViewVisibility(rowId, View.GONE)
+            }
+        }
+
+        private fun kindLabel(kind: WidgetItemKind): String {
+            return when (kind) {
+                WidgetItemKind.EXAM -> ""
+                WidgetItemKind.LESSON -> "Lektion · "
+                WidgetItemKind.EVENT -> "Event · "
             }
         }
 
