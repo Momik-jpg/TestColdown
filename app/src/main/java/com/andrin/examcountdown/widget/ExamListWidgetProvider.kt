@@ -32,6 +32,16 @@ class ExamListWidgetProvider : AppWidgetProvider() {
         updateWidgets(context, appWidgetManager, appWidgetIds)
     }
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: android.os.Bundle
+    ) {
+        updateWidgets(context, appWidgetManager, intArrayOf(appWidgetId))
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+    }
+
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         appWidgetIds.forEach { widgetId ->
             WidgetPreferences.clearConfig(context, widgetId)
@@ -48,10 +58,11 @@ class ExamListWidgetProvider : AppWidgetProvider() {
             appWidgetIds.forEach { widgetId ->
                 val views = RemoteViews(context.packageName, R.layout.widget_exam_list)
                 val config = WidgetPreferences.readConfig(context, widgetId)
+                val rowLimit = resolveRowLimit(appWidgetManager, widgetId)
                 val upcoming = WidgetContentLoader.loadUpcomingItems(
                     context = context,
                     appWidgetId = widgetId,
-                    limit = 5
+                    limit = rowLimit
                 )
 
                 views.setTextViewText(R.id.listWidgetHeader, WidgetContentLoader.headerLabel(context, widgetId))
@@ -65,7 +76,7 @@ class ExamListWidgetProvider : AppWidgetProvider() {
                     clearRows(views)
                 } else {
                     views.setViewVisibility(R.id.listEmptyState, View.GONE)
-                    bindRows(views, upcoming)
+                    bindRows(views, upcoming, rowLimit)
                 }
 
                 val mainRoute = WidgetContentLoader.openTabForConfig(context, widgetId)
@@ -92,10 +103,10 @@ class ExamListWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun bindRows(views: RemoteViews, items: List<WidgetTimelineItem>) {
-            val rowIds = intArrayOf(R.id.row1, R.id.row2, R.id.row3, R.id.row4, R.id.row5)
+        private fun bindRows(views: RemoteViews, items: List<WidgetTimelineItem>, rowLimit: Int) {
+            val rowIds = allRowIds()
             rowIds.forEachIndexed { index, rowId ->
-                if (index < items.size) {
+                if (index < rowLimit && index < items.size) {
                     val item = items[index]
                     val typePrefix = kindLabel(item.kind)
                     views.setViewVisibility(rowId, View.VISIBLE)
@@ -110,11 +121,31 @@ class ExamListWidgetProvider : AppWidgetProvider() {
         }
 
         private fun clearRows(views: RemoteViews) {
-            val rowIds = intArrayOf(R.id.row1, R.id.row2, R.id.row3, R.id.row4, R.id.row5)
+            val rowIds = allRowIds()
             rowIds.forEach { rowId ->
                 views.setTextViewText(rowId, "")
                 views.setViewVisibility(rowId, View.GONE)
             }
+        }
+
+        private fun allRowIds(): IntArray = intArrayOf(
+            R.id.row1,
+            R.id.row2,
+            R.id.row3,
+            R.id.row4,
+            R.id.row5,
+            R.id.row6,
+            R.id.row7,
+            R.id.row8,
+            R.id.row9,
+            R.id.row10
+        )
+
+        private fun resolveRowLimit(appWidgetManager: AppWidgetManager, widgetId: Int): Int {
+            val options = appWidgetManager.getAppWidgetOptions(widgetId)
+            val maxHeightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
+            if (maxHeightDp <= 0) return 5
+            return ((maxHeightDp - 46) / 26).coerceIn(5, 10)
         }
 
         private fun kindLabel(kind: WidgetItemKind): String {

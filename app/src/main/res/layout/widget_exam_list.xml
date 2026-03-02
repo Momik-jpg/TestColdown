@@ -125,4 +125,74 @@
         android:text="15.03. 08:00  •  Chemie"
         android:textColor="@color/widget_on_surface"
         android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/row6"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:padding="9dp"
+        android:text="18.03. 09:45  •  Biologie"
+        android:textColor="@color/widget_on_surface"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/row7"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:padding="9dp"
+        android:text="21.03. 08:30  •  Informatik"
+        android:textColor="@color/widget_on_surface"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/row8"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:padding="9dp"
+        android:text="24.03. 10:00  •  Wirtschaft"
+        android:textColor="@color/widget_on_surface"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/row9"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:padding="9dp"
+        android:text="27.03. 13:15  •  Geografie"
+        android:textColor="@color/widget_on_surface"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/row10"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:padding="9dp"
+        android:text="31.03. 11:30  •  Musik"
+        android:textColor="@color/widget_on_surface"
+        android:textSize="13sp"
+        android:visibility="gone" />
 </LinearLayout>

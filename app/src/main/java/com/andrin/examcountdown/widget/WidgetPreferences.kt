@@ -12,6 +12,10 @@ enum class WidgetSortMode {
     TYPE_THEN_TIME
 }
 
+const val WIDGET_WINDOW_DAYS_ALL = 3650
+private const val WIDGET_WINDOW_DAYS_MIN = 1
+private const val WIDGET_WINDOW_DAYS_MAX = WIDGET_WINDOW_DAYS_ALL
+
 data class WidgetConfig(
     val mode: WidgetMode = WidgetMode.EXAMS,
     val windowDays: Int = 30,
@@ -30,7 +34,7 @@ object WidgetPreferences {
             ?.let { raw -> WidgetMode.entries.firstOrNull { it.name == raw } }
             ?: WidgetMode.EXAMS
         val windowDays = prefs.getInt("$KEY_WINDOW_DAYS_PREFIX$appWidgetId", 30)
-            .coerceIn(1, 180)
+            .coerceIn(WIDGET_WINDOW_DAYS_MIN, WIDGET_WINDOW_DAYS_MAX)
         val sortMode = prefs.getString("$KEY_SORT_PREFIX$appWidgetId", WidgetSortMode.TIME_ASC.name)
             ?.let { raw -> WidgetSortMode.entries.firstOrNull { it.name == raw } }
             ?: WidgetSortMode.TIME_ASC
@@ -45,7 +49,10 @@ object WidgetPreferences {
         val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
             .putString("$KEY_MODE_PREFIX$appWidgetId", config.mode.name)
-            .putInt("$KEY_WINDOW_DAYS_PREFIX$appWidgetId", config.windowDays.coerceIn(1, 180))
+            .putInt(
+                "$KEY_WINDOW_DAYS_PREFIX$appWidgetId",
+                config.windowDays.coerceIn(WIDGET_WINDOW_DAYS_MIN, WIDGET_WINDOW_DAYS_MAX)
+            )
             .putString("$KEY_SORT_PREFIX$appWidgetId", config.sortMode.name)
             .apply()
     }
