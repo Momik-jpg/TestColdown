@@ -1,17 +1,23 @@
 package com.andrin.examcountdown.ui
 
+import android.Manifest
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
+import android.net.Uri
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -42,12 +48,12 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Schedule
@@ -109,6 +115,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -122,6 +130,7 @@ import com.andrin.examcountdown.data.CollisionRuleSettings
 import com.andrin.examcountdown.data.QuietHoursConfig
 import com.andrin.examcountdown.data.SyncStatus
 import com.andrin.examcountdown.data.SyncDiagnostics
+import com.andrin.examcountdown.data.BackupCrypto
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.model.TimetableChangeEntry
@@ -248,7 +257,7 @@ fun ExamCountdownScreen(
     val lessons by viewModel.lessons.collectAsStateWithLifecycle()
     val events by viewModel.events.collectAsStateWithLifecycle()
     val timetableChanges by viewModel.timetableChanges.collectAsStateWithLifecycle()
-    val savedIcalUrl by viewModel.savedIcalUrl.collectAsStateWithLifecycle()
+    val savedIcalUrls by viewModel.savedIcalUrls.collectAsStateWithLifecycle()
     val importEventsEnabled by viewModel.importEventsEnabled.collectAsStateWithLifecycle()
     val onboardingDone by viewModel.onboardingDone.collectAsStateWithLifecycle()
     val onboardingPromptSeen by viewModel.onboardingPromptSeen.collectAsStateWithLifecycle()
@@ -268,6 +277,7 @@ fun ExamCountdownScreen(
     val showSetupGuideCard by viewModel.showSetupGuideCard.collectAsStateWithLifecycle()
     val appLockEnabled by viewModel.appLockEnabled.collectAsStateWithLifecycle()
     val appLockBiometricEnabled by viewModel.appLockBiometricEnabled.collectAsStateWithLifecycle()
+    val screenshotProtectionEnabled by viewModel.screenshotProtectionEnabled.collectAsStateWithLifecycle()
     val isDarkMode = isSystemInDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
@@ -278,12 +288,20 @@ fun ExamCountdownScreen(
     var showPersonalizationDialog by rememberSaveable { mutableStateOf(false) }
     var showAppLockDialog by rememberSaveable { mutableStateOf(false) }
     var showHelpDialog by rememberSaveable { mutableStateOf(false) }
+    var showPrivacyDialog by rememberSaveable { mutableStateOf(false) }
+    var showBackupExportDialog by rememberSaveable { mutableStateOf(false) }
+    var showBackupImportDialog by rememberSaveable { mutableStateOf(false) }
     var showSyncDiagnosticsDialog by rememberSaveable { mutableStateOf(false) }
     var showChangelogDialog by rememberSaveable { mutableStateOf(false) }
+    var showFullChangelogDialog by rememberSaveable { mutableStateOf(false) }
     var showExportDialog by rememberSaveable { mutableStateOf(false) }
-    var iCalUrl by rememberSaveable { mutableStateOf("") }
+    var studyPlanExam by remember { mutableStateOf<Exam?>(null) }
+    var studyPlanExamPresentation by remember { mutableStateOf<ExamPresentation?>(null) }
+    var iCalUrlPrimary by rememberSaveable { mutableStateOf("") }
+    var iCalUrlSecondary by rememberSaveable { mutableStateOf("") }
     var importEventsToggle by rememberSaveable { mutableStateOf(false) }
-    var onboardingUrl by rememberSaveable { mutableStateOf("") }
+    var onboardingUrlPrimary by rememberSaveable { mutableStateOf("") }
+    var onboardingUrlSecondary by rememberSaveable { mutableStateOf("") }
     var onboardingImportEvents by rememberSaveable { mutableStateOf(false) }
     var onboardingTestedOk by rememberSaveable { mutableStateOf(false) }
     var onboardingInfoMessage by rememberSaveable { mutableStateOf("") }
@@ -293,6 +311,7 @@ fun ExamCountdownScreen(
     var isAppUnlocked by rememberSaveable { mutableStateOf(false) }
     var biometricAutoPromptConsumed by rememberSaveable { mutableStateOf(false) }
     var biometricUnlockError by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingNotificationAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -300,8 +319,50 @@ fun ExamCountdownScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val biometricAvailable = remember(context) { isBiometricUnlockAvailable(context) }
     var pendingBackupJson by remember { mutableStateOf<String?>(null) }
+    var pendingBackupImportRaw by remember { mutableStateOf<String?>(null) }
     var pendingCsvExport by remember { mutableStateOf<Pair<String, String>?>(null) }
     var pendingPdfExport by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
+    var backupExportPassword by rememberSaveable { mutableStateOf("") }
+    var backupImportPassword by rememberSaveable { mutableStateOf("") }
+    val hasUnseenChangelog = lastSeenVersion != BuildConfig.VERSION_NAME
+    val collectIcalUrls: (String, String) -> List<String> = { primary, secondary ->
+        listOf(primary, secondary)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .take(2)
+    }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val action = pendingNotificationAction
+        pendingNotificationAction = null
+        if (granted) {
+            action?.invoke()
+        } else {
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    "Benachrichtigungen sind deaktiviert. Du kannst sie später in den App-Einstellungen erlauben."
+                )
+            }
+        }
+    }
+    val requestNotificationPermissionIfNeeded: (() -> Unit) -> Unit = { onGranted ->
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            onGranted()
+        } else {
+            val granted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (granted) {
+                onGranted()
+            } else {
+                pendingNotificationAction = onGranted
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
 
     val triggerManualRefresh: () -> Unit = {
         isSyncingIcal = true
@@ -386,6 +447,15 @@ fun ExamCountdownScreen(
         onboardingImportEvents = importEventsEnabled
     }
 
+    LaunchedEffect(hostActivity, screenshotProtectionEnabled) {
+        val window = hostActivity?.window ?: return@LaunchedEffect
+        if (screenshotProtectionEnabled) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
+
     val visibleTabs = remember(showTimetableTab, showAgendaTab) {
         buildList {
             add(HomeTab.EXAMS)
@@ -429,18 +499,9 @@ fun ExamCountdownScreen(
                 BufferedReader(stream.reader()).readText()
             } ?: error("Datei konnte nicht gelesen werden.")
         }.onSuccess { raw ->
-            viewModel.importBackupJson(raw) { result ->
-                result.onSuccess {
-                    scope.launch {
-                        snackbarHostState.showSnackbar("Backup importiert.")
-                    }
-                }.onFailure { throwable ->
-                    val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
-                    scope.launch {
-                        snackbarHostState.showSnackbar("Import fehlgeschlagen: $error")
-                    }
-                }
-            }
+            pendingBackupImportRaw = raw
+            backupImportPassword = ""
+            showBackupImportDialog = true
         }.onFailure { throwable ->
             val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
             scope.launch { snackbarHostState.showSnackbar("Datei konnte nicht gelesen werden: $error") }
@@ -487,16 +548,17 @@ fun ExamCountdownScreen(
         }
     }
 
-    LaunchedEffect(preferencesLoaded, onboardingDone, onboardingPromptSeen, savedIcalUrl) {
+    LaunchedEffect(preferencesLoaded, onboardingDone, onboardingPromptSeen, savedIcalUrls) {
         if (!preferencesLoaded) return@LaunchedEffect
 
         val shouldShowOnboarding = !onboardingDone &&
             !onboardingPromptSeen &&
-            savedIcalUrl.isBlank()
+            savedIcalUrls.isEmpty()
 
         if (shouldShowOnboarding) {
             showOnboardingDialog = true
-            onboardingUrl = savedIcalUrl
+            onboardingUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+            onboardingUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
             onboardingImportEvents = importEventsEnabled
             onboardingTestedOk = false
             onboardingInfoMessage = ""
@@ -530,12 +592,37 @@ fun ExamCountdownScreen(
         )
     }
 
+    val activeStudyPlanExam = studyPlanExam
+    val activeStudyPlanPresentation = studyPlanExamPresentation
+    if (activeStudyPlanExam != null && activeStudyPlanPresentation != null) {
+        PlanExamStudySessionsDialog(
+            exam = activeStudyPlanExam,
+            presentation = activeStudyPlanPresentation,
+            onDismiss = {
+                studyPlanExam = null
+                studyPlanExamPresentation = null
+            },
+            onSaveSessions = { sessions ->
+                viewModel.addCustomEvents(sessions)
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        if (sessions.size == 1) "1 Lern-Session erstellt." else "${sessions.size} Lern-Sessions erstellt."
+                    )
+                }
+                studyPlanExam = null
+                studyPlanExamPresentation = null
+            }
+        )
+    }
+
     if (showIcalDialog) {
         IcalImportDialog(
-            url = iCalUrl,
+            primaryUrl = iCalUrlPrimary,
+            secondaryUrl = iCalUrlSecondary,
             includeEvents = importEventsToggle,
             isImporting = isSyncingIcal,
-            onUrlChange = { iCalUrl = it },
+            onPrimaryUrlChange = { iCalUrlPrimary = it },
+            onSecondaryUrlChange = { iCalUrlSecondary = it },
             onIncludeEventsChange = { enabled ->
                 importEventsToggle = enabled
                 viewModel.setImportEventsEnabled(enabled)
@@ -546,7 +633,7 @@ fun ExamCountdownScreen(
             onImport = {
                 isSyncingIcal = true
                 viewModel.importFromIcal(
-                    url = iCalUrl,
+                    urls = collectIcalUrls(iCalUrlPrimary, iCalUrlSecondary),
                     includeEvents = importEventsToggle
                 ) { message ->
                     isSyncingIcal = false
@@ -561,20 +648,25 @@ fun ExamCountdownScreen(
 
     if (showOnboardingDialog) {
         OnboardingDialog(
-            url = onboardingUrl,
+            primaryUrl = onboardingUrlPrimary,
+            secondaryUrl = onboardingUrlSecondary,
             includeEvents = onboardingImportEvents,
             statusMessage = onboardingInfoMessage,
             isBusy = isSyncingIcal,
-            canFinish = onboardingTestedOk && onboardingUrl.isNotBlank(),
-            onUrlChange = { newUrl ->
-                onboardingUrl = newUrl
+            canFinish = onboardingTestedOk && collectIcalUrls(onboardingUrlPrimary, onboardingUrlSecondary).isNotEmpty(),
+            onPrimaryUrlChange = { newUrl ->
+                onboardingUrlPrimary = newUrl
+                onboardingTestedOk = false
+            },
+            onSecondaryUrlChange = { newUrl ->
+                onboardingUrlSecondary = newUrl
                 onboardingTestedOk = false
             },
             onIncludeEventsChange = { onboardingImportEvents = it },
             onTest = {
                 isSyncingIcal = true
                 viewModel.testIcalConnection(
-                    url = onboardingUrl,
+                    urls = collectIcalUrls(onboardingUrlPrimary, onboardingUrlSecondary),
                     includeEvents = onboardingImportEvents
                 ) { ok, message ->
                     isSyncingIcal = false
@@ -585,7 +677,7 @@ fun ExamCountdownScreen(
             onFinish = {
                 isSyncingIcal = true
                 viewModel.completeOnboarding(
-                    url = onboardingUrl,
+                    urls = collectIcalUrls(onboardingUrlPrimary, onboardingUrlSecondary),
                     includeEvents = onboardingImportEvents
                 ) { success, message ->
                     isSyncingIcal = false
@@ -617,8 +709,10 @@ fun ExamCountdownScreen(
                 showReminderSettingsDialog = false
             },
             onSendTestNotification = {
-                viewModel.sendTestNotification { message ->
-                    scope.launch { snackbarHostState.showSnackbar(message) }
+                requestNotificationPermissionIfNeeded {
+                    viewModel.sendTestNotification { message ->
+                        scope.launch { snackbarHostState.showSnackbar(message) }
+                    }
                 }
             },
             onOpenSyncSettings = {
@@ -645,6 +739,10 @@ fun ExamCountdownScreen(
         QuickActionsDialog(
             showSyncStatusStrip = showSyncStatusStrip,
             onDismiss = { showQuickActionsDialog = false },
+            onSyncNow = {
+                showQuickActionsDialog = false
+                triggerManualRefresh()
+            },
             onShowSyncStatusStripChange = { enabled ->
                 viewModel.setShowSyncStatusStrip(enabled)
             },
@@ -657,7 +755,8 @@ fun ExamCountdownScreen(
                 showSyncSettingsDialog = true
             },
             onOpenIcalImport = {
-                iCalUrl = savedIcalUrl
+                iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
                 importEventsToggle = importEventsEnabled
                 showQuickActionsDialog = false
                 showIcalDialog = true
@@ -665,6 +764,10 @@ fun ExamCountdownScreen(
             onOpenHelp = {
                 showQuickActionsDialog = false
                 showHelpDialog = true
+            },
+            onOpenPrivacy = {
+                showQuickActionsDialog = false
+                showPrivacyDialog = true
             },
             onOpenSyncDiagnostics = {
                 showQuickActionsDialog = false
@@ -676,6 +779,7 @@ fun ExamCountdownScreen(
             },
             onOpenChangelog = {
                 showQuickActionsDialog = false
+                viewModel.setLastSeenVersion(BuildConfig.VERSION_NAME)
                 showChangelogDialog = true
             },
             onOpenPersonalization = {
@@ -688,24 +792,14 @@ fun ExamCountdownScreen(
             },
             onExportBackup = {
                 showQuickActionsDialog = false
-                viewModel.exportBackupJson { result ->
-                    result.onSuccess { json ->
-                        pendingBackupJson = json
-                        exportBackupLauncher.launch(
-                            "examcountdown-backup-${System.currentTimeMillis()}.json"
-                        )
-                    }.onFailure { throwable ->
-                        val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Backup fehlgeschlagen: $error")
-                        }
-                    }
-                }
+                backupExportPassword = ""
+                showBackupExportDialog = true
             },
             onImportBackup = {
                 showQuickActionsDialog = false
                 importBackupLauncher.launch(arrayOf("application/json", "text/plain"))
-            }
+            },
+            hasUnseenChangelog = hasUnseenChangelog
         )
     }
 
@@ -749,6 +843,102 @@ fun ExamCountdownScreen(
         )
     }
 
+    if (showPrivacyDialog) {
+        PrivacyDialog(
+            screenshotProtectionEnabled = screenshotProtectionEnabled,
+            onScreenshotProtectionChange = { enabled ->
+                viewModel.setScreenshotProtectionEnabled(enabled)
+            },
+            onDeleteAllData = {
+                viewModel.clearAllLocalData { message ->
+                    scope.launch { snackbarHostState.showSnackbar(message) }
+                }
+            },
+            onDismiss = { showPrivacyDialog = false }
+        )
+    }
+
+    if (showBackupExportDialog) {
+        BackupPasswordDialog(
+            title = "Backup Export",
+            message = "Optional: Passwort setzen, um das Backup zu verschlüsseln.",
+            password = backupExportPassword,
+            confirmLabel = "Exportieren",
+            onPasswordChange = { backupExportPassword = it },
+            onDismiss = { showBackupExportDialog = false },
+            onConfirm = {
+                showBackupExportDialog = false
+                viewModel.exportBackupJson { result ->
+                    result.onSuccess { json ->
+                        runCatching {
+                            if (backupExportPassword.trim().isBlank()) {
+                                json
+                            } else {
+                                BackupCrypto.encrypt(json, backupExportPassword.trim())
+                            }
+                        }.onSuccess { payload ->
+                            pendingBackupJson = payload
+                            val suffix = if (backupExportPassword.trim().isBlank()) "json" else "ecbkp"
+                            exportBackupLauncher.launch(
+                                "examcountdown-backup-${System.currentTimeMillis()}.$suffix"
+                            )
+                        }.onFailure { throwable ->
+                            val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+                            scope.launch { snackbarHostState.showSnackbar("Backup fehlgeschlagen: $error") }
+                        }
+                    }.onFailure { throwable ->
+                        val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+                        scope.launch { snackbarHostState.showSnackbar("Backup fehlgeschlagen: $error") }
+                    }
+                }
+            }
+        )
+    }
+
+    if (showBackupImportDialog) {
+        BackupPasswordDialog(
+            title = "Backup Import",
+            message = "Falls die Datei verschlüsselt ist, Passwort eingeben.",
+            password = backupImportPassword,
+            confirmLabel = "Importieren",
+            onPasswordChange = { backupImportPassword = it },
+            onDismiss = {
+                pendingBackupImportRaw = null
+                showBackupImportDialog = false
+            },
+            onConfirm = {
+                val raw = pendingBackupImportRaw
+                if (raw.isNullOrBlank()) {
+                    showBackupImportDialog = false
+                } else {
+                    val prepared = runCatching {
+                        if (BackupCrypto.isEncryptedPayload(raw)) {
+                            BackupCrypto.decrypt(raw, backupImportPassword.trim())
+                        } else {
+                            raw
+                        }
+                    }
+                    showBackupImportDialog = false
+                    pendingBackupImportRaw = null
+
+                    prepared.onSuccess { decoded ->
+                        viewModel.importBackupJson(decoded) { result ->
+                            result.onSuccess {
+                                scope.launch { snackbarHostState.showSnackbar("Backup importiert.") }
+                            }.onFailure { throwable ->
+                                val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+                                scope.launch { snackbarHostState.showSnackbar("Import fehlgeschlagen: $error") }
+                            }
+                        }
+                    }.onFailure { throwable ->
+                        val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
+                        scope.launch { snackbarHostState.showSnackbar("Backup konnte nicht entschlüsselt werden: $error") }
+                    }
+                }
+            }
+        )
+    }
+
     if (showSyncDiagnosticsDialog) {
         SyncDiagnosticsDialog(
             diagnostics = syncDiagnostics,
@@ -761,8 +951,22 @@ fun ExamCountdownScreen(
         ChangelogDialog(
             versionName = BuildConfig.VERSION_NAME,
             entries = changelogEntriesFor(BuildConfig.VERSION_NAME),
+            onShowFullLog = {
+                showChangelogDialog = false
+                showFullChangelogDialog = true
+            },
             onDismiss = {
                 showChangelogDialog = false
+                viewModel.setLastSeenVersion(BuildConfig.VERSION_NAME)
+            }
+        )
+    }
+
+    if (showFullChangelogDialog) {
+        FullChangelogDialog(
+            versions = changelogTimeline(),
+            onDismiss = {
+                showFullChangelogDialog = false
                 viewModel.setLastSeenVersion(BuildConfig.VERSION_NAME)
             }
         )
@@ -865,18 +1069,24 @@ fun ExamCountdownScreen(
         )
     }
 
-    val backgroundBrush = remember(isDarkMode) {
+    val scheme = MaterialTheme.colorScheme
+    val backgroundBrush = remember(
+        isDarkMode,
+        scheme.background,
+        scheme.surface,
+        scheme.surfaceVariant
+    ) {
         val colors = if (isDarkMode) {
             listOf(
-                Color(0xFF030406),
-                Color(0xFF070A0F),
-                Color(0xFF030406)
+                scheme.background,
+                scheme.surface,
+                scheme.surfaceVariant.copy(alpha = 0.7f)
             )
         } else {
             listOf(
-                Color(0xFFF7F9FC),
-                Color(0xFFF1F5FA),
-                Color(0xFFE9EFF7)
+                scheme.background,
+                scheme.surface,
+                scheme.surfaceVariant.copy(alpha = 0.55f)
             )
         }
         Brush.verticalGradient(colors)
@@ -977,7 +1187,8 @@ fun ExamCountdownScreen(
                     SyncStatusStrip(
                         syncStatus = syncStatus,
                         onRepairIcalLink = {
-                            iCalUrl = savedIcalUrl
+                            iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                            iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
                             importEventsToggle = importEventsEnabled
                             showIcalDialog = true
                         }
@@ -1007,13 +1218,14 @@ fun ExamCountdownScreen(
                     events = events,
                     showCollisionBadges = showExamCollisionBadges,
                     collisionRules = collisionRuleSettings,
-                    hasIcalUrl = savedIcalUrl.isNotBlank(),
+                    hasIcalUrl = savedIcalUrls.isNotEmpty(),
                     hasSyncedOnce = syncStatus.lastSyncAtMillis != null,
                     lastSyncError = syncStatus.lastSyncError,
                     simpleModeEnabled = simpleModeEnabled,
                     showSetupGuideCard = showSetupGuideCard,
                     onOpenIcalImport = {
-                        iCalUrl = savedIcalUrl
+                        iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                        iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
                         importEventsToggle = importEventsEnabled
                         showIcalDialog = true
                     },
@@ -1028,6 +1240,10 @@ fun ExamCountdownScreen(
                         viewModel.setShowSetupGuideCard(false)
                     },
                     onAddClick = { showAddDialog = true },
+                    onPlanStudy = { exam ->
+                        studyPlanExam = exam
+                        studyPlanExamPresentation = buildExamPresentation(exam)
+                    },
                     onDelete = { exam ->
                         viewModel.deleteExam(exam.id)
                         val deletedTitle = buildExamPresentation(exam).title
@@ -1048,9 +1264,10 @@ fun ExamCountdownScreen(
                 HomeTab.TIMETABLE -> TimetableContent(
                     lessons = lessons,
                     changes = timetableChanges,
-                    hasIcalUrl = savedIcalUrl.isNotBlank(),
+                    hasIcalUrl = savedIcalUrls.isNotEmpty(),
                     onOpenIcalImport = {
-                        iCalUrl = savedIcalUrl
+                        iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                        iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
                         importEventsToggle = importEventsEnabled
                         showIcalDialog = true
                     },
@@ -1061,10 +1278,11 @@ fun ExamCountdownScreen(
                     exams = exams,
                     lessons = lessons,
                     events = events,
-                    hasIcalUrl = savedIcalUrl.isNotBlank(),
+                    hasIcalUrl = savedIcalUrls.isNotEmpty(),
                     importEventsEnabled = importEventsEnabled,
                     onOpenIcalImport = {
-                        iCalUrl = savedIcalUrl
+                        iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                        iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
                         importEventsToggle = importEventsEnabled
                         showIcalDialog = true
                     },
@@ -1110,15 +1328,17 @@ fun ExamCountdownScreen(
 
 @Composable
 private fun IcalImportDialog(
-    url: String,
+    primaryUrl: String,
+    secondaryUrl: String,
     includeEvents: Boolean,
     isImporting: Boolean,
-    onUrlChange: (String) -> Unit,
+    onPrimaryUrlChange: (String) -> Unit,
+    onSecondaryUrlChange: (String) -> Unit,
     onIncludeEventsChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     onImport: () -> Unit
 ) {
-    var showUrl by rememberSaveable { mutableStateOf(url.isBlank()) }
+    var showUrl by rememberSaveable { mutableStateOf(primaryUrl.isBlank() && secondaryUrl.isBlank()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1126,9 +1346,9 @@ private fun IcalImportDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
-                    value = url,
-                    onValueChange = onUrlChange,
-                    label = { Text("iCal-URL") },
+                    value = primaryUrl,
+                    onValueChange = onPrimaryUrlChange,
+                    label = { Text("iCal-URL 1") },
                     placeholder = { Text("https://...") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -1154,13 +1374,31 @@ private fun IcalImportDialog(
                         }
                     }
                 )
+                OutlinedTextField(
+                    value = secondaryUrl,
+                    onValueChange = onSecondaryUrlChange,
+                    label = { Text("iCal-URL 2 (optional)") },
+                    placeholder = { Text("https://...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = if (showUrl) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    }
+                )
 
                 Text(
                     text = if (showUrl) {
-                        "Der Link wird lokal verschlüsselt gespeichert."
+                        "Die Links werden lokal verschlüsselt gespeichert."
                     } else {
-                        "Link aus Sicherheitsgründen ausgeblendet. Tippe auf das Auge zum Anzeigen."
+                        "Links sind aus Sicherheitsgründen ausgeblendet. Tippe auf das Auge zum Anzeigen."
                     },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "schulNetz: Agenda > Schüler/-innenpläne > Exports > \"Diesen Plan im iCal Format abonnieren\" > Link kopieren (nicht öffnen). Beispiel: https://www.examplelink.com",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1193,7 +1431,7 @@ private fun IcalImportDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = !isImporting && url.isNotBlank(),
+                enabled = !isImporting && primaryUrl.isNotBlank(),
                 onClick = onImport
             ) {
                 Text(if (isImporting) "Import läuft..." else "Importieren")
@@ -1214,140 +1452,163 @@ private fun IcalImportDialog(
 private fun QuickActionsDialog(
     showSyncStatusStrip: Boolean,
     onDismiss: () -> Unit,
+    onSyncNow: () -> Unit,
     onShowSyncStatusStripChange: (Boolean) -> Unit,
     onOpenReminderSettings: () -> Unit,
     onOpenSyncSettings: () -> Unit,
     onOpenIcalImport: () -> Unit,
     onOpenHelp: () -> Unit,
+    onOpenPrivacy: () -> Unit,
     onOpenSyncDiagnostics: () -> Unit,
     onOpenExport: () -> Unit,
     onOpenChangelog: () -> Unit,
     onOpenPersonalization: () -> Unit,
     onOpenAppLock: () -> Unit,
     onExportBackup: () -> Unit,
-    onImportBackup: () -> Unit
+    onImportBackup: () -> Unit,
+    hasUnseenChangelog: Boolean
 ) {
-    var showAdvancedActions by remember { mutableStateOf(false) }
-    val actionsContentModifier = if (showAdvancedActions) {
-        Modifier
-            .heightIn(max = 460.dp)
-            .verticalScroll(rememberScrollState())
-    } else {
-        Modifier
-    }
+    val scrollState = rememberScrollState()
+    val dialogContainer = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Werkzeuge") },
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    text = "Einstellungen",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Alles Wichtige an einem Ort",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
         text = {
             Column(
-                modifier = actionsContentModifier,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    shape = MaterialTheme.shapes.medium
+                SettingsSectionCard(
+                    title = "Anzeige",
+                    containerColor = dialogContainer
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                            .padding(horizontal = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Sync-Balken anzeigen",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = "Sync-Leiste anzeigen",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Zeigt zuletzt synchronisiert + Status direkt oben.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                         Switch(
                             checked = showSyncStatusStrip,
                             onCheckedChange = onShowSyncStatusStripChange
                         )
                     }
                 }
-                Text(
-                    text = "Schnellzugriff",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                QuickActionPrimaryButton(
-                    text = "iCal-Link verwalten",
-                    icon = Icons.Outlined.CloudDownload,
-                    onClick = onOpenIcalImport
-                )
-                QuickActionPrimaryButton(
-                    text = "Erinnerungen",
-                    icon = Icons.Outlined.NotificationsActive,
-                    onClick = onOpenReminderSettings
-                )
-                QuickActionPrimaryButton(
-                    text = "Auto-Sync",
-                    icon = Icons.Outlined.Sync,
-                    onClick = onOpenSyncSettings
-                )
-                QuickActionPrimaryButton(
-                    text = "Personalisieren",
-                    icon = Icons.Outlined.MoreVert,
-                    onClick = onOpenPersonalization
-                )
-                QuickActionPrimaryButton(
-                    text = "App-Schutz (PIN)",
-                    icon = Icons.Outlined.Lock,
-                    onClick = onOpenAppLock
-                )
-                if (showAdvancedActions) {
-                    OutlinedButton(
-                        onClick = onOpenSyncDiagnostics,
+
+                SettingsSectionCard(
+                    title = "Kalender & Sync",
+                    containerColor = dialogContainer
+                ) {
+                    Button(
+                        onClick = onSyncNow,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.Schedule,
+                            imageVector = Icons.Outlined.Refresh,
                             contentDescription = null,
-                            modifier = Modifier.padding(end = 6.dp)
+                            modifier = Modifier.padding(end = 8.dp)
                         )
-                        Text("Sync-Diagnose")
+                        Text("Jetzt synchronisieren")
                     }
-                    OutlinedButton(
-                        onClick = onOpenExport,
-                        modifier = Modifier.fillMaxWidth()
+                    QuickActionTile(
+                        text = "Kalender verbinden",
+                        subtitle = "iCal-Links prüfen oder ändern",
+                        icon = Icons.Outlined.CloudDownload,
+                        onClick = onOpenIcalImport
+                    )
+                    QuickActionTile(
+                        text = "Benachrichtigungen",
+                        subtitle = "Vorzeiten, Quiet Hours, Test",
+                        icon = Icons.Outlined.NotificationsActive,
+                        onClick = onOpenReminderSettings
+                    )
+                    QuickActionTile(
+                        text = "Automatisch aktualisieren",
+                        subtitle = "Zeitplan und Hintergrund-Sync",
+                        icon = Icons.Outlined.Sync,
+                        onClick = onOpenSyncSettings
+                    )
+                    QuickActionTile(
+                        text = "Sync-Diagnose",
+                        subtitle = "Status, Dauer und Fehlersuche",
+                        icon = Icons.Outlined.Schedule,
+                        onClick = onOpenSyncDiagnostics
+                    )
+                }
+
+                SettingsSectionCard(
+                    title = "Datenschutz & Sicherheit",
+                    containerColor = dialogContainer
+                ) {
+                    QuickActionTile(
+                        text = "App-Schutz (PIN)",
+                        subtitle = "Optional mit Biometrie",
+                        icon = Icons.Outlined.Lock,
+                        onClick = onOpenAppLock
+                    )
+                    QuickActionTile(
+                        text = "Datenschutz",
+                        subtitle = "Sicherheit, Screenshots, lokale Daten",
+                        icon = Icons.Outlined.Lock,
+                        onClick = onOpenPrivacy
+                    )
+                }
+
+                SettingsSectionCard(
+                    title = "Daten",
+                    containerColor = dialogContainer
+                ) {
+                    QuickActionTile(
+                        text = "CSV/PDF Export",
+                        subtitle = "Prüfungen und Agenda exportieren",
+                        icon = Icons.Outlined.CloudDownload,
+                        onClick = onOpenExport
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.CloudDownload,
-                            contentDescription = null,
-                            modifier = Modifier.padding(end = 6.dp)
-                        )
-                        Text("CSV/PDF Export")
-                    }
-                    OutlinedButton(
-                        onClick = onOpenHelp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.HelpOutline,
-                            contentDescription = null,
-                            modifier = Modifier.padding(end = 6.dp)
-                        )
-                        Text("Hilfe")
-                    }
-                    OutlinedButton(
-                        onClick = onOpenChangelog,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.CalendarToday,
-                            contentDescription = null,
-                            modifier = Modifier.padding(end = 6.dp)
-                        )
-                        Text("Was ist neu")
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
+                        FilledTonalButton(
                             onClick = onExportBackup,
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("Backup Export")
                         }
-                        OutlinedButton(
+                        FilledTonalButton(
                             onClick = onImportBackup,
                             modifier = Modifier.weight(1f)
                         ) {
@@ -1355,37 +1616,131 @@ private fun QuickActionsDialog(
                         }
                     }
                 }
+
+                SettingsSectionCard(
+                    title = "App",
+                    containerColor = dialogContainer
+                ) {
+                    QuickActionTile(
+                        text = "App anpassen",
+                        subtitle = "Ansicht und Tabs verwalten",
+                        icon = Icons.Outlined.MoreVert,
+                        onClick = onOpenPersonalization
+                    )
+                    QuickActionTile(
+                        text = "Hilfe",
+                        subtitle = "Kurzanleitung und Troubleshooting",
+                        icon = Icons.Outlined.HelpOutline,
+                        onClick = onOpenHelp
+                    )
+                    QuickActionTile(
+                        text = "Was ist neu",
+                        subtitle = "Neue Funktionen der Version",
+                        icon = Icons.Outlined.CalendarToday,
+                        showAlertBadge = hasUnseenChangelog,
+                        onClick = onOpenChangelog
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Schließen")
             }
-        },
-        dismissButton = {
-            TextButton(onClick = { showAdvancedActions = !showAdvancedActions }) {
-                Text(if (showAdvancedActions) "Weniger Optionen" else "Weitere Optionen")
-            }
         }
     )
 }
 
 @Composable
-private fun QuickActionPrimaryButton(
+private fun SettingsSectionCard(
+    title: String,
+    containerColor: Color,
+    content: @Composable () -> Unit
+) {
+    Surface(
+        color = containerColor,
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            content()
+        }
+    }
+}
+
+@Composable
+private fun QuickActionTile(
     text: String,
+    subtitle: String,
     icon: ImageVector,
+    showAlertBadge: Boolean = false,
     onClick: () -> Unit
 ) {
-    FilledTonalButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        onClick = onClick
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.padding(end = 6.dp)
-        )
-        Text(text)
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (showAlertBadge) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        text = "!",
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            Text(
+                text = "›",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -1565,19 +1920,22 @@ private fun AppUnlockDialog(
 
 @Composable
 private fun OnboardingDialog(
-    url: String,
+    primaryUrl: String,
+    secondaryUrl: String,
     includeEvents: Boolean,
     statusMessage: String,
     isBusy: Boolean,
     canFinish: Boolean,
-    onUrlChange: (String) -> Unit,
+    onPrimaryUrlChange: (String) -> Unit,
+    onSecondaryUrlChange: (String) -> Unit,
     onIncludeEventsChange: (Boolean) -> Unit,
     onTest: () -> Unit,
     onFinish: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var step by rememberSaveable { mutableIntStateOf(0) }
-    var showUrl by rememberSaveable { mutableStateOf(url.isBlank()) }
+    var showUrl by rememberSaveable { mutableStateOf(primaryUrl.isBlank() && secondaryUrl.isBlank()) }
+    val hasAnyUrl = primaryUrl.isNotBlank() || secondaryUrl.isNotBlank()
     val statusColor = when {
         statusMessage.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant
         canFinish -> MaterialTheme.colorScheme.primary
@@ -1605,14 +1963,14 @@ private fun OnboardingDialog(
 
                 if (step == 0) {
                     Text(
-                        text = "Schritt 1: Füge deinen iCal-Link ein.",
+                        text = "Schritt 1: Füge 1-2 iCal-Links ein. schulNetz: Agenda > Schüler/-innenpläne > Exports > \"Diesen Plan im iCal Format abonnieren\" > Link kopieren (nicht öffnen). Beispiel: https://www.examplelink.com",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedTextField(
-                        value = url,
-                        onValueChange = onUrlChange,
-                        label = { Text("iCal-URL") },
+                        value = primaryUrl,
+                        onValueChange = onPrimaryUrlChange,
+                        label = { Text("iCal-URL 1") },
                         placeholder = { Text("https://...") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -1638,12 +1996,25 @@ private fun OnboardingDialog(
                             }
                         }
                     )
+                    OutlinedTextField(
+                        value = secondaryUrl,
+                        onValueChange = onSecondaryUrlChange,
+                        label = { Text("iCal-URL 2 (optional)") },
+                        placeholder = { Text("https://...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = if (showUrl) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        }
+                    )
 
                     Text(
                         text = if (showUrl) {
-                            "Der Link wird lokal verschlüsselt gespeichert."
+                            "Die Links werden lokal verschlüsselt gespeichert."
                         } else {
-                            "Link aus Sicherheitsgründen ausgeblendet."
+                            "Links sind aus Sicherheitsgründen ausgeblendet."
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1690,10 +2061,10 @@ private fun OnboardingDialog(
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(
-                                text = if (url.isBlank()) {
-                                    "Noch kein Link eingegeben"
-                                } else {
-                                    maskUrlForDisplay(url)
+                                text = when {
+                                    !hasAnyUrl -> "Noch kein Link eingegeben"
+                                    secondaryUrl.isBlank() -> "Link 1: ${maskUrlForDisplay(primaryUrl)}"
+                                    else -> "Link 1: ${maskUrlForDisplay(primaryUrl)}\nLink 2: ${maskUrlForDisplay(secondaryUrl)}"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1751,7 +2122,7 @@ private fun OnboardingDialog(
                 when (step) {
                     0 -> {
                         TextButton(
-                            enabled = !isBusy && url.isNotBlank(),
+                            enabled = !isBusy && hasAnyUrl,
                             onClick = { step = 1 }
                         ) {
                             Text("Weiter")
@@ -1760,7 +2131,7 @@ private fun OnboardingDialog(
 
                     1 -> {
                         TextButton(
-                            enabled = !isBusy && url.isNotBlank(),
+                            enabled = !isBusy && hasAnyUrl,
                             onClick = onTest
                         ) {
                             Text(if (isBusy) "Prüfe..." else "Testen")
@@ -1806,72 +2177,28 @@ private fun HelpDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "Schnellstart",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "1) iCal-Link einfügen 2) Verbindung testen 3) Fertig. Danach oben mit dem Pfeil aktualisieren.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    text = "Was danach passiert",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Prüfungen: Liste mit Countdown, Suche und Filter.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    text = "Stundenplan: Lektionen inkl. Verschiebungen und Raumänderungen.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    text = "Events: Gesamtagenda (Prüfungen/Lektionen/Events) nach Zeit.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    text = "Notenrechner: Durchschnitt, Zielnote und Punkte-Rechner.",
-                    style = MaterialTheme.typography.bodySmall
-                )
+                HelpSectionTitle("Schnellstart (2 Minuten)")
+                HelpStepLine("1.", "SchulNetz öffnen -> Agenda -> Schüler/-innenpläne.")
+                HelpStepLine("2.", "Exports öffnen -> \"Diesen Plan im iCal-Format abonnieren\".")
+                HelpStepLine("3.", "iCal-Link kopieren (nicht öffnen).")
+                HelpStepLine("4.", "In der App Link einfügen -> Testen -> Fertig.")
+                HelpStepLine("5.", "Oben auf Aktualisieren tippen.")
 
-                Text(
-                    text = "Tägliche Nutzung",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "1) App öffnen 2) oben auf Aktualisieren tippen 3) offene Prüfungen prüfen.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    text = "Optional: Auto-Sync, Reminder und Export im Menü 'Werkzeuge'.",
-                    style = MaterialTheme.typography.bodySmall
-                )
+                HelpSectionTitle("Was die Tabs machen")
+                HelpBulletLine("Prüfungen: Countdown, Suche, Filter.")
+                HelpBulletLine("Stundenplan: Lektionen mit Verschiebungen und Raumänderungen.")
+                HelpBulletLine("Events: Gesamtagenda nach Zeit.")
+                HelpBulletLine("Notenrechner: Durchschnitt, Zielnote, Punkte-Rechner.")
 
-                Text(
-                    text = "Typische Probleme",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Schwarzer Emulator: AVD kalt neu starten (Cold Boot) und GPU auf Software stellen.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    text = "Sync-Fehler: Link und Internet prüfen. Bei HTTP 410 den iCal-Link im Schulportal neu erstellen.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    text = "Keine Events: In iCal-Einstellungen den Event-Import aktivieren und erneut synchronisieren.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    text = "Daten sichern: Unter Werkzeuge Backup Export/Import verwenden.",
-                    style = MaterialTheme.typography.bodySmall
-                )
+                HelpSectionTitle("Täglich")
+                HelpStepLine("1.", "App öffnen.")
+                HelpStepLine("2.", "Aktualisieren.")
+                HelpStepLine("3.", "Nächste Prüfungen und Lektionen prüfen.")
+
+                HelpSectionTitle("Wenn etwas nicht klappt")
+                HelpBulletLine("Sync-Fehler: Link + Internet prüfen; bei HTTP 410 neuen iCal-Link erstellen.")
+                HelpBulletLine("Keine Events: In iCal-Einstellungen den Event-Import aktivieren.")
+                HelpBulletLine("Backup: Einstellungen -> Backup Export/Import.")
             }
         },
         confirmButton = {
@@ -1880,6 +2207,264 @@ private fun HelpDialog(
             }
         }
     )
+}
+
+@Composable
+private fun HelpSectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold
+    )
+}
+
+@Composable
+private fun HelpStepLine(step: String, text: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = step,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun HelpBulletLine(text: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = "•",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun BackupPasswordDialog(
+    title: String,
+    message: String,
+    password: String,
+    confirmLabel: String,
+    onPasswordChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    var showPassword by rememberSaveable { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Passwort (optional)") },
+                    visualTransformation = if (showPassword) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { showPassword = !showPassword }
+                        ) {
+                            Icon(
+                                imageVector = if (showPassword) {
+                                    Icons.Outlined.VisibilityOff
+                                } else {
+                                    Icons.Outlined.Visibility
+                                },
+                                contentDescription = if (showPassword) {
+                                    "Passwort ausblenden"
+                                } else {
+                                    "Passwort anzeigen"
+                                }
+                            )
+                        }
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Abbrechen")
+            }
+        }
+    )
+}
+
+@Composable
+private fun PrivacyDialog(
+    screenshotProtectionEnabled: Boolean,
+    onScreenshotProtectionChange: (Boolean) -> Unit,
+    onDeleteAllData: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var showDeleteConfirmDialog by rememberSaveable { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Datenschutz") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Kurz erklärt",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Daten bleiben lokal auf deinem Gerät.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = "iCal-Links sind verschlüsselt gespeichert.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = "Für Sync wird nur dein iCal-Link abgerufen.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Text(
+                    text = "Berechtigungen",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Benachrichtigungen werden erst dann angefragt, wenn du Erinnerungen wirklich nutzen willst.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = "Screenshots blockieren",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Aktiviert FLAG_SECURE gegen Mitschnitt in Apps/Recent-Screen.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = screenshotProtectionEnabled,
+                            onCheckedChange = onScreenshotProtectionChange
+                        )
+                    }
+                }
+
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://github.com/Momik-jpg/TestColdown")
+                                )
+                            )
+                        }
+                    }
+                ) {
+                    Text("Datenschutz-Infos öffnen")
+                }
+
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showDeleteConfirmDialog = true }
+                ) {
+                    Text("Alle lokalen Daten löschen")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Schließen")
+            }
+        }
+    )
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text("Lokale Daten löschen?") },
+            text = {
+                Text(
+                    text = "Das entfernt lokale Termine, Einstellungen und iCal-Links auf diesem Gerät. Dieser Schritt kann nicht rückgängig gemacht werden.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        onDeleteAllData()
+                        onDismiss()
+                    }
+                ) {
+                    Text("Löschen")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Abbrechen")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -2246,6 +2831,7 @@ private fun SyncDiagnosticsDialog(
 private fun ChangelogDialog(
     versionName: String,
     entries: List<String>,
+    onShowFullLog: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -2269,6 +2855,54 @@ private fun ChangelogDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Verstanden")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onShowFullLog) {
+                Text("Mehr anzeigen")
+            }
+        }
+    )
+}
+
+@Composable
+private fun FullChangelogDialog(
+    versions: List<ChangelogVersion>,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Update-Log") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                versions.forEachIndexed { index, version ->
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "Version ${version.versionName}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        version.highlights.forEach { entry ->
+                            Text(
+                                text = "• $entry",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                    if (index != versions.lastIndex) {
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Schließen")
             }
         }
     )
@@ -2922,17 +3556,19 @@ private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
     val isCurrent = !isCancelled && nowMillis in lesson.startsAtEpochMillis until lesson.endsAtEpochMillis
     val cardColor = if (isCancelled) {
         MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.28f)
-    } else if (isCurrent) {
-        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.22f)
     } else {
         MaterialTheme.colorScheme.surface
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = cardColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -2959,17 +3595,13 @@ private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                 )
 
                 if (isCurrent) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = "Jetzt",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.tertiary,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
+                    Text(
+                        text = "Jetzt",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
                 }
             }
 
@@ -3278,6 +3910,7 @@ private fun ExamListContent(
     onOpenSyncDiagnostics: () -> Unit,
     onHideSetupGuide: () -> Unit,
     onAddClick: () -> Unit,
+    onPlanStudy: (Exam) -> Unit,
     onDelete: (Exam) -> Unit
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -3535,6 +4168,7 @@ private fun ExamListContent(
                         exam = exam,
                         presentation = info,
                         collisions = collisionMap[exam.id].orEmpty(),
+                        onPlanStudy = { onPlanStudy(exam) },
                         onDelete = { onDelete(exam) }
                     )
                 }
@@ -4105,6 +4739,7 @@ private fun ExamCard(
     exam: Exam,
     presentation: ExamPresentation,
     collisions: List<ExamCollision>,
+    onPlanStudy: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -4158,10 +4793,16 @@ private fun ExamCard(
                     text = presentation.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.fillMaxWidth(0.85f),
+                    modifier = Modifier.weight(1f),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+                IconButton(onClick = onPlanStudy) {
+                    Icon(
+                        imageVector = Icons.Outlined.Schedule,
+                        contentDescription = "Lern-Sessions planen"
+                    )
+                }
                 IconButton(onClick = onDelete) {
                     Icon(imageVector = Icons.Outlined.Delete, contentDescription = "Löschen")
                 }
@@ -4239,6 +4880,268 @@ private fun ExamCard(
             }
         }
     }
+}
+
+@Composable
+private fun PlanExamStudySessionsDialog(
+    exam: Exam,
+    presentation: ExamPresentation,
+    onDismiss: () -> Unit,
+    onSaveSessions: (List<SchoolEvent>) -> Unit
+) {
+    val context = LocalContext.current
+    val schoolZone = remember { ZoneId.of("Europe/Zurich") }
+    val storageKey = remember(exam.id) { exam.id }
+
+    var studyStartWeeksBeforeRaw by rememberSaveable(storageKey) { mutableStateOf("3") }
+    var studyDurationMinutesRaw by rememberSaveable(storageKey) { mutableStateOf("60") }
+    var studySessionCountRaw by rememberSaveable(storageKey) { mutableStateOf("10") }
+    var studyWeekdayValuesRaw by rememberSaveable(storageKey) { mutableStateOf("1,2,3,7") }
+    var studyStartMinutesOfDay by rememberSaveable(storageKey) { mutableIntStateOf(17 * 60) }
+    var studyValidationError by rememberSaveable(storageKey) { mutableStateOf<String?>(null) }
+
+    val studyDurationPreview = studyDurationMinutesRaw.toIntOrNull()
+    val studyStartWeeksPreview = studyStartWeeksBeforeRaw.toIntOrNull()
+    val studySessionCountPreview = studySessionCountRaw.toIntOrNull()
+    val selectedStudyWeekdays = remember(studyWeekdayValuesRaw) {
+        studyWeekdayValuesRaw
+            .split(',')
+            .mapNotNull { it.trim().toIntOrNull() }
+            .filter { it in 1..7 }
+            .distinct()
+            .sorted()
+            .map { DayOfWeek.of(it) }
+    }
+
+    val studyPreviewCount = remember(
+        presentation.subject,
+        presentation.title,
+        exam.location,
+        exam.startsAtEpochMillis,
+        studyStartWeeksPreview,
+        studyDurationPreview,
+        studySessionCountPreview,
+        selectedStudyWeekdays,
+        studyStartMinutesOfDay
+    ) {
+        if (
+            studyStartWeeksPreview == null ||
+            studyDurationPreview == null ||
+            studySessionCountPreview == null ||
+            selectedStudyWeekdays.isEmpty()
+        ) {
+            null
+        } else {
+            buildExamStudySessions(
+                subject = presentation.subject,
+                examTitle = presentation.title,
+                examLocation = exam.location,
+                examStartsAtMillis = exam.startsAtEpochMillis,
+                startWeeksBefore = studyStartWeeksPreview,
+                durationMinutes = studyDurationPreview,
+                targetSessions = studySessionCountPreview,
+                weekdays = selectedStudyWeekdays.toSet(),
+                startMinutesOfDay = studyStartMinutesOfDay,
+                schoolZone = schoolZone
+            ).size
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Lern-Sessions planen") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = presentation.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Prüfung: ${formatExamDate(exam.startsAtEpochMillis)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                OutlinedTextField(
+                    value = studyStartWeeksBeforeRaw,
+                    onValueChange = {
+                        studyStartWeeksBeforeRaw = it.filter(Char::isDigit).take(2)
+                    },
+                    label = { Text("Start vor Prüfung (Wochen)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+
+                OutlinedTextField(
+                    value = studyDurationMinutesRaw,
+                    onValueChange = {
+                        studyDurationMinutesRaw = it.filter(Char::isDigit).take(3)
+                    },
+                    label = { Text("Dauer pro Session (Min)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+
+                OutlinedTextField(
+                    value = studySessionCountRaw,
+                    onValueChange = {
+                        studySessionCountRaw = it.filter(Char::isDigit).take(3)
+                    },
+                    label = { Text("Anzahl Sessions") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+
+                Text(
+                    text = "Wochentage",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    studyWeekdayOptions().forEach { option ->
+                        val isSelected = option.dayOfWeek in selectedStudyWeekdays
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                val nextValues = selectedStudyWeekdays
+                                    .map { it.value }
+                                    .toMutableSet()
+                                if (isSelected) {
+                                    nextValues.remove(option.dayOfWeek.value)
+                                } else {
+                                    nextValues.add(option.dayOfWeek.value)
+                                }
+                                studyWeekdayValuesRaw = nextValues
+                                    .toList()
+                                    .sorted()
+                                    .joinToString(",")
+                            },
+                            label = { Text(option.shortLabel) }
+                        )
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        openTimePicker(
+                            context = context,
+                            initialMinutesOfDay = studyStartMinutesOfDay,
+                            onPicked = { picked -> studyStartMinutesOfDay = picked }
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Session-Uhrzeit: ${formatMinutesOfDay(studyStartMinutesOfDay)}")
+                }
+
+                val previewText = when {
+                    studyPreviewCount == null -> null
+                    studyPreviewCount == 0 -> "Aktuell würden keine Lern-Sessions vor der Prüfung entstehen."
+                    studyPreviewCount == 1 -> "Es wird 1 Lern-Session erstellt."
+                    studySessionCountPreview != null && studyPreviewCount < studySessionCountPreview ->
+                        "Es passen nur $studyPreviewCount von ${studySessionCountPreview} Sessions in den Zeitraum."
+                    else -> "Es werden $studyPreviewCount Lern-Sessions erstellt."
+                }
+                previewText?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                studyValidationError?.let { error ->
+                    Text(
+                        text = error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val startWeeksBefore = studyStartWeeksBeforeRaw.toIntOrNull()
+                    val durationMinutes = studyDurationMinutesRaw.toIntOrNull()
+                    val targetSessions = studySessionCountRaw.toIntOrNull()
+                    val selectedWeekdays = studyWeekdayValuesRaw
+                        .split(',')
+                        .mapNotNull { it.trim().toIntOrNull() }
+                        .filter { it in 1..7 }
+                        .distinct()
+                        .sorted()
+                        .map { DayOfWeek.of(it) }
+                        .toSet()
+
+                    when {
+                        startWeeksBefore == null || startWeeksBefore !in 1..26 -> {
+                            studyValidationError = "Bitte 1 bis 26 Wochen wählen."
+                            return@TextButton
+                        }
+                        durationMinutes == null || durationMinutes !in 15..240 -> {
+                            studyValidationError = "Bitte 15 bis 240 Minuten wählen."
+                            return@TextButton
+                        }
+                        targetSessions == null || targetSessions !in 1..400 -> {
+                            studyValidationError = "Anzahl Sessions: bitte 1 bis 400."
+                            return@TextButton
+                        }
+                        selectedWeekdays.isEmpty() -> {
+                            studyValidationError = "Wähle mindestens einen Wochentag."
+                            return@TextButton
+                        }
+                        else -> {
+                            val sessions = buildExamStudySessions(
+                                subject = presentation.subject,
+                                examTitle = presentation.title,
+                                examLocation = exam.location,
+                                examStartsAtMillis = exam.startsAtEpochMillis,
+                                startWeeksBefore = startWeeksBefore,
+                                durationMinutes = durationMinutes,
+                                targetSessions = targetSessions,
+                                weekdays = selectedWeekdays,
+                                startMinutesOfDay = studyStartMinutesOfDay,
+                                schoolZone = schoolZone
+                            )
+                            if (sessions.isEmpty()) {
+                                studyValidationError = "Keine Lern-Sessions vor der Prüfung möglich. Prüfe Tage/Uhrzeit."
+                                return@TextButton
+                            }
+                            if (sessions.size < targetSessions) {
+                                studyValidationError = "Es passen nur ${sessions.size} von $targetSessions Sessions bis zur Prüfung."
+                                return@TextButton
+                            }
+                            studyValidationError = null
+                            onSaveSessions(sessions)
+                            onDismiss()
+                        }
+                    }
+                }
+            ) {
+                Text("Erstellen")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Abbrechen")
+            }
+        }
+    )
 }
 
 @Composable
@@ -4395,11 +5298,14 @@ private fun AddExamDialog(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
                         text = "Benachrichtigung aktiv",
-                        style = MaterialTheme.typography.bodyLarge
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Switch(
                         checked = reminderEnabled,
@@ -4446,11 +5352,14 @@ private fun AddExamDialog(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
                             text = "Exakte Erinnerungszeit",
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Switch(
                             checked = exactReminderEnabled,
@@ -4502,13 +5411,16 @@ private fun AddExamDialog(
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 text = "Lern-Sessions planen",
                                 style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Switch(
                                 checked = studyPlanEnabled,
@@ -4848,10 +5760,15 @@ private fun ReminderSettingsDialog(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Stille Zeiten aktiv")
+                    Text(
+                        text = "Stille Zeiten aktiv",
+                        modifier = Modifier.weight(1f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     Switch(
                         checked = enabled,
                         onCheckedChange = { enabled = it }
@@ -4991,13 +5908,23 @@ private fun SyncSettingsDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     listOf(30L, 60L, 180L, 360L).forEach { quick ->
                         OutlinedButton(
                             onClick = { intervalRaw = quick.toString() },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.width(84.dp),
+                            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 10.dp)
                         ) {
-                            Text("$quick")
+                            Text(
+                                text = "$quick",
+                                maxLines = 1,
+                                softWrap = false
+                            )
                         }
                     }
                 }
@@ -5026,29 +5953,179 @@ private fun SyncSettingsDialog(
     )
 }
 
+private data class ChangelogVersion(
+    val versionName: String,
+    val highlights: List<String>
+)
+
 private fun changelogEntriesFor(versionName: String): List<String> {
-    return when (versionName) {
-        "1.6.0" -> listOf(
-            "Neue 'Erste Schritte'-Karte im Prüfungs-Tab mit klarer nächster Aktion.",
-            "Bessere In-App-Hilfe: Was jeder Tab macht + täglicher Ablauf.",
-            "Schneller Zugriff auf Einrichtung/Sync direkt aus der Start-Hilfe.",
-            "Fehlermeldungen sichtbarer für schnellere Problemlösung.",
-            "Allgemeine Bedienung und Orientierung verbessert."
-        )
-        "1.5.0" -> listOf(
-            "Sync-Diagnose mit letzter Dauer, HTTP-Status und klarer Fehlerursache.",
-            "Delta-Sync per ETag/Last-Modified für stabilere und sparsamere Synchronisierung.",
-            "Kollisionsregeln: Lektion/Event getrennt, nur anderes Fach, echte Zeitüberschneidung.",
-            "Widget-Konfiguration pro Widget: Modus, Zeitraum und Sortierung.",
-            "Barrierefreiheit-Modus mit größerer Schrift und höherem Kontrast.",
-            "CSV/PDF-Export für Prüfungen und Stundenplan.",
-            "In-App Changelog nach App-Updates."
-        )
-        else -> listOf(
+    val normalized = normalizeVersionName(versionName)
+    return changelogTimeline()
+        .firstOrNull { it.versionName == normalized }
+        ?.highlights
+        ?: listOf(
             "Neue Version mit Verbesserungen für Sync, UI und Stabilität.",
-            "Details findest du in README und den Release Notes auf GitHub."
+            "Mehr Details findest du im vollständigen Update-Log."
         )
-    }
+}
+
+private fun normalizeVersionName(versionName: String): String {
+    return versionName.trim()
+        .removePrefix("v")
+        .substringBefore("-")
+}
+
+private fun changelogTimeline(): List<ChangelogVersion> {
+    return listOf(
+        ChangelogVersion(
+            versionName = "1.6.6",
+            highlights = listOf(
+                "Was ist neu: Button 'Mehr anzeigen' öffnet jetzt den vollständigen Update-Verlauf.",
+                "Neues Update-Log zeigt Änderungen von Version 1.0.0 bis heute in der App."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.5",
+            highlights = listOf(
+                "Kalender-Badges verbessert (lesbarer bei vielen Einträgen).",
+                "Hilfe-Texte klarer geschrieben und Widget-Ansicht responsiver gemacht."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.4",
+            highlights = listOf(
+                "UI-Polish in mehreren Screens.",
+                "Datenschutz-Hinweise vereinfacht und iCal-Anleitung ergänzt."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.3",
+            highlights = listOf(
+                "Agenda-Monatsansicht und Tagesansicht ausgebaut.",
+                "Eigene wiederkehrende Events und Lern-Sessions hinzugefügt."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.2",
+            highlights = listOf(
+                "Sicherheits-Setup erweitert (Security Policy, Dependabot, CodeQL).",
+                "Biometrie-Entsperrung mit CryptoObject-Prüfung gehärtet."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.1",
+            highlights = listOf(
+                "School-ready UX verbessert und optionalen App-Schutz ergänzt.",
+                "Setup-Hilfe ein-/ausschaltbar gemacht und Stundenplan-Layout poliert."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.0",
+            highlights = listOf(
+                "Onboarding klarer gemacht und Erste-Schritte-Führung verbessert."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.5.0",
+            highlights = listOf(
+                "Sync-Diagnose, Delta-Sync (ETag/Last-Modified) und bessere Fehlersichtbarkeit.",
+                "Widget-Konfiguration, Barrierefreiheit sowie CSV/PDF-Export ergänzt."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.4.0",
+            highlights = listOf(
+                "Agenda-Events importiert und Personalisierung erweitert."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.3.3",
+            highlights = listOf(
+                "Sync-Härtung, Backup-Sicherheit und Reminder-Verhalten verbessert."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.3.2",
+            highlights = listOf(
+                "Prüfungs-Suche optimiert und Sync-Status-Leiste schaltbar gemacht."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.3.1",
+            highlights = listOf(
+                "Werkzeuge in das Top-Menü verschoben und Prüfungsansicht vereinfacht."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.3.0",
+            highlights = listOf(
+                "Prüfungs-UX mit Suche/Überblick verbessert.",
+                "Jetzt/Nächste-Lektion-Ansicht für den Stundenplan ergänzt."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.2.0",
+            highlights = listOf(
+                "Sync, Facherkennung und Benachrichtigungen verbessert."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.1.2",
+            highlights = listOf(
+                "Release-Workflow: KEY_PASSWORD als optional unterstützt."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.1.1",
+            highlights = listOf(
+                "Release-Signing robuster gemacht (sicherer Fallback)."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.1.0",
+            highlights = listOf(
+                "Change-Feed, Backup, Quiet Hours, Widgets und Noten-Kategorien ergänzt.",
+                "Onboarding-Popup nur noch einmal pro Gerät angezeigt."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.0.5",
+            highlights = listOf(
+                "CI/CD-Workflow für APK-Ausgabe robuster gemacht."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.0.4",
+            highlights = listOf(
+                "GitHub-Actions-Pfade korrigiert und Stundenplan-UX verbessert."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.0.3",
+            highlights = listOf(
+                "Kleines Stabilitäts-Update ohne größere UI-Änderung."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.0.2",
+            highlights = listOf(
+                "schulNetz-iCal-Import eingeführt (inkl. Prüfungsfilter).",
+                "Stundenplan verbessert: Verschiebungen, Raumwechsel und Doppel-Lektionen."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.0.1",
+            highlights = listOf(
+                "GitHub-Workflow-Fix: gradlew unter Linux korrekt ausführbar."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.0.0",
+            highlights = listOf(
+                "Erste Version mit automatischem GitHub-Release-APK-Workflow."
+            )
+        )
+    )
 }
 
 private fun buildExamsCsv(exams: List<Exam>): String {

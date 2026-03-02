@@ -38,12 +38,13 @@ Android-App für Prüfungen, Stundenplan, Events, Benachrichtigungen und Widgets
 - Stille Zeiten und Snooze sind unterstützt.
 
 ## Backup
-- Über Menü `Werkzeuge`:
+- Über Menü `Einstellungen`:
   - `Backup Export`
   - `Backup Import`
 
 ## Weitere Doku
 - Schüler-Kurzanleitung: `docs/kurzanleitung-schueler.md`
+- iCal mit Bild: `docs/ical-link-anleitung-mit-bild.md`
 - Troubleshooting: `docs/troubleshooting.md`
 - School-Ready Betrieb/QA: `docs/school-ready.md`
 

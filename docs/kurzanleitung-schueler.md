@@ -14,10 +14,10 @@
 - `Events`: Alle Einträge im Kalender prüfen.
 
 ## 3) Benachrichtigungen
-- In `Werkzeuge -> Benachrichtigungen` stille Zeiten setzen.
+- In `Einstellungen -> Benachrichtigungen` stille Zeiten setzen.
 - Beim Erstellen einer Prüfung mehrere Vorlaufzeiten eintragen.
 - Optional exakte Erinnerungszeit setzen.
 
 ## 4) Backup
-- `Werkzeuge -> Backup Export` für Sicherung.
-- `Werkzeuge -> Backup Import` für Wiederherstellung.
+- `Einstellungen -> Backup Export` für Sicherung.
+- `Einstellungen -> Backup Import` für Wiederherstellung.

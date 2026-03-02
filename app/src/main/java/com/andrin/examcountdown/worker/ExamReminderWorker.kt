@@ -66,16 +66,15 @@ class ExamReminderWorker(
 
             ExamNotificationManager.ensureChannel(context)
 
-            val baseText = if (location.isNullOrBlank()) {
-                "Start: ${formatExamDate(startsAtMillis)}"
-            } else {
-                "Start: ${formatExamDate(startsAtMillis)} · $location"
-            }
-            val contentText = if (reminderLabel.isNullOrBlank()) {
-                baseText
-            } else {
-                "$baseText · $reminderLabel"
-            }
+            val startText = formatExamDate(startsAtMillis)
+            val compactLine = listOfNotNull(
+                startText,
+                location?.trim()?.takeIf { it.isNotBlank() }
+            ).joinToString(" • ")
+            val statusText = reminderLabel
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.replace("Snooze", "Erneut")
 
             val openAppIntent = Intent(context, MainActivity::class.java)
             val openAppPendingIntent = PendingIntent.getActivity(
@@ -86,12 +85,22 @@ class ExamReminderWorker(
             )
             val now = System.currentTimeMillis()
             val remainingMillis = startsAtMillis - now
+            val bigText = buildString {
+                append("Start: $startText")
+                location?.trim()?.takeIf { it.isNotBlank() }?.let {
+                    append("\nOrt: $it")
+                }
+                statusText?.let {
+                    append("\nHinweis: $it")
+                }
+            }
 
             val notification = NotificationCompat.Builder(context, ExamNotificationManager.CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification_exam)
-                .setContentTitle("Erinnerung: $title")
-                .setContentText(contentText)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
+                .setContentTitle(title)
+                .setContentText(compactLine)
+                .setSubText(statusText ?: "Prüfungs-Erinnerung")
+                .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
                 .setContentIntent(openAppPendingIntent)
@@ -99,7 +108,7 @@ class ExamReminderWorker(
             if (remainingMillis > 10L * 60L * 1000L) {
                 notification.addAction(
                     R.drawable.ic_notification_exam,
-                    "In 10 Min",
+                    "10 Min später",
                     createSnoozePendingIntent(
                         context = context,
                         examId = examId,
@@ -114,7 +123,7 @@ class ExamReminderWorker(
             if (remainingMillis > 30L * 60L * 1000L) {
                 notification.addAction(
                     R.drawable.ic_notification_exam,
-                    "In 30 Min",
+                    "30 Min später",
                     createSnoozePendingIntent(
                         context = context,
                         examId = examId,

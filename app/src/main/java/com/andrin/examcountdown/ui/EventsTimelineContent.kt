@@ -7,8 +7,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarToday
@@ -112,6 +115,8 @@ private data class DayKindSummary(
     val hasLesson: Boolean,
     val hasEvent: Boolean
 )
+
+private const val AGENDA_MONTH_DAY_CELL_ASPECT_RATIO = 0.80f
 
 @Composable
 private fun EventControlsSectionLabel(text: String) {
@@ -518,6 +523,7 @@ private fun AgendaMonthContent(
     val leadingEmpty = firstDayOfMonth.dayOfWeek.value - 1
     val totalCells = leadingEmpty + month.lengthOfMonth()
     val weekRows = (totalCells + 6) / 7
+    val previousMonth = remember(month) { month.minusMonths(1) }
     val weekdayLabels = remember { listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So") }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -527,7 +533,7 @@ private fun AgendaMonthContent(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(
@@ -597,8 +603,8 @@ private fun AgendaMonthContent(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 6.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            .padding(horizontal = 4.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         weekdayLabels.forEach { label ->
                             Text(
@@ -615,7 +621,7 @@ private fun AgendaMonthContent(
                 repeat(weekRows) { rowIndex ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         repeat(7) { weekdayIndex ->
                             val cellIndex = rowIndex * 7 + weekdayIndex
@@ -636,18 +642,20 @@ private fun AgendaMonthContent(
                                     hasExam = kindSummary.hasExam,
                                     hasLesson = kindSummary.hasLesson,
                                     hasEvent = kindSummary.hasEvent,
-                                    dayTimeBounds = dayTimeBounds[day],
-                                    schoolZone = schoolZone,
                                     onClick = {
                                         selectedEpochDay = day.toEpochDay()
                                         onOpenDay(day)
                                     }
                                 )
                             } else {
-                                Spacer(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(74.dp)
+                                val outsideDayNumber = if (dayNumber < 1) {
+                                    previousMonth.lengthOfMonth() + dayNumber
+                                } else {
+                                    dayNumber - month.lengthOfMonth()
+                                }
+                                CalendarOutsideDayCell(
+                                    modifier = Modifier.weight(1f),
+                                    dayNumber = outsideDayNumber
                                 )
                             }
                         }
@@ -707,8 +715,6 @@ private fun CalendarDayCell(
     hasExam: Boolean,
     hasLesson: Boolean,
     hasEvent: Boolean,
-    dayTimeBounds: Pair<Long, Long>?,
-    schoolZone: ZoneId,
     onClick: () -> Unit
 ) {
     val containerColor = when {
@@ -724,9 +730,9 @@ private fun CalendarDayCell(
 
     Surface(
         modifier = modifier
-            .height(82.dp)
+            .aspectRatio(AGENDA_MONTH_DAY_CELL_ASPECT_RATIO)
             .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.small,
+        shape = MaterialTheme.shapes.medium,
         color = containerColor,
         border = BorderStroke(1.dp, borderColor)
     ) {
@@ -743,69 +749,48 @@ private fun CalendarDayCell(
             ) {
                 Text(
                     text = day.dayOfMonth.toString(),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                 )
-                if (isToday) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.primary,
-                                shape = CircleShape
-                            )
-                    )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isToday) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = CircleShape
+                                )
+                        )
+                    }
                 }
             }
             if (itemCount > 0) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    if (hasExam) {
-                        DayKindDot(color = MaterialTheme.colorScheme.primary)
-                    }
-                    if (hasLesson) {
-                        DayKindDot(color = MaterialTheme.colorScheme.tertiary)
-                    }
-                    if (hasEvent) {
-                        DayKindDot(color = MaterialTheme.colorScheme.secondary)
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.secondaryContainer
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(1.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "$itemCount",
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
+                        if (hasExam) {
+                            DayKindDot(color = MaterialTheme.colorScheme.primary)
+                        }
+                        if (hasLesson) {
+                            DayKindDot(color = MaterialTheme.colorScheme.tertiary)
+                        }
+                        if (hasEvent) {
+                            DayKindDot(color = MaterialTheme.colorScheme.secondary)
+                        }
                     }
-                }
-                val bounds = dayTimeBounds
-                val timeText = if (bounds == null) {
-                    "ganztägig"
-                } else {
-                    val start = Instant.ofEpochMilli(bounds.first)
-                        .atZone(schoolZone)
-                        .toLocalTime()
-                        .format(DateTimeFormatter.ofPattern("HH:mm"))
-                    val end = Instant.ofEpochMilli(bounds.second)
-                        .atZone(schoolZone)
-                        .toLocalTime()
-                        .format(DateTimeFormatter.ofPattern("HH:mm"))
-                    "$start-$end"
-                }
-                if (isSelected || isToday) {
-                    Text(
-                        text = timeText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                    DayCountBadge(
+                        itemCount = itemCount,
+                        modifier = Modifier.padding(end = 1.dp, bottom = 1.dp)
                     )
                 }
             }
@@ -814,10 +799,66 @@ private fun CalendarDayCell(
 }
 
 @Composable
+private fun DayCountBadge(
+    itemCount: Int,
+    modifier: Modifier = Modifier
+) {
+    val compactText = if (itemCount >= 9) "9+" else itemCount.toString()
+    val minWidth = if (compactText.length > 1) 24.dp else 16.dp
+    Surface(
+        modifier = modifier.defaultMinSize(minWidth = minWidth, minHeight = 14.dp),
+        shape = RoundedCornerShape(percent = 50),
+        color = MaterialTheme.colorScheme.secondaryContainer
+    ) {
+        Box(
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = compactText,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Clip
+            )
+        }
+    }
+}
+
+@Composable
+private fun CalendarOutsideDayCell(
+    modifier: Modifier = Modifier,
+    dayNumber: Int
+) {
+    Surface(
+        modifier = modifier.aspectRatio(AGENDA_MONTH_DAY_CELL_ASPECT_RATIO),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            contentAlignment = Alignment.TopStart
+        ) {
+            Text(
+                text = dayNumber.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+            )
+        }
+    }
+}
+
+@Composable
 private fun DayKindDot(color: Color) {
     Box(
         modifier = Modifier
-            .size(6.dp)
+            .size(4.dp)
             .background(color = color, shape = CircleShape)
     )
 }

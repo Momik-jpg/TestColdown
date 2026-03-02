@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_card_background"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="14dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -19,26 +19,33 @@
             android:layout_weight="1"
             android:text="Kommende Prüfungen"
             android:textColor="@color/widget_muted"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/listWidgetOpenTimetable"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
-            android:text="Stundenplan"
-            android:textColor="@color/widget_muted"
-            android:textSize="11sp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/widget_chip_background"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:text="Zum Plan"
+            android:textColor="@color/widget_chip_text"
+            android:textSize="10sp"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/listWidgetRefresh"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="↻"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:background="@drawable/widget_chip_background"
+            android:gravity="center"
+            android:text="⟳"
             android:textColor="@color/widget_on_surface"
-            android:textSize="15sp"
+            android:textSize="14sp"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -47,7 +54,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:text="Noch keine Prüfungen"
+        android:background="@drawable/widget_row_background"
+        android:padding="10dp"
+        android:text="Keine Einträge in diesem Zeitraum"
         android:textColor="@color/widget_on_surface"
         android:textSize="14sp"
         android:visibility="gone" />
@@ -57,53 +66,133 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
+        android:background="@drawable/widget_row_background"
         android:ellipsize="end"
         android:maxLines="1"
+        android:padding="9dp"
         android:text="27.02. 08:00  •  Deutsch"
         android:textColor="@color/widget_on_surface"
-        android:textSize="14sp" />
+        android:textSize="13sp" />
 
     <TextView
         android:id="@+id/row2"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
         android:ellipsize="end"
         android:maxLines="1"
+        android:padding="9dp"
         android:text="03.03. 10:15  •  Mathematik"
         android:textColor="@color/widget_on_surface"
-        android:textSize="14sp" />
+        android:textSize="13sp" />
 
     <TextView
         android:id="@+id/row3"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
         android:ellipsize="end"
         android:maxLines="1"
+        android:padding="9dp"
         android:text="07.03. 09:00  •  Geschichte"
         android:textColor="@color/widget_on_surface"
-        android:textSize="14sp" />
+        android:textSize="13sp" />
 
     <TextView
         android:id="@+id/row4"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
         android:ellipsize="end"
         android:maxLines="1"
+        android:padding="9dp"
         android:text="12.03. 13:30  •  Englisch"
         android:textColor="@color/widget_on_surface"
-        android:textSize="14sp" />
+        android:textSize="13sp" />
 
     <TextView
         android:id="@+id/row5"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
         android:ellipsize="end"
         android:maxLines="1"
+        android:padding="9dp"
         android:text="15.03. 08:00  •  Chemie"
         android:textColor="@color/widget_on_surface"
-        android:textSize="14sp" />
+        android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/row6"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:padding="9dp"
+        android:text="18.03. 09:45  •  Biologie"
+        android:textColor="@color/widget_on_surface"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/row7"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:padding="9dp"
+        android:text="21.03. 08:30  •  Informatik"
+        android:textColor="@color/widget_on_surface"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/row8"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:padding="9dp"
+        android:text="24.03. 10:00  •  Wirtschaft"
+        android:textColor="@color/widget_on_surface"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/row9"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:padding="9dp"
+        android:text="27.03. 13:15  •  Geografie"
+        android:textColor="@color/widget_on_surface"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/row10"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_row_background"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:padding="9dp"
+        android:text="31.03. 11:30  •  Musik"
+        android:textColor="@color/widget_on_surface"
+        android:textSize="13sp"
+        android:visibility="gone" />
 </LinearLayout>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="260" viewBox="0 0 900 260" role="img" aria-labelledby="title desc">
+  <title id="title">Beispiel: schulNetz iCal Dialog</title>
+  <desc id="desc">Anonyme Beispielansicht des Dialogs Kalender abonnieren mit Beispiel-Link.</desc>
+  <rect x="1" y="1" width="898" height="258" rx="8" fill="#f5f7fb" stroke="#cad4e4" stroke-width="2"/>
+  <text x="36" y="54" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#111827">Kalender abonnieren</text>
+  <text x="36" y="98" font-family="Arial, sans-serif" font-size="26" fill="#4b5563">Sie können Ihren Kalender mit folgendem Link abonnieren:</text>
+  <a href="https://www.examplelink.com">
+    <text x="36" y="146" font-family="Arial, sans-serif" font-size="32" fill="#0f4aa3">https://www.examplelink.com</text>
+  </a>
+  <text x="782" y="226" font-family="Arial, sans-serif" font-size="24" fill="#1f2937">ABBRECHEN</text>
+</svg>

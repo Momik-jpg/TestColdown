@@ -22,7 +22,11 @@ object WidgetContentLoader {
     fun loadUpcomingItems(context: Context, appWidgetId: Int, limit: Int): List<WidgetTimelineItem> {
         val config = WidgetPreferences.readConfig(context, appWidgetId)
         val now = System.currentTimeMillis()
-        val windowEnd = now + config.windowDays.coerceIn(1, 180) * 24L * 60L * 60L * 1000L
+        val windowEnd = if (config.windowDays >= WIDGET_WINDOW_DAYS_ALL) {
+            Long.MAX_VALUE
+        } else {
+            now + config.windowDays.coerceAtLeast(1) * 24L * 60L * 60L * 1000L
+        }
 
         val items = runBlocking {
             val repository = ExamRepository(context.applicationContext)
@@ -87,10 +91,15 @@ object WidgetContentLoader {
 
     fun headerLabel(context: Context, appWidgetId: Int): String {
         val config = WidgetPreferences.readConfig(context, appWidgetId)
-        return if (config.mode == WidgetMode.EXAMS) {
-            "Prüfungen (${config.windowDays}T)"
+        val windowLabel = if (config.windowDays >= WIDGET_WINDOW_DAYS_ALL) {
+            "Alle"
         } else {
-            "Agenda (${config.windowDays}T)"
+            "${config.windowDays} Tage"
+        }
+        return if (config.mode == WidgetMode.EXAMS) {
+            "Prüfungen · $windowLabel"
+        } else {
+            "Agenda · $windowLabel"
         }
     }
 
