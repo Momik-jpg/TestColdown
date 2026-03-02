@@ -139,11 +139,11 @@ private fun WidgetConfigScreen(
             ) {
                 Text("Zeitraum", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(7, 30, 90).forEach { days ->
+                    listOf(7, 30, 90, WIDGET_WINDOW_DAYS_ALL).forEach { days ->
                         FilterChip(
                             selected = windowDays == days,
                             onClick = { windowDays = days },
-                            label = { Text("$days Tage") }
+                            label = { Text(if (days == WIDGET_WINDOW_DAYS_ALL) "Alle" else "$days Tage") }
                         )
                     }
                 }

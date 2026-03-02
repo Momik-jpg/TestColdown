@@ -99,7 +99,7 @@ object ExamReminderScheduler {
             .putString(ExamReminderWorker.KEY_TITLE, title)
             .putString(ExamReminderWorker.KEY_LOCATION, location)
             .putLong(ExamReminderWorker.KEY_STARTS_AT, startsAtMillis)
-            .putString(ExamReminderWorker.KEY_REMINDER_LABEL, "Snooze (${delay} Min)")
+            .putString(ExamReminderWorker.KEY_REMINDER_LABEL, "Erneut in ${delay} Min")
             .build()
 
         val request = OneTimeWorkRequestBuilder<ExamReminderWorker>()
