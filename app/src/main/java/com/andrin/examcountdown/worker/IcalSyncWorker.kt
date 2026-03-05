@@ -45,6 +45,14 @@ object IcalSyncScheduler {
     private const val IMMEDIATE_WORK_NAME = "ical-sync-immediate"
     private val scheduleScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    // UPDATE is intentional for periodic work: when interval/constraints change via settings,
+    // we must replace the existing periodic request. Singleflight safety is guaranteed by
+    // SyncCoordinator mutex and syncNow KEEP dedupe for one-time runs.
+    internal val PERIODIC_POLICY: ExistingPeriodicWorkPolicy = ExistingPeriodicWorkPolicy.UPDATE
+    internal val IMMEDIATE_POLICY: ExistingWorkPolicy = ExistingWorkPolicy.KEEP
+    internal fun periodicWorkName(): String = PERIODIC_WORK_NAME
+    internal fun immediateWorkName(): String = IMMEDIATE_WORK_NAME
+
     fun schedule(context: Context, repeatIntervalMinutes: Long = ExamRepository.DEFAULT_SYNC_INTERVAL_MINUTES) {
         val interval = repeatIntervalMinutes.coerceIn(15L, 12L * 60L)
         val request = PeriodicWorkRequestBuilder<IcalSyncWorker>(interval, TimeUnit.MINUTES)
@@ -54,7 +62,7 @@ object IcalSyncScheduler {
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             PERIODIC_WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
+            PERIODIC_POLICY,
             request
         )
     }
@@ -77,7 +85,7 @@ object IcalSyncScheduler {
 
         WorkManager.getInstance(context).enqueueUniqueWork(
             IMMEDIATE_WORK_NAME,
-            ExistingWorkPolicy.KEEP,
+            IMMEDIATE_POLICY,
             request
         )
     }
