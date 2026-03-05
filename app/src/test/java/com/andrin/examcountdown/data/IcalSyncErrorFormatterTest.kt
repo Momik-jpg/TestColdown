@@ -25,4 +25,16 @@ class IcalSyncErrorFormatterTest {
         assertFalse(shouldRetrySync(IOException("HTTP-401")))
         assertFalse(shouldRetrySync(IllegalArgumentException("bad")))
     }
+
+    @Test
+    fun retriesOnThrottlingAndTimeoutHttpCodes() {
+        assertTrue(shouldRetrySync(IOException("HTTP-408")))
+        assertTrue(shouldRetrySync(IOException("HTTP-429")))
+        assertFalse(shouldRetrySync(IOException("HTTP-403")))
+    }
+
+    @Test
+    fun retriesOnGenericIoWithoutStatus() {
+        assertTrue(shouldRetrySync(IOException("connection reset by peer")))
+    }
 }

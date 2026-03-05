@@ -20,6 +20,10 @@ sealed interface SyncExecutionResult {
 object SyncCoordinator {
     private val syncMutex = Mutex()
 
+    internal suspend fun <T> withSingleflightLockForTest(block: suspend () -> T): T {
+        return syncMutex.withLock { block() }
+    }
+
     suspend fun syncFromRepository(
         context: Context,
         emitChangeNotification: Boolean

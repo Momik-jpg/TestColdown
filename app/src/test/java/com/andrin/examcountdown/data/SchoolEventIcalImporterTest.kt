@@ -2,10 +2,12 @@ package com.andrin.examcountdown.data
 
 import com.andrin.examcountdown.model.SchoolEventType
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -94,5 +96,67 @@ class SchoolEventIcalImporterTest {
         assertEquals(1, result.events.size)
         val expectedStart = eventDate.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
         assertEquals(expectedStart, result.events.first().startsAtEpochMillis)
+    }
+
+    @Test
+    fun importFromRaw_dstTimedEventInZurich_hasCorrectStartAndEnd() = runBlocking {
+        val raw = """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            UID:dst-timed
+            SUMMARY:DST Schulanlass
+            DTSTART;TZID=Europe/Zurich:20260329T003000
+            DTEND;TZID=Europe/Zurich:20260329T043000
+            END:VEVENT
+            END:VCALENDAR
+        """.trimIndent()
+
+        val result = importer.importFromRaw(raw)
+
+        assertEquals(1, result.events.size)
+        val event = result.events.first()
+        val expectedStart = LocalDateTime.of(2026, 3, 29, 0, 30)
+            .atZone(zone)
+            .toInstant()
+            .toEpochMilli()
+        val expectedEnd = LocalDateTime.of(2026, 3, 29, 4, 30)
+            .atZone(zone)
+            .toInstant()
+            .toEpochMilli()
+
+        assertEquals(expectedStart, event.startsAtEpochMillis)
+        assertEquals(expectedEnd, event.endsAtEpochMillis)
+        assertFalse(event.isAllDay)
+    }
+
+    @Test
+    fun importFromRaw_dstAllDayEventInZurich_usesLocalDayBoundaryForEnd() = runBlocking {
+        val raw = """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            UID:dst-allday
+            SUMMARY:Sportferien
+            DTSTART;VALUE=DATE:20260328
+            DTEND;VALUE=DATE:20260330
+            END:VEVENT
+            END:VCALENDAR
+        """.trimIndent()
+
+        val result = importer.importFromRaw(raw)
+
+        assertEquals(1, result.events.size)
+        val event = result.events.first()
+        val expectedStart = LocalDate.of(2026, 3, 28)
+            .atStartOfDay(zone)
+            .toInstant()
+            .toEpochMilli()
+        val expectedEnd = LocalDate.of(2026, 3, 30)
+            .atStartOfDay(zone)
+            .toInstant()
+            .toEpochMilli()
+
+        assertTrue(event.isAllDay)
+        assertEquals(expectedStart, event.startsAtEpochMillis)
+        assertEquals(expectedEnd, event.endsAtEpochMillis)
     }
 }
