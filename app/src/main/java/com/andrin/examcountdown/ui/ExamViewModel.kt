@@ -19,10 +19,15 @@ import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.reminder.ExamNotificationManager
 import com.andrin.examcountdown.reminder.ExamReminderScheduler
+import com.andrin.examcountdown.ui.tabs.state.AgendaTabUiState
+import com.andrin.examcountdown.ui.tabs.state.ExamsTabUiState
+import com.andrin.examcountdown.ui.tabs.state.GradesTabUiState
+import com.andrin.examcountdown.ui.tabs.state.TimetableTabUiState
 import com.andrin.examcountdown.worker.IcalSyncScheduler
 import com.andrin.examcountdown.worker.ExamReminderWorker
 import com.andrin.examcountdown.widget.WidgetUpdater
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -160,6 +165,85 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = false
     )
+    val examsTabUiState = combine(
+        combine(exams, lessons, events) { exams, lessons, events ->
+            Triple(exams, lessons, events)
+        },
+        combine(showExamCollisionBadges, collisionRuleSettings) { showCollisionBadges, collisionRules ->
+            showCollisionBadges to collisionRules
+        },
+        combine(savedIcalUrls, syncStatus) { urls, syncStatus ->
+            urls to syncStatus
+        },
+        combine(simpleModeEnabled, showSetupGuideCard) { simpleModeEnabled, showSetupGuideCard ->
+            simpleModeEnabled to showSetupGuideCard
+        }
+    ) { examData, collisionData, syncData, preferenceData ->
+        val (exams, lessons, events) = examData
+        val (showCollisionBadges, collisionRules) = collisionData
+        val (urls, syncStatus) = syncData
+        val (simpleModeEnabled, showSetupGuideCard) = preferenceData
+
+        ExamsTabUiState(
+            exams = exams,
+            lessons = lessons,
+            events = events,
+            showCollisionBadges = showCollisionBadges,
+            collisionRules = collisionRules,
+            hasIcalUrl = urls.isNotEmpty(),
+            hasSyncedOnce = syncStatus.lastSyncAtMillis != null,
+            lastSyncError = syncStatus.lastSyncError,
+            simpleModeEnabled = simpleModeEnabled,
+            showSetupGuideCard = showSetupGuideCard
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = ExamsTabUiState()
+    )
+    val timetableTabUiState = combine(
+        lessons,
+        timetableChanges,
+        savedIcalUrls
+    ) { lessons, changes, urls ->
+        TimetableTabUiState(
+            lessons = lessons,
+            changes = changes,
+            hasIcalUrl = urls.isNotEmpty()
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = TimetableTabUiState()
+    )
+    val agendaTabUiState = combine(
+        exams,
+        lessons,
+        events,
+        savedIcalUrls,
+        importEventsEnabled
+    ) { exams, lessons, events, urls, importEventsEnabled ->
+        AgendaTabUiState(
+            exams = exams,
+            lessons = lessons,
+            events = events,
+            hasIcalUrl = urls.isNotEmpty(),
+            importEventsEnabled = importEventsEnabled
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = AgendaTabUiState()
+    )
+    val gradesTabUiState = preferencesLoaded
+        .combine(savedIcalUrls) { preferencesLoaded, _ ->
+            GradesTabUiState(preferencesLoaded = preferencesLoaded)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = GradesTabUiState()
+        )
 
     init {
         viewModelScope.launch {
