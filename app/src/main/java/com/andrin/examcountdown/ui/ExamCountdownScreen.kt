@@ -288,6 +288,9 @@ fun ExamCountdownScreen(
     var pendingCsvExport by remember { mutableStateOf<Pair<String, String>?>(null) }
     var pendingPdfExport by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
     var backupExportPassword by rememberSaveable { mutableStateOf("") }
+    var backupExportAllowUnencrypted by rememberSaveable { mutableStateOf(false) }
+    var backupExportUnencryptedWarningConfirmed by rememberSaveable { mutableStateOf(false) }
+    var showBackupExportUnencryptedWarningDialog by rememberSaveable { mutableStateOf(false) }
     var backupImportPassword by rememberSaveable { mutableStateOf("") }
     val hasUnseenChangelog = lastSeenVersion != BuildConfig.VERSION_NAME
     val collectIcalUrls: (String, String) -> List<String> = { primary, secondary ->
@@ -758,6 +761,9 @@ fun ExamCountdownScreen(
             onExportBackup = {
                 showQuickActionsDialog = false
                 backupExportPassword = ""
+                backupExportAllowUnencrypted = false
+                backupExportUnencryptedWarningConfirmed = false
+                showBackupExportUnencryptedWarningDialog = false
                 showBackupExportDialog = true
             },
             onImportBackup = {
@@ -824,26 +830,46 @@ fun ExamCountdownScreen(
     }
 
     if (showBackupExportDialog) {
-        BackupPasswordDialog(
+        BackupExportDialog(
             title = "Backup Export",
-            message = "Optional: Passwort setzen, um das Backup zu verschlüsseln.",
+            message = "Standard: verschlüsselt (empfohlen). Unverschlüsselt nur mit Warn-Bestätigung.",
             password = backupExportPassword,
+            allowUnencrypted = backupExportAllowUnencrypted,
             confirmLabel = "Exportieren",
             onPasswordChange = { backupExportPassword = it },
+            onAllowUnencryptedChange = {
+                backupExportAllowUnencrypted = it
+                if (!it) {
+                    backupExportUnencryptedWarningConfirmed = false
+                    showBackupExportUnencryptedWarningDialog = false
+                }
+            },
             onDismiss = { showBackupExportDialog = false },
-            onConfirm = {
+            onConfirm = confirmExport@{
+                val exportMode = resolveBackupExportMode(
+                    userRequestedUnencrypted = backupExportAllowUnencrypted,
+                    userConfirmedUnencryptedWarning = backupExportUnencryptedWarningConfirmed
+                )
+                if (
+                    exportMode == BackupExportMode.ENCRYPTED &&
+                    backupExportAllowUnencrypted &&
+                    !backupExportUnencryptedWarningConfirmed
+                ) {
+                    showBackupExportUnencryptedWarningDialog = true
+                    return@confirmExport
+                }
                 showBackupExportDialog = false
                 viewModel.exportBackupJson { result ->
                     result.onSuccess { json ->
                         runCatching {
-                            if (backupExportPassword.trim().isBlank()) {
+                            if (exportMode == BackupExportMode.UNENCRYPTED) {
                                 json
                             } else {
                                 BackupCrypto.encrypt(json, backupExportPassword.trim())
                             }
                         }.onSuccess { payload ->
                             pendingBackupJson = payload
-                            val suffix = if (backupExportPassword.trim().isBlank()) "json" else "ecbkp"
+                            val suffix = if (exportMode == BackupExportMode.UNENCRYPTED) "json" else "ecbkp"
                             exportBackupLauncher.launch(
                                 "examcountdown-backup-${System.currentTimeMillis()}.$suffix"
                             )
@@ -855,6 +881,40 @@ fun ExamCountdownScreen(
                         val error = throwable.message?.takeIf { it.isNotBlank() } ?: "Unbekannter Fehler"
                         scope.launch { snackbarHostState.showSnackbar("Backup fehlgeschlagen: $error") }
                     }
+                }
+            }
+        )
+    }
+
+    if (showBackupExportUnencryptedWarningDialog) {
+        AlertDialog(
+            onDismissRequest = { showBackupExportUnencryptedWarningDialog = false },
+            title = { Text("Warnung") },
+            text = {
+                Text(
+                    "Unverschlüsseltes Backup kann sensible Daten enthalten. " +
+                        "Datei nur in vertrauenswürdiger Umgebung speichern."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        backupExportUnencryptedWarningConfirmed = true
+                        showBackupExportUnencryptedWarningDialog = false
+                    }
+                ) {
+                    Text("Trotzdem unverschlüsselt")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        backupExportAllowUnencrypted = false
+                        backupExportUnencryptedWarningConfirmed = false
+                        showBackupExportUnencryptedWarningDialog = false
+                    }
+                ) {
+                    Text("Abbrechen")
                 }
             }
         )
@@ -2130,6 +2190,103 @@ private fun HelpBulletLine(text: String) {
             modifier = Modifier.weight(1f)
         )
     }
+}
+
+@Composable
+private fun BackupExportDialog(
+    title: String,
+    message: String,
+    password: String,
+    allowUnencrypted: Boolean,
+    confirmLabel: String,
+    onPasswordChange: (String) -> Unit,
+    onAllowUnencryptedChange: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    var showPassword by rememberSaveable { mutableStateOf(false) }
+    val passwordRequired = !allowUnencrypted
+    val canConfirm = allowUnencrypted || password.trim().isNotBlank()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = {
+                        Text(
+                            if (passwordRequired) {
+                                "Passwort (erforderlich)"
+                            } else {
+                                "Passwort (optional)"
+                            }
+                        )
+                    },
+                    visualTransformation = if (showPassword) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { showPassword = !showPassword }
+                        ) {
+                            Icon(
+                                imageVector = if (showPassword) {
+                                    Icons.Outlined.VisibilityOff
+                                } else {
+                                    Icons.Outlined.Visibility
+                                },
+                                contentDescription = if (showPassword) {
+                                    "Passwort ausblenden"
+                                } else {
+                                    "Passwort anzeigen"
+                                }
+                            )
+                        }
+                    }
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Unverschlüsselt exportieren",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked = allowUnencrypted,
+                        onCheckedChange = onAllowUnencryptedChange
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = canConfirm
+            ) {
+                Text(confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Abbrechen")
+            }
+        }
+    )
 }
 
 @Composable
