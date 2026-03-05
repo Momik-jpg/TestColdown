@@ -131,6 +131,7 @@ import com.andrin.examcountdown.data.QuietHoursConfig
 import com.andrin.examcountdown.data.SyncStatus
 import com.andrin.examcountdown.data.SyncDiagnostics
 import com.andrin.examcountdown.data.BackupCrypto
+import com.andrin.examcountdown.domain.usecase.PlanStudySessionsUseCase
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.model.TimetableChangeEntry
@@ -143,11 +144,7 @@ import com.andrin.examcountdown.ui.tabs.TimetableTabContent
 import com.andrin.examcountdown.ui.tabs.events.AgendaTabEvent
 import com.andrin.examcountdown.ui.tabs.events.ExamsTabEvent
 import com.andrin.examcountdown.ui.tabs.events.TimetableTabEvent
-import com.andrin.examcountdown.util.CollisionSource
 import com.andrin.examcountdown.util.CollisionRules
-import com.andrin.examcountdown.util.ExamCollision
-import com.andrin.examcountdown.util.collisionsByExam
-import com.andrin.examcountdown.util.detectExamCollisions
 import com.andrin.examcountdown.util.formatCountdown
 import com.andrin.examcountdown.util.formatCompactDay
 import com.andrin.examcountdown.util.formatDayHeader
@@ -163,7 +160,6 @@ import java.net.URI
 import java.security.KeyStore
 import java.time.LocalTime
 import java.time.DayOfWeek
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
@@ -3682,59 +3678,20 @@ private fun buildExamStudySessions(
     startMinutesOfDay: Int,
     schoolZone: ZoneId
 ): List<SchoolEvent> {
-    if (startWeeksBefore <= 0 || durationMinutes <= 0 || targetSessions <= 0 || weekdays.isEmpty()) {
-        return emptyList()
-    }
-
-    val nowMillis = System.currentTimeMillis()
-    val examStart = Instant.ofEpochMilli(examStartsAtMillis).atZone(schoolZone)
-    val examDate = examStart.toLocalDate()
-    val firstDateByRule = examDate.minusWeeks(startWeeksBefore.toLong())
-    val todayDate = Instant.ofEpochMilli(nowMillis).atZone(schoolZone).toLocalDate()
-    val startDate = if (firstDateByRule.isBefore(todayDate)) todayDate else firstDateByRule
-    val lastDate = examDate.minusDays(1)
-    if (lastDate.isBefore(startDate)) return emptyList()
-
-    val hour = (startMinutesOfDay / 60).coerceIn(0, 23)
-    val minute = (startMinutesOfDay % 60).coerceIn(0, 59)
-    val baseTitle = buildString {
-        append("Lernen")
-        subject.orEmpty().trim().takeIf { it.isNotBlank() }?.let {
-            append(" $it")
-        }
-        append(": ${examTitle.trim()}")
-    }
-    val safeLocation = examLocation.orEmpty().trim().takeIf { it.isNotBlank() }
-    val seed = System.currentTimeMillis()
-    val maxCount = targetSessions.coerceIn(1, 400)
-
-    val sessions = mutableListOf<SchoolEvent>()
-    var currentDate = startDate
-    var index = 0
-    while (!currentDate.isAfter(lastDate) && index < 500 && sessions.size < maxCount) {
-        if (currentDate.dayOfWeek in weekdays) {
-            val sessionStart = currentDate
-                .atTime(hour, minute)
-                .atZone(schoolZone)
-            val startsAtMillis = sessionStart.toInstant().toEpochMilli()
-            if (startsAtMillis > nowMillis && startsAtMillis < examStartsAtMillis) {
-                sessions += SchoolEvent(
-                    id = "manual-study:$seed:$index",
-                    title = baseTitle,
-                    type = com.andrin.examcountdown.model.SchoolEventType.INFO,
-                    location = safeLocation,
-                    description = "Lern-Session für ${examTitle.trim()}",
-                    startsAtEpochMillis = startsAtMillis,
-                    endsAtEpochMillis = sessionStart.plusMinutes(durationMinutes.toLong()).toInstant().toEpochMilli(),
-                    isAllDay = false,
-                    source = "manual"
-                )
-            }
-        }
-        currentDate = currentDate.plusDays(1)
-        index += 1
-    }
-    return sessions
+    return PlanStudySessionsUseCase().invoke(
+        PlanStudySessionsUseCase.Params(
+            subject = subject,
+            examTitle = examTitle,
+            examLocation = examLocation,
+            examStartsAtMillis = examStartsAtMillis,
+            startWeeksBefore = startWeeksBefore,
+            durationMinutes = durationMinutes,
+            targetSessions = targetSessions,
+            weekdays = weekdays,
+            startMinutesOfDay = startMinutesOfDay,
+            schoolZone = schoolZone
+        )
+    )
 }
 
 private data class ReminderSeriesLeadTimes(

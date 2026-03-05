@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.domain.usecase.DetectScheduleCollisionsUseCase
 import com.andrin.examcountdown.ui.ExamPresentation
 import com.andrin.examcountdown.ui.buildExamPresentation
 import com.andrin.examcountdown.ui.isIcalLinkRepairRecommended
@@ -55,8 +56,6 @@ import com.andrin.examcountdown.ui.tabs.state.ExamsTabUiState
 import com.andrin.examcountdown.util.CollisionSource
 import com.andrin.examcountdown.util.ExamCollision
 import com.andrin.examcountdown.util.CollisionRules
-import com.andrin.examcountdown.util.collisionsByExam
-import com.andrin.examcountdown.util.detectExamCollisions
 import com.andrin.examcountdown.util.formatCountdown
 import com.andrin.examcountdown.util.formatExamDate
 import com.andrin.examcountdown.util.formatReminderDateTime
@@ -92,6 +91,7 @@ fun ExamsTabContent(
     val lastSyncError = state.lastSyncError
     val simpleModeEnabled = state.simpleModeEnabled
     val showSetupGuideCard = state.showSetupGuideCard
+    val detectScheduleCollisions = remember { DetectScheduleCollisionsUseCase() }
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedSubject by rememberSaveable { mutableStateOf(SUBJECT_FILTER_ALL) }
@@ -182,18 +182,20 @@ fun ExamsTabContent(
         if (!showCollisionBadgesEffective) {
             emptyMap()
         } else {
-            val collisions = detectExamCollisions(
-                exams = exams,
-                lessons = lessons,
-                events = events,
-                rules = CollisionRules(
-                    includeLessonCollisions = collisionRules.includeLessonCollisions,
-                    includeEventCollisions = collisionRules.includeEventCollisions,
-                    onlyDifferentSubject = collisionRules.onlyDifferentSubject,
-                    requireExactTimeOverlap = collisionRules.requireExactTimeOverlap
+            detectScheduleCollisions(
+                DetectScheduleCollisionsUseCase.Params(
+                    exams = exams,
+                    lessons = lessons,
+                    events = events,
+                    rules = CollisionRules(
+                        includeLessonCollisions = collisionRules.includeLessonCollisions,
+                        includeEventCollisions = collisionRules.includeEventCollisions,
+                        onlyDifferentSubject = collisionRules.onlyDifferentSubject,
+                        requireExactTimeOverlap = collisionRules.requireExactTimeOverlap
+                    )
                 )
             )
-            collisionsByExam(collisions)
+                .byExam
         }
     }
     val collisionCount = remember(collisionMap) {
