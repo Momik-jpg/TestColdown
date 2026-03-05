@@ -74,4 +74,25 @@ class SchoolEventIcalImporterTest {
         assertEquals(1, result.events.size)
         assertEquals(SchoolEventType.HOLIDAY, result.events.first().type)
     }
+
+    @Test
+    fun importFromRaw_usesSchoolTimezoneWhenTzidMissing() = runBlocking {
+        val eventDate = LocalDate.now(zone).plusDays(5)
+        val raw = """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            UID:event-no-tz
+            SUMMARY:Infoveranstaltung
+            DTSTART:${eventDate.atTime(9, 0).format(dateTimeFormatter)}
+            DTEND:${eventDate.atTime(10, 0).format(dateTimeFormatter)}
+            END:VEVENT
+            END:VCALENDAR
+        """.trimIndent()
+
+        val result = importer.importFromRaw(raw)
+
+        assertEquals(1, result.events.size)
+        val expectedStart = eventDate.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        assertEquals(expectedStart, result.events.first().startsAtEpochMillis)
+    }
 }

@@ -33,11 +33,11 @@ class TimetableIcalImporter {
     }
 
     private fun importFromRawInternal(raw: String): TimetableImportResult {
-        val windowStart = LocalDate.now()
+        val windowStart = LocalDate.now(schoolZone)
             .atStartOfDay(schoolZone)
             .toInstant()
             .toEpochMilli()
-        val windowEnd = LocalDate.now()
+        val windowEnd = LocalDate.now(schoolZone)
             .plusDays(35)
             .atTime(23, 59, 59)
             .atZone(schoolZone)
@@ -492,8 +492,8 @@ class TimetableIcalImporter {
     }
 
     private fun resolveZone(tzid: String?): ZoneId {
-        if (tzid.isNullOrBlank()) return ZoneId.systemDefault()
-        return runCatching { ZoneId.of(tzid) }.getOrDefault(ZoneId.systemDefault())
+        if (tzid.isNullOrBlank()) return schoolZone
+        return runCatching { ZoneId.of(tzid) }.getOrDefault(schoolZone)
     }
 
     private fun unescapeIcalText(value: String): String {

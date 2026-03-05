@@ -17,6 +17,8 @@ data class IcalImportResult(
 )
 
 class IcalImporter {
+    private val schoolZone: ZoneId = ZoneId.of("Europe/Zurich")
+
     suspend fun importFromUrl(url: String): IcalImportResult = withContext(Dispatchers.IO) {
         val normalizedUrl = normalizeAndValidateIcalUrl(url)
         val raw = IcalHttpClient.download(normalizedUrl)
@@ -235,8 +237,8 @@ class IcalImporter {
     }
 
     private fun resolveZone(tzid: String?): ZoneId {
-        if (tzid.isNullOrBlank()) return ZoneId.systemDefault()
-        return runCatching { ZoneId.of(tzid) }.getOrDefault(ZoneId.systemDefault())
+        if (tzid.isNullOrBlank()) return schoolZone
+        return runCatching { ZoneId.of(tzid) }.getOrDefault(schoolZone)
     }
 
     internal fun parseExamSummaryForDisplay(rawSummary: String): ExamSummaryInfo {

@@ -18,7 +18,6 @@ class ExamListWidgetProvider : AppWidgetProvider() {
         when (intent.action) {
             ACTION_WIDGET_REFRESH -> {
                 IcalSyncScheduler.syncNow(context.applicationContext)
-                WidgetUpdater.updateAll(context.applicationContext)
             }
         }
         super.onReceive(context, intent)

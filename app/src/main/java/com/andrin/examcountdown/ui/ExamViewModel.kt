@@ -11,6 +11,8 @@ import com.andrin.examcountdown.data.ExamRepository
 import com.andrin.examcountdown.data.IcalSyncEngine
 import com.andrin.examcountdown.data.SyncDiagnostics
 import com.andrin.examcountdown.data.QuietHoursConfig
+import com.andrin.examcountdown.data.SyncCoordinator
+import com.andrin.examcountdown.data.SyncExecutionResult
 import com.andrin.examcountdown.data.SyncStatus
 import com.andrin.examcountdown.data.toSyncErrorMessage
 import com.andrin.examcountdown.model.Exam
@@ -371,19 +373,24 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         emitChangeNotification: Boolean,
         includeEvents: Boolean
     ): Pair<Boolean, String> {
-        return runCatching {
-            val result = syncEngine.syncFromUrls(
+        return when (
+            val result = SyncCoordinator.syncExplicit(
+                context = getApplication(),
                 urls = urls,
-                emitChangeNotification = emitChangeNotification,
-                importEvents = includeEvents
+                includeEvents = includeEvents,
+                emitChangeNotification = emitChangeNotification
             )
-            IcalSyncScheduler.scheduleFromRepository(getApplication())
-            WidgetUpdater.updateAll(getApplication())
-            true to result.summaryText()
-        }.getOrElse { throwable ->
-            val error = toSyncErrorMessage(throwable)
-            repository.markSyncError("Sync fehlgeschlagen: $error")
-            false to "iCal-Sync fehlgeschlagen: $error"
+        ) {
+            SyncExecutionResult.NoUrls -> {
+                false to "Bitte zuerst mindestens eine iCal-URL eingeben."
+            }
+            is SyncExecutionResult.Success -> {
+                IcalSyncScheduler.scheduleFromRepository(getApplication())
+                true to result.result.summaryText()
+            }
+            is SyncExecutionResult.Failed -> {
+                false to "iCal-Sync fehlgeschlagen: ${result.message}"
+            }
         }
     }
 

@@ -3,6 +3,7 @@ package com.andrin.examcountdown.data
 import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.model.SchoolEventType
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -149,8 +150,15 @@ class SchoolEventIcalImporter {
                             }
                         }
                         ?: start?.takeIf { it.isDateOnly }?.let {
+                            val nextDayStart = Instant.ofEpochMilli(it.epochMillis)
+                                .atZone(schoolZone)
+                                .toLocalDate()
+                                .plusDays(1)
+                                .atStartOfDay(schoolZone)
+                                .toInstant()
+                                .toEpochMilli()
                             ParsedDateTime(
-                                epochMillis = it.epochMillis + 24L * 60L * 60L * 1000L,
+                                epochMillis = nextDayStart,
                                 isDateOnly = true
                             )
                         }
@@ -357,8 +365,8 @@ class SchoolEventIcalImporter {
     }
 
     private fun resolveZone(tzid: String?): ZoneId {
-        if (tzid.isNullOrBlank()) return ZoneId.systemDefault()
-        return runCatching { ZoneId.of(tzid) }.getOrDefault(ZoneId.systemDefault())
+        if (tzid.isNullOrBlank()) return schoolZone
+        return runCatching { ZoneId.of(tzid) }.getOrDefault(schoolZone)
     }
 
     private fun unescapeIcalText(value: String): String {
