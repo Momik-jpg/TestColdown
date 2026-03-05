@@ -24,4 +24,10 @@ class BackupCryptoTest {
         val encrypted = BackupCrypto.encrypt(raw, "CorrectPass")
         BackupCrypto.decrypt(encrypted, "WrongPass")
     }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun encrypt_with_short_password_throws() {
+        val raw = """{"schemaVersion":10,"exams":[]}"""
+        BackupCrypto.encrypt(raw, "short")
+    }
 }

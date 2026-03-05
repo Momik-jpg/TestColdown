@@ -15,7 +15,7 @@ object BackupCrypto {
     private const val IV_SIZE_BYTES = 12
     private const val KEY_SIZE_BITS = 256
     private const val PBKDF2_ITERATIONS = 120_000
-    private const val MIN_PASSWORD_LENGTH = 6
+    private const val MIN_PASSWORD_LENGTH = 10
 
     fun isEncryptedPayload(raw: String): Boolean {
         return raw.trim().startsWith(ENCRYPTED_PREFIX)
