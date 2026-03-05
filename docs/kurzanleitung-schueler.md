@@ -1,23 +1,26 @@
-# Kurzanleitung für Schüler
+# Kurzanleitung für Schülerinnen und Schüler
 
-## 1) Erststart
+## Erststart
 1. App öffnen.
-2. schulNetz-iCal-URL einfügen.
-3. "Verbindung testen" drücken.
-4. Optional "Events zusätzlich importieren" aktivieren.
-5. "Fertig" drücken.
+2. iCal-Link aus schulNetz (oder einem anderen Anbieter) einfügen.
+3. `Verbindung testen` drücken.
+4. Optional `Events zusätzlich importieren` aktivieren.
+5. `Fertig` drücken.
 
-## 2) Tägliche Nutzung
-- Oben rechts auf `Aktualisieren` drücken, wenn neue Daten erwartet werden.
-- `Prüfungen`: Suche, Filter und Sortierung nutzen.
-- `Stundenplan`: Verschiebungen und Ausfälle prüfen.
-- `Events`: Alle Einträge im Kalender prüfen.
+## Tägliche Nutzung
+- Bei neuen Daten oben rechts `Aktualisieren` verwenden.
+- `Prüfungen`: suchen, filtern und sortieren.
+- `Stundenplan`: Verschiebungen, Ausfälle und Räume prüfen.
+- `Events`: Kalender-Timeline mit Filtern nutzen.
 
-## 3) Benachrichtigungen
-- In `Einstellungen -> Benachrichtigungen` stille Zeiten setzen.
-- Beim Erstellen einer Prüfung mehrere Vorlaufzeiten eintragen.
-- Optional exakte Erinnerungszeit setzen.
+## Benachrichtigungen
+- Unter `Einstellungen -> Benachrichtigungen` stille Zeiten festlegen.
+- Pro Prüfung mehrere Vorlaufzeiten setzen.
+- Optional exakte Erinnerungszeit eintragen.
 
-## 4) Backup
+## Backup
 - `Einstellungen -> Backup Export` für Sicherung.
 - `Einstellungen -> Backup Import` für Wiederherstellung.
+
+## Bei Problemen
+Siehe `docs/troubleshooting.md`.

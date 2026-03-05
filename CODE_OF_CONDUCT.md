@@ -1,35 +1,28 @@
-# Code of Conduct
+# Verhaltenskodex
 
-## Our Commitment
+## Unser Anspruch
+Dieses Projekt soll offen, respektvoll und fachlich hilfreich bleiben.
 
-We want this project to be open, respectful, and useful for everyone.
+## Erwartetes Verhalten
+- Respektvoll und konstruktiv kommunizieren.
+- Technische Inhalte diskutieren, nicht Personen angreifen.
+- Klare Fehlermeldungen mit reproduzierbaren Schritten liefern.
+- Grundsätzlich von guter Absicht ausgehen.
 
-## Expected Behavior
+## Nicht akzeptables Verhalten
+- Belästigung, Beleidigungen oder Diskriminierung.
+- Teilen privater Daten (Zugangsdaten, persönliche iCal-Links, sensible Schülerdaten).
+- Spam oder bewusst störendes Verhalten.
 
-- Be respectful and constructive.
-- Focus on technical discussion, not people.
-- Give clear bug reports and reproducible steps.
-- Assume good intent.
+## Geltungsbereich
+Der Kodex gilt für:
+- GitHub-Issues und Pull Requests
+- Diskussionen zu diesem Repository
+- Sonstige öffentliche Kommunikation im Projektkontext
 
-## Unacceptable Behavior
+## Meldung von Verstößen
+- Bei allgemeinen Verhaltensproblemen: Issue mit klarer Kennzeichnung erstellen.
+- Bei sicherheitsrelevanten Themen: Prozess aus `SECURITY.md` verwenden.
 
-- Harassment, insults, or discrimination.
-- Sharing private data (credentials, personal iCal links, private student data).
-- Spam or intentionally disruptive behavior.
-
-## Scope
-
-This applies to:
-
-- GitHub issues and pull requests
-- discussions related to this repository
-- other public communication about this project
-
-## Reporting
-
-For normal behavior problems, open an issue and mark it clearly.
-For security-sensitive reports, use the process in `SECURITY.md`.
-
-## Enforcement
-
-Project maintainers may remove content, close threads, or block users who violate this policy.
+## Durchsetzung
+Maintainer können Inhalte entfernen, Diskussionen schließen oder Nutzer bei Verstößen sperren.

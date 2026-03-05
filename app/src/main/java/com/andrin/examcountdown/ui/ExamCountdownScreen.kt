@@ -46,9 +46,9 @@ import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.KeyboardArrowLeft
-import androidx.compose.material.icons.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MoreVert
@@ -293,6 +293,7 @@ fun ExamCountdownScreen(
     var showBackupImportDialog by rememberSaveable { mutableStateOf(false) }
     var showSyncDiagnosticsDialog by rememberSaveable { mutableStateOf(false) }
     var showChangelogDialog by rememberSaveable { mutableStateOf(false) }
+    var showFullChangelogDialog by rememberSaveable { mutableStateOf(false) }
     var showExportDialog by rememberSaveable { mutableStateOf(false) }
     var studyPlanExam by remember { mutableStateOf<Exam?>(null) }
     var studyPlanExamPresentation by remember { mutableStateOf<ExamPresentation?>(null) }
@@ -950,8 +951,22 @@ fun ExamCountdownScreen(
         ChangelogDialog(
             versionName = BuildConfig.VERSION_NAME,
             entries = changelogEntriesFor(BuildConfig.VERSION_NAME),
+            onShowFullLog = {
+                showChangelogDialog = false
+                showFullChangelogDialog = true
+            },
             onDismiss = {
                 showChangelogDialog = false
+                viewModel.setLastSeenVersion(BuildConfig.VERSION_NAME)
+            }
+        )
+    }
+
+    if (showFullChangelogDialog) {
+        FullChangelogDialog(
+            versions = changelogTimeline(),
+            onDismiss = {
+                showFullChangelogDialog = false
                 viewModel.setLastSeenVersion(BuildConfig.VERSION_NAME)
             }
         )
@@ -1615,7 +1630,7 @@ private fun QuickActionsDialog(
                     QuickActionTile(
                         text = "Hilfe",
                         subtitle = "Kurzanleitung und Troubleshooting",
-                        icon = Icons.Outlined.HelpOutline,
+                        icon = Icons.AutoMirrored.Outlined.HelpOutline,
                         onClick = onOpenHelp
                     )
                     QuickActionTile(
@@ -2816,6 +2831,7 @@ private fun SyncDiagnosticsDialog(
 private fun ChangelogDialog(
     versionName: String,
     entries: List<String>,
+    onShowFullLog: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -2839,6 +2855,54 @@ private fun ChangelogDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Verstanden")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onShowFullLog) {
+                Text("Mehr anzeigen")
+            }
+        }
+    )
+}
+
+@Composable
+private fun FullChangelogDialog(
+    versions: List<ChangelogVersion>,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Update-Log") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                versions.forEachIndexed { index, version ->
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "Version ${version.versionName}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        version.highlights.forEach { entry ->
+                            Text(
+                                text = "• $entry",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                    if (index != versions.lastIndex) {
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Schließen")
             }
         }
     )
@@ -3227,7 +3291,7 @@ private fun TimetableWeekGrid(
         ) {
             IconButton(onClick = { onWeekOffsetChange(weekOffset - 1) }) {
                 Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowLeft,
+                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                     contentDescription = "Vorherige Woche"
                 )
             }
@@ -3245,7 +3309,7 @@ private fun TimetableWeekGrid(
             }
             IconButton(onClick = { onWeekOffsetChange(weekOffset + 1) }) {
                 Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowRight,
+                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                     contentDescription = "Nächste Woche"
                 )
             }
@@ -4068,7 +4132,11 @@ private fun ExamListContent(
         item {
             nextExam?.let { exam ->
                 val info = examPresentations[exam.id] ?: buildExamPresentation(exam)
-                NextExamHero(exam = exam, presentation = info)
+                NextExamHero(
+                    exam = exam,
+                    presentation = info,
+                    onPlanStudy = { onPlanStudy(exam) }
+                )
             }
         }
 
@@ -4519,7 +4587,8 @@ private fun NoExamResultsCard(
 @Composable
 private fun NextExamHero(
     exam: Exam,
-    presentation: ExamPresentation
+    presentation: ExamPresentation,
+    onPlanStudy: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -4532,11 +4601,24 @@ private fun NextExamHero(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = "Nächste Prüfung",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Nächste Prüfung",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onPlanStudy) {
+                    Icon(
+                        imageVector = Icons.Outlined.Schedule,
+                        contentDescription = "Lern-Sessions planen",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
             presentation.subject?.takeIf { it.isNotBlank() }?.let { subject ->
                 Surface(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
@@ -5889,29 +5971,179 @@ private fun SyncSettingsDialog(
     )
 }
 
+private data class ChangelogVersion(
+    val versionName: String,
+    val highlights: List<String>
+)
+
 private fun changelogEntriesFor(versionName: String): List<String> {
-    return when (versionName) {
-        "1.6.0" -> listOf(
-            "Neue 'Erste Schritte'-Karte im Prüfungs-Tab mit klarer nächster Aktion.",
-            "Bessere In-App-Hilfe: Was jeder Tab macht + täglicher Ablauf.",
-            "Schneller Zugriff auf Einrichtung/Sync direkt aus der Start-Hilfe.",
-            "Fehlermeldungen sichtbarer für schnellere Problemlösung.",
-            "Allgemeine Bedienung und Orientierung verbessert."
-        )
-        "1.5.0" -> listOf(
-            "Sync-Diagnose mit letzter Dauer, HTTP-Status und klarer Fehlerursache.",
-            "Delta-Sync per ETag/Last-Modified für stabilere und sparsamere Synchronisierung.",
-            "Kollisionsregeln: Lektion/Event getrennt, nur anderes Fach, echte Zeitüberschneidung.",
-            "Widget-Konfiguration pro Widget: Modus, Zeitraum und Sortierung.",
-            "Barrierefreiheit-Modus mit größerer Schrift und höherem Kontrast.",
-            "CSV/PDF-Export für Prüfungen und Stundenplan.",
-            "In-App Changelog nach App-Updates."
-        )
-        else -> listOf(
+    val normalized = normalizeVersionName(versionName)
+    return changelogTimeline()
+        .firstOrNull { it.versionName == normalized }
+        ?.highlights
+        ?: listOf(
             "Neue Version mit Verbesserungen für Sync, UI und Stabilität.",
-            "Details findest du in README und den Release Notes auf GitHub."
+            "Mehr Details findest du im vollständigen Update-Log."
         )
-    }
+}
+
+private fun normalizeVersionName(versionName: String): String {
+    return versionName.trim()
+        .removePrefix("v")
+        .substringBefore("-")
+}
+
+private fun changelogTimeline(): List<ChangelogVersion> {
+    return listOf(
+        ChangelogVersion(
+            versionName = "1.6.6",
+            highlights = listOf(
+                "Was ist neu: Button 'Mehr anzeigen' öffnet jetzt den vollständigen Update-Verlauf.",
+                "Neues Update-Log zeigt Änderungen von Version 1.0.0 bis heute in der App."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.5",
+            highlights = listOf(
+                "Kalender-Badges verbessert (lesbarer bei vielen Einträgen).",
+                "Hilfe-Texte klarer geschrieben und Widget-Ansicht responsiver gemacht."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.4",
+            highlights = listOf(
+                "UI-Polish in mehreren Screens.",
+                "Datenschutz-Hinweise vereinfacht und iCal-Anleitung ergänzt."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.3",
+            highlights = listOf(
+                "Agenda-Monatsansicht und Tagesansicht ausgebaut.",
+                "Eigene wiederkehrende Events und Lern-Sessions hinzugefügt."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.2",
+            highlights = listOf(
+                "Sicherheits-Setup erweitert (Security Policy, Dependabot, CodeQL).",
+                "Biometrie-Entsperrung mit CryptoObject-Prüfung gehärtet."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.1",
+            highlights = listOf(
+                "School-ready UX verbessert und optionalen App-Schutz ergänzt.",
+                "Setup-Hilfe ein-/ausschaltbar gemacht und Stundenplan-Layout poliert."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.0",
+            highlights = listOf(
+                "Onboarding klarer gemacht und Erste-Schritte-Führung verbessert."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.5.0",
+            highlights = listOf(
+                "Sync-Diagnose, Delta-Sync (ETag/Last-Modified) und bessere Fehlersichtbarkeit.",
+                "Widget-Konfiguration, Barrierefreiheit sowie CSV/PDF-Export ergänzt."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.4.0",
+            highlights = listOf(
+                "Agenda-Events importiert und Personalisierung erweitert."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.3.3",
+            highlights = listOf(
+                "Sync-Härtung, Backup-Sicherheit und Reminder-Verhalten verbessert."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.3.2",
+            highlights = listOf(
+                "Prüfungs-Suche optimiert und Sync-Status-Leiste schaltbar gemacht."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.3.1",
+            highlights = listOf(
+                "Werkzeuge in das Top-Menü verschoben und Prüfungsansicht vereinfacht."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.3.0",
+            highlights = listOf(
+                "Prüfungs-UX mit Suche/Überblick verbessert.",
+                "Jetzt/Nächste-Lektion-Ansicht für den Stundenplan ergänzt."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.2.0",
+            highlights = listOf(
+                "Sync, Facherkennung und Benachrichtigungen verbessert."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.1.2",
+            highlights = listOf(
+                "Release-Workflow: KEY_PASSWORD als optional unterstützt."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.1.1",
+            highlights = listOf(
+                "Release-Signing robuster gemacht (sicherer Fallback)."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.1.0",
+            highlights = listOf(
+                "Change-Feed, Backup, Quiet Hours, Widgets und Noten-Kategorien ergänzt.",
+                "Onboarding-Popup nur noch einmal pro Gerät angezeigt."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.0.5",
+            highlights = listOf(
+                "CI/CD-Workflow für APK-Ausgabe robuster gemacht."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.0.4",
+            highlights = listOf(
+                "GitHub-Actions-Pfade korrigiert und Stundenplan-UX verbessert."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.0.3",
+            highlights = listOf(
+                "Kleines Stabilitäts-Update ohne größere UI-Änderung."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.0.2",
+            highlights = listOf(
+                "schulNetz-iCal-Import eingeführt (inkl. Prüfungsfilter).",
+                "Stundenplan verbessert: Verschiebungen, Raumwechsel und Doppel-Lektionen."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.0.1",
+            highlights = listOf(
+                "GitHub-Workflow-Fix: gradlew unter Linux korrekt ausführbar."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.0.0",
+            highlights = listOf(
+                "Erste Version mit automatischem GitHub-Release-APK-Workflow."
+            )
+        )
+    )
 }
 
 private fun buildExamsCsv(exams: List<Exam>): String {

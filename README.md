@@ -1,60 +1,74 @@
-# Prüfungs-Planer (Android)
-Android-App für Prüfungen, Stundenplan, Events, Benachrichtigungen und Widgets.
+# Prüfungs-Countdown (Android)
+Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Notenberechnung.
 
-## Installation (Handy)
+## Funktionen
+- `Prüfungen`: Suche, Filter, Sortierung, Countdown und Kollisionsprüfung.
+- `Stundenplan`: Lektionen inkl. Verschiebungen, Ausfällen und Raumänderungen.
+- `Events`: Zeitachsen-Ansicht mit Filtern (`Alles`, `Prüfungen`, `Lektionen`, `Events`).
+- `Notenrechner`: Durchschnitt, Zielnote und Noten-Punkte-Rechner.
+- `Sync-Diagnose`: Status, Dauer, HTTP-Code, Delta-Status und Import-Zahlen.
+- `Delta-Sync`: `ETag` und `Last-Modified` zur Reduktion von Datenverkehr.
+- `Widgets`: Nächste Prüfung und Liste, pro Instanz konfigurierbar.
+- `Export`: CSV/PDF für Prüfungen und Stundenplan.
+- `Backup`: Export/Import der App-Daten.
+
+## Installation auf Android
 1. Repository öffnen: `https://github.com/Momik-jpg/TestColdown`
 2. `Releases` öffnen.
 3. Neueste `ExamCountdown-*.apk` herunterladen.
 4. APK installieren.
-5. Falls nötig: "Unbekannte Apps installieren" erlauben.
+5. Falls nötig: Berechtigung für "Unbekannte Apps installieren" aktivieren.
 
-## App-Kurzanleitung
+## Ersteinrichtung
 1. App starten.
-2. Beim Erststart iCal-Link aus deinem Schulkalender einfügen (schulNetz oder anderer iCal-Anbieter).
-3. Verbindung testen.
-4. Optional: "Events zusätzlich importieren" aktivieren.
-5. Fertig drücken.
-6. Danach oben mit dem Aktualisieren-Pfeil manuell syncen oder Auto-Sync nutzen.
+2. Beim Erststart iCal-Link einfügen (z. B. schulNetz).
+3. `Verbindung testen` ausführen.
+4. Optional `Events zusätzlich importieren` aktivieren.
+5. `Fertig` drücken.
+6. Danach manuell synchronisieren oder Auto-Sync nutzen.
 
-## Tabs
-- `Prüfungen`: Prüfungsliste mit Suche, Filtern, Sortierung, Countdown und Kollisionserkennung.
-- `Stundenplan`: Nur Lektionen, inklusive Verschiebungen, Ausfällen und Raumänderungen.
-- `Events`: Kalender-Timeline mit Filter "Alles / Nur Prüfungen / Nur Lektionen / Nur Events".
-- `Notenrechner`: Durchschnitt, Zielnote und Noten-Punkte-Rechner.
+## Erinnerungen
+- Mehrere Vorlaufzeiten pro Prüfung.
+- Optional exakter Zeitpunkt (Datum/Uhrzeit).
+- Snooze und stille Zeiten werden unterstützt.
 
-## Neu (Pro-Features)
-- `Erste-Schritte Karte`: klare "Was muss ich als Nächstes tun?"-Anleitung direkt im Prüfungs-Tab.
-- `Sync-Diagnose`: zeigt letzten Versuch, Dauer, HTTP-Status, Delta-Status, Import-Zahlen und Fehlerursache.
-- `Delta-Sync`: nutzt `ETag`/`Last-Modified` (304 = keine Änderungen), spart Akku und Daten.
-- `Kollisionsregeln`: getrennte Schalter für Lektionen/Events, nur anderes Fach, echte Zeitüberschneidung.
-- `Widget pro Instanz konfigurierbar`: Modus (Prüfungen/Agenda), Zeitraum (7/30/90 Tage), Sortierung.
-- `Barrierefreiheit-Modus`: größerer Text + höherer Kontrast.
-- `In-App Changelog`: erscheint nach Updates automatisch.
-- `CSV/PDF Export`: Prüfungen und Stundenplan direkt aus der App exportierbar.
+## Sicherheit und Datenschutz
+- iCal-Links werden lokal verschlüsselt gespeichert.
+- Es werden nur `https`-Links akzeptiert.
+- Sensible URL-Daten werden in Fehlermeldungen redigiert.
+- Große iCal-Antworten werden begrenzt.
+- Optionaler App-Schutz per PIN und Biometrie.
+- Optionaler Screenshot-Schutz über `FLAG_SECURE`.
 
-## Benachrichtigungen
-- Mehrere Vorlaufzeiten pro Prüfung möglich.
-- Exakte Datum/Uhrzeit-Erinnerung möglich.
-- Stille Zeiten und Snooze sind unterstützt.
+## Entwicklung
+### Voraussetzungen
+- JDK 17
+- Android SDK (Compile/Target SDK 34)
 
-## Backup
-- Über Menü `Einstellungen`:
-  - `Backup Export`
-  - `Backup Import`
+### Wichtige Befehle
+```bash
+./gradlew :app:assembleDebug
+./gradlew test
+./gradlew :app:lintDebug
+```
 
-## Weitere Doku
+### Signierter Release-Build (AAB)
+1. `keystore.properties.example` nach `keystore.properties` kopieren.
+2. Keystore-Werte eintragen.
+3. Build starten:
+   ```bash
+   ./gradlew bundlePlayRelease
+   ```
+4. Ergebnis: `dist/ExamCountdown-release.aab`
+
+## Dokumentation
 - Schüler-Kurzanleitung: `docs/kurzanleitung-schueler.md`
-- iCal mit Bild: `docs/ical-link-anleitung-mit-bild.md`
+- iCal-Link-Anleitung mit Bild: `docs/ical-link-anleitung-mit-bild.md`
 - Troubleshooting: `docs/troubleshooting.md`
 - School-Ready Betrieb/QA: `docs/school-ready.md`
-
-## Sicherheit
-- iCal-Links werden lokal verschlüsselt gespeichert.
-- Die App nutzt nur `https`-Links (keine unverschlüsselten Verbindungen).
-- Screenshot-/Screenrecord-Schutz ist aktiv (`FLAG_SECURE`).
-- App-Schutz mit PIN/Biometrie ist verfügbar.
-- Fehlermeldungen werden für sensible URL-Daten redigiert.
-- Große iCal-Antworten werden begrenzt, um Missbrauch zu verhindern.
+- No-Regression-Checkliste: `docs/no-regression-checkliste.md`
 
 ## Lizenz
-Dieses Projekt steht unter der MIT-Lizenz. Details: `LICENSE`
+Proprietäre Lizenz (Schweiz).  
+Teilen unveränderter Originalversionen ist erlaubt. Änderungen und kommerzielle Nutzung sind nur mit schriftlicher Zustimmung erlaubt.  
+Details in `LICENSE`.
