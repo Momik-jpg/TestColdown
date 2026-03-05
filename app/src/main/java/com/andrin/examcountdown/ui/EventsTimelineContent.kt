@@ -2,6 +2,7 @@ package com.andrin.examcountdown.ui
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -168,6 +169,10 @@ fun EventsTimelineContent(
     }
     val selectedDayForTimeline = remember(dayFocusEpochDay) {
         LocalDate.ofEpochDay(dayFocusEpochDay)
+    }
+
+    BackHandler(enabled = layoutMode == AgendaLayoutMode.DAY) {
+        layoutMode = AgendaLayoutMode.MONTH
     }
 
     val items = remember(exams, lessons, events) {

@@ -331,17 +331,29 @@ class ExamRepository(private val appContext: Context) {
                 .plus(manualEvents)
                 .distinctBy { it.id }
                 .sortedBy { it.startsAtEpochMillis }
+            val mergedExamsJson = json.encodeToString(mergedExams)
+            val mergedLessonsJson = json.encodeToString(mergedLessons)
+            val mergedEventsJson = json.encodeToString(mergedEvents)
 
-            preferences[examsKey] = json.encodeToString(mergedExams)
-            preferences[lessonsKey] = json.encodeToString(mergedLessons)
-            preferences[eventsKey] = json.encodeToString(mergedEvents)
+            if (preferences[examsKey] != mergedExamsJson) {
+                preferences[examsKey] = mergedExamsJson
+            }
+            if (preferences[lessonsKey] != mergedLessonsJson) {
+                preferences[lessonsKey] = mergedLessonsJson
+            }
+            if (preferences[eventsKey] != mergedEventsJson) {
+                preferences[eventsKey] = mergedEventsJson
+            }
         }
     }
 
     suspend fun replaceSyncedLessons(imported: List<TimetableLesson>) {
         appContext.dataStore.edit { preferences ->
             val updated = imported.sortedBy { it.startsAtEpochMillis }
-            preferences[lessonsKey] = json.encodeToString(updated)
+            val updatedJson = json.encodeToString(updated)
+            if (preferences[lessonsKey] != updatedJson) {
+                preferences[lessonsKey] = updatedJson
+            }
         }
     }
 
@@ -353,7 +365,10 @@ class ExamRepository(private val appContext: Context) {
                 .plus(manualEvents)
                 .distinctBy { it.id }
                 .sortedBy { it.startsAtEpochMillis }
-            preferences[eventsKey] = json.encodeToString(updated)
+            val updatedJson = json.encodeToString(updated)
+            if (preferences[eventsKey] != updatedJson) {
+                preferences[eventsKey] = updatedJson
+            }
         }
     }
 
@@ -911,14 +926,20 @@ class ExamRepository(private val appContext: Context) {
     private suspend fun updateExams(transform: (List<Exam>) -> List<Exam>) {
         appContext.dataStore.edit { preferences ->
             val updated = transform(decodeExams(preferences[examsKey]))
-            preferences[examsKey] = json.encodeToString(updated)
+            val updatedJson = json.encodeToString(updated)
+            if (preferences[examsKey] != updatedJson) {
+                preferences[examsKey] = updatedJson
+            }
         }
     }
 
     private suspend fun updateEvents(transform: (List<SchoolEvent>) -> List<SchoolEvent>) {
         appContext.dataStore.edit { preferences ->
             val updated = transform(decodeEvents(preferences[eventsKey]))
-            preferences[eventsKey] = json.encodeToString(updated)
+            val updatedJson = json.encodeToString(updated)
+            if (preferences[eventsKey] != updatedJson) {
+                preferences[eventsKey] = updatedJson
+            }
         }
     }
 

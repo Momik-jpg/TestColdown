@@ -12,9 +12,8 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.andrin.examcountdown.data.ExamRepository
-import com.andrin.examcountdown.data.IcalSyncEngine
-import com.andrin.examcountdown.data.shouldRetrySync
-import com.andrin.examcountdown.data.toSyncErrorMessage
+import com.andrin.examcountdown.data.SyncCoordinator
+import com.andrin.examcountdown.data.SyncExecutionResult
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,22 +25,17 @@ class IcalSyncWorker(
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
-        val repository = ExamRepository(applicationContext)
-        val iCalUrls = repository.readIcalUrls()
-        if (iCalUrls.isEmpty()) return Result.success()
-        val importEvents = repository.readImportEventsEnabled()
-
-        return try {
-            IcalSyncEngine(applicationContext).syncFromUrls(
-                urls = iCalUrls,
-                emitChangeNotification = true,
-                importEvents = importEvents
+        return when (
+            val result = SyncCoordinator.syncFromRepository(
+                context = applicationContext,
+                emitChangeNotification = true
             )
-            Result.success()
-        } catch (exception: Exception) {
-            val error = toSyncErrorMessage(exception)
-            repository.markSyncError("Sync fehlgeschlagen: $error")
-            if (shouldRetrySync(exception)) Result.retry() else Result.success()
+        ) {
+            SyncExecutionResult.NoUrls -> Result.success()
+            is SyncExecutionResult.Success -> Result.success()
+            is SyncExecutionResult.Failed -> {
+                if (result.retryable) Result.retry() else Result.success()
+            }
         }
     }
 }
@@ -83,7 +77,7 @@ object IcalSyncScheduler {
 
         WorkManager.getInstance(context).enqueueUniqueWork(
             IMMEDIATE_WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             request
         )
     }

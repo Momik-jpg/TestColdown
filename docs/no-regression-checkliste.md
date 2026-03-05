@@ -1,40 +1,40 @@
-# No-Regression Checkliste
+# No-Regression-Checkliste
 
 ## Core
-- App startet ohne Crash.
-- Light/Dark Mode passt inkl. Status-/Navigationsleiste.
-- Erststart-Dialog erscheint nur beim echten Erststart.
+- [ ] App startet ohne Crash.
+- [ ] Hell-/Dunkelmodus inkl. Status- und Navigationsleiste ist korrekt.
+- [ ] Erststart-Dialog erscheint nur beim echten Erststart.
 
 ## Sync
-- iCal-Link testen funktioniert.
-- Manual Sync über Pfeil funktioniert.
-- Auto-Sync läuft mit gespeichertem Intervall.
-- Fehlerstatus wird im Sync-Balken angezeigt.
+- [ ] iCal-Link-Test funktioniert.
+- [ ] Manueller Sync über den Aktualisieren-Button funktioniert.
+- [ ] Auto-Sync läuft mit gespeichertem Intervall.
+- [ ] Fehlerstatus wird in der Sync-Diagnose angezeigt.
 
 ## Daten
-- Manuelle Prüfungen bleiben nach iCal-Sync erhalten.
-- iCal-Prüfungen werden bei erneutem Sync aktualisiert.
-- Lektionen zeigen Verschiebungen/Raumänderungen.
-- Event-Import nur aktiv, wenn Schalter an.
+- [ ] Manuelle Prüfungen bleiben nach iCal-Sync erhalten.
+- [ ] iCal-Prüfungen werden bei erneutem Sync korrekt aktualisiert.
+- [ ] Lektionen zeigen Verschiebungen/Ausfälle/Raumänderungen.
+- [ ] Event-Import ist nur aktiv, wenn der Schalter aktiviert ist.
 
 ## UI
-- Prüfungsfilter/Suche/Sortierung korrekt.
-- Kollisionen werden sichtbar markiert.
-- Events-Tab zeigt All-Day sauber an.
-- Notenrechner Kontrast und Eingaben korrekt.
+- [ ] Prüfungs-Suche/Filter/Sortierung funktionieren.
+- [ ] Kollisionen werden sichtbar markiert.
+- [ ] Events-Tab stellt ganztägige Einträge korrekt dar.
+- [ ] Notenrechner (Kontrast und Eingabevalidierung) funktioniert.
 
-## Reminder
-- Vorlaufzeiten werden geplant.
-- Exakte Erinnerungszeit wird geplant.
-- Snooze-Aktionen funktionieren.
-- Stille Zeiten verschieben Reminder korrekt.
+## Erinnerungen
+- [ ] Vorlaufzeiten werden korrekt geplant.
+- [ ] Exakte Erinnerungszeit wird korrekt geplant.
+- [ ] Snooze-Aktionen funktionieren.
+- [ ] Stille Zeiten verschieben Erinnerungen korrekt.
 
-## Backup/Restore
-- Export erzeugt gültige JSON-Datei.
-- Import stellt Prüfungen/Lektionen/Events wieder her.
-- iCal-Link und Einstellungen werden wiederhergestellt.
+## Backup und Restore
+- [ ] Export erzeugt eine gültige JSON- oder verschlüsselte Backup-Datei.
+- [ ] Import stellt Prüfungen, Lektionen und Events wieder her.
+- [ ] iCal-Link und relevante Einstellungen werden wiederhergestellt.
 
 ## Widgets
-- Next-Exam-Widget aktualisiert.
-- List-Widget aktualisiert.
-- Widget-Refresh-Button triggert Sync/Update.
+- [ ] Next-Exam-Widget aktualisiert korrekt.
+- [ ] Listen-Widget aktualisiert korrekt.
+- [ ] Widget-Refresh triggert Sync/Update.

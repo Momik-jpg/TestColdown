@@ -1,41 +1,37 @@
-# Security Policy
+# Sicherheitsrichtlinie
 
-## Supported Versions
+## Unterstützte Versionen
+Dieses Projekt wird aktiv auf `main` sowie in der neuesten Release-Version gepflegt.
 
-This project is actively maintained on the `main` branch and through the latest tagged release.
-
-| Version | Supported |
+| Version | Unterstützt |
 | --- | --- |
-| Latest release | Yes |
-| `main` | Yes |
-| Older releases | No |
+| Neueste Release | Ja |
+| `main` | Ja |
+| Ältere Releases | Nein |
 
-## Reporting a Vulnerability
+## Sicherheitslücke melden
+Für sicherheitsrelevante Meldungen bitte **GitHub Private Vulnerability Reporting** nutzen.
 
-Please use **GitHub Private Vulnerability Reporting** for security issues.
+1. Repository auf GitHub öffnen.
+2. `Security` -> `Advisories` bzw. `Report a vulnerability` öffnen.
+3. Privat melden mit:
+   - betroffener Version
+   - Reproduktionsschritten
+   - Auswirkung/Impact
+   - möglichem Fix (falls bekannt)
 
-1. Open the repository on GitHub.
-2. Go to `Security` -> `Advisories` / `Report a vulnerability`.
-3. Submit a private report with:
-   - affected version
-   - reproduction steps
-   - impact
-   - possible fix (if known)
+Falls Private Reporting nicht verfügbar ist, nur nicht-sensitive Probleme als normales Issue melden und keine Geheimnisse/private URLs veröffentlichen.
 
-If private reporting is not available, open a normal issue only for non-sensitive problems and do not include secrets or private URLs.
+## Reaktionsprozess
+- Eingang wird so schnell wie möglich bestätigt.
+- Problem wird reproduziert und priorisiert.
+- Fix wird vorbereitet und veröffentlicht.
+- Details werden nach Bereitstellung eines Fixes offengelegt.
 
-## Response Process
-
-- We confirm receipt as soon as possible.
-- We reproduce and classify severity.
-- We prepare and release a fix.
-- We publish details after a fix is available.
-
-## App-Specific Notes
-
-- The app stores iCal URLs locally in encrypted storage.
-- Only secure `https` iCal links are accepted.
-- Sensitive URL parts are redacted from sync error messages.
-- App content is protected against screenshots/screen recording (`FLAG_SECURE`).
-- App lock supports PIN and optional biometrics, with lockout after repeated failed attempts.
-- Backup files can contain personal schedule data; share only with trusted persons.
+## App-spezifische Sicherheitsaspekte
+- iCal-Links werden lokal verschlüsselt gespeichert.
+- Es werden nur `https`-iCal-Links akzeptiert.
+- Sensible URL-Bestandteile werden in Fehlern redigiert.
+- Optionaler Screenshot-/Screenrecord-Schutz über `FLAG_SECURE`.
+- App-Schutz via PIN und optional Biometrie.
+- Backup-Dateien können personenbezogene Daten enthalten und sollten nur vertrauenswürdig geteilt werden.

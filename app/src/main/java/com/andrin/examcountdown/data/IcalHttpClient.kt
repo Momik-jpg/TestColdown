@@ -18,6 +18,16 @@ internal object IcalHttpClient {
     private const val READ_TIMEOUT_MS = 20_000
     private const val MAX_REDIRECTS = 4
     private const val MAX_RESPONSE_CHARS = 2_000_000
+    @Volatile
+    internal var connectionFactory: (String) -> HttpURLConnection = { url ->
+        URL(url).openConnection() as HttpURLConnection
+    }
+
+    internal fun resetConnectionFactoryForTest() {
+        connectionFactory = { url ->
+            URL(url).openConnection() as HttpURLConnection
+        }
+    }
 
     fun download(url: String): String {
         val response = download(
@@ -40,7 +50,7 @@ internal object IcalHttpClient {
         var redirects = 0
 
         while (true) {
-            val connection = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+            val connection = connectionFactory(currentUrl).apply {
                 requestMethod = "GET"
                 instanceFollowRedirects = false
                 connectTimeout = CONNECT_TIMEOUT_MS
@@ -66,6 +76,16 @@ internal object IcalHttpClient {
                     ?.trim()
                     ?.takeIf { it.isNotBlank() }
 
+                if (code == HttpURLConnection.HTTP_NOT_MODIFIED) {
+                    return IcalHttpResponse(
+                        body = null,
+                        httpStatusCode = code,
+                        etag = etag ?: previousEtag,
+                        lastModified = lastModified ?: previousLastModified,
+                        notModified = true
+                    )
+                }
+
                 if (code in 300..399) {
                     val locationHeader = connection.getHeaderField("Location")
                         ?.trim()
@@ -78,16 +98,6 @@ internal object IcalHttpClient {
                     currentUrl = normalizeAndValidateIcalUrl(resolvedUrl)
                     redirects += 1
                     continue
-                }
-
-                if (code == HttpURLConnection.HTTP_NOT_MODIFIED) {
-                    return IcalHttpResponse(
-                        body = null,
-                        httpStatusCode = code,
-                        etag = etag ?: previousEtag,
-                        lastModified = lastModified ?: previousLastModified,
-                        notModified = true
-                    )
                 }
 
                 if (code !in 200..299) {

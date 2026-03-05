@@ -11,16 +11,26 @@ import com.andrin.examcountdown.data.ExamRepository
 import com.andrin.examcountdown.data.IcalSyncEngine
 import com.andrin.examcountdown.data.SyncDiagnostics
 import com.andrin.examcountdown.data.QuietHoursConfig
+import com.andrin.examcountdown.data.SyncCoordinator
+import com.andrin.examcountdown.data.SyncExecutionResult
 import com.andrin.examcountdown.data.SyncStatus
 import com.andrin.examcountdown.data.toSyncErrorMessage
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.reminder.ExamNotificationManager
 import com.andrin.examcountdown.reminder.ExamReminderScheduler
+import com.andrin.examcountdown.ui.tabs.events.AgendaTabEvent
+import com.andrin.examcountdown.ui.tabs.events.ExamsTabEvent
+import com.andrin.examcountdown.ui.tabs.events.TimetableTabEvent
+import com.andrin.examcountdown.ui.tabs.state.AgendaTabUiState
+import com.andrin.examcountdown.ui.tabs.state.ExamsTabUiState
+import com.andrin.examcountdown.ui.tabs.state.GradesTabUiState
+import com.andrin.examcountdown.ui.tabs.state.TimetableTabUiState
 import com.andrin.examcountdown.worker.IcalSyncScheduler
 import com.andrin.examcountdown.worker.ExamReminderWorker
 import com.andrin.examcountdown.widget.WidgetUpdater
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -158,6 +168,85 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = false
     )
+    val examsTabUiState = combine(
+        combine(exams, lessons, events) { exams, lessons, events ->
+            Triple(exams, lessons, events)
+        },
+        combine(showExamCollisionBadges, collisionRuleSettings) { showCollisionBadges, collisionRules ->
+            showCollisionBadges to collisionRules
+        },
+        combine(savedIcalUrls, syncStatus) { urls, syncStatus ->
+            urls to syncStatus
+        },
+        combine(simpleModeEnabled, showSetupGuideCard) { simpleModeEnabled, showSetupGuideCard ->
+            simpleModeEnabled to showSetupGuideCard
+        }
+    ) { examData, collisionData, syncData, preferenceData ->
+        val (exams, lessons, events) = examData
+        val (showCollisionBadges, collisionRules) = collisionData
+        val (urls, syncStatus) = syncData
+        val (simpleModeEnabled, showSetupGuideCard) = preferenceData
+
+        ExamsTabUiState(
+            exams = exams,
+            lessons = lessons,
+            events = events,
+            showCollisionBadges = showCollisionBadges,
+            collisionRules = collisionRules,
+            hasIcalUrl = urls.isNotEmpty(),
+            hasSyncedOnce = syncStatus.lastSyncAtMillis != null,
+            lastSyncError = syncStatus.lastSyncError,
+            simpleModeEnabled = simpleModeEnabled,
+            showSetupGuideCard = showSetupGuideCard
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = ExamsTabUiState()
+    )
+    val timetableTabUiState = combine(
+        lessons,
+        timetableChanges,
+        savedIcalUrls
+    ) { lessons, changes, urls ->
+        TimetableTabUiState(
+            lessons = lessons,
+            changes = changes,
+            hasIcalUrl = urls.isNotEmpty()
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = TimetableTabUiState()
+    )
+    val agendaTabUiState = combine(
+        exams,
+        lessons,
+        events,
+        savedIcalUrls,
+        importEventsEnabled
+    ) { exams, lessons, events, urls, importEventsEnabled ->
+        AgendaTabUiState(
+            exams = exams,
+            lessons = lessons,
+            events = events,
+            hasIcalUrl = urls.isNotEmpty(),
+            importEventsEnabled = importEventsEnabled
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = AgendaTabUiState()
+    )
+    val gradesTabUiState = preferencesLoaded
+        .combine(savedIcalUrls) { preferencesLoaded, _ ->
+            GradesTabUiState(preferencesLoaded = preferencesLoaded)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = GradesTabUiState()
+        )
 
     init {
         viewModelScope.launch {
@@ -371,19 +460,24 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         emitChangeNotification: Boolean,
         includeEvents: Boolean
     ): Pair<Boolean, String> {
-        return runCatching {
-            val result = syncEngine.syncFromUrls(
+        return when (
+            val result = SyncCoordinator.syncExplicit(
+                context = getApplication(),
                 urls = urls,
-                emitChangeNotification = emitChangeNotification,
-                importEvents = includeEvents
+                includeEvents = includeEvents,
+                emitChangeNotification = emitChangeNotification
             )
-            IcalSyncScheduler.scheduleFromRepository(getApplication())
-            WidgetUpdater.updateAll(getApplication())
-            true to result.summaryText()
-        }.getOrElse { throwable ->
-            val error = toSyncErrorMessage(throwable)
-            repository.markSyncError("Sync fehlgeschlagen: $error")
-            false to "iCal-Sync fehlgeschlagen: $error"
+        ) {
+            SyncExecutionResult.NoUrls -> {
+                false to "Bitte zuerst mindestens eine iCal-URL eingeben."
+            }
+            is SyncExecutionResult.Success -> {
+                IcalSyncScheduler.scheduleFromRepository(getApplication())
+                true to result.result.summaryText()
+            }
+            is SyncExecutionResult.Failed -> {
+                false to "iCal-Sync fehlgeschlagen: ${result.message}"
+            }
         }
     }
 
@@ -485,6 +579,36 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
     fun setShowSetupGuideCard(enabled: Boolean) {
         viewModelScope.launch {
             repository.setShowSetupGuideCard(enabled)
+        }
+    }
+
+    fun onExamsEvent(event: ExamsTabEvent) {
+        when (event) {
+            ExamsTabEvent.HideSetupGuide -> setShowSetupGuideCard(false)
+            is ExamsTabEvent.DeleteExam -> deleteExam(event.exam.id)
+            ExamsTabEvent.OpenIcalImport,
+            ExamsTabEvent.RefreshNow,
+            ExamsTabEvent.OpenHelp,
+            ExamsTabEvent.OpenSyncDiagnostics,
+            ExamsTabEvent.AddExam,
+            is ExamsTabEvent.PlanStudy -> Unit
+        }
+    }
+
+    fun onTimetableEvent(event: TimetableTabEvent) {
+        when (event) {
+            TimetableTabEvent.ClearChanges -> clearTimetableChanges()
+            TimetableTabEvent.OpenIcalImport -> Unit
+        }
+    }
+
+    fun onAgendaEvent(event: AgendaTabEvent) {
+        when (event) {
+            is AgendaTabEvent.AddCustomEvents -> addCustomEvents(event.events)
+            is AgendaTabEvent.DeleteCustomEvent -> deleteCalendarEvent(event.eventId)
+            is AgendaTabEvent.UpdateCustomEvent -> updateCalendarEvent(event.event)
+            AgendaTabEvent.OpenIcalImport,
+            AgendaTabEvent.EnableEventsImportAndSync -> Unit
         }
     }
 

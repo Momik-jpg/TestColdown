@@ -46,9 +46,9 @@ import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.KeyboardArrowLeft
-import androidx.compose.material.icons.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MoreVert
@@ -131,16 +131,20 @@ import com.andrin.examcountdown.data.QuietHoursConfig
 import com.andrin.examcountdown.data.SyncStatus
 import com.andrin.examcountdown.data.SyncDiagnostics
 import com.andrin.examcountdown.data.BackupCrypto
+import com.andrin.examcountdown.domain.usecase.PlanStudySessionsUseCase
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.model.TimetableChangeEntry
 import com.andrin.examcountdown.model.TimetableChangeType
 import com.andrin.examcountdown.model.TimetableLesson
-import com.andrin.examcountdown.util.CollisionSource
+import com.andrin.examcountdown.ui.tabs.AgendaTabContent
+import com.andrin.examcountdown.ui.tabs.ExamsTabContent
+import com.andrin.examcountdown.ui.tabs.GradesTabContent
+import com.andrin.examcountdown.ui.tabs.TimetableTabContent
+import com.andrin.examcountdown.ui.tabs.events.AgendaTabEvent
+import com.andrin.examcountdown.ui.tabs.events.ExamsTabEvent
+import com.andrin.examcountdown.ui.tabs.events.TimetableTabEvent
 import com.andrin.examcountdown.util.CollisionRules
-import com.andrin.examcountdown.util.ExamCollision
-import com.andrin.examcountdown.util.collisionsByExam
-import com.andrin.examcountdown.util.detectExamCollisions
 import com.andrin.examcountdown.util.formatCountdown
 import com.andrin.examcountdown.util.formatCompactDay
 import com.andrin.examcountdown.util.formatDayHeader
@@ -156,7 +160,6 @@ import java.net.URI
 import java.security.KeyStore
 import java.time.LocalTime
 import java.time.DayOfWeek
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
@@ -185,45 +188,6 @@ enum class HomeTab(
     }
 }
 
-private enum class TimetableViewMode(val title: String) {
-    LIST("Liste"),
-    WEEK("Woche")
-}
-
-private enum class TimetableFilter(val title: String) {
-    ALL("Alle"),
-    ONLY_TODAY("Nur heute"),
-    ONLY_MOVED("Verschoben"),
-    ONLY_ROOM_CHANGED("Nur Raum")
-}
-
-private enum class ExamWindowFilter(val title: String, val maxDaysAhead: Int?) {
-    ALL("Alle", null),
-    NEXT_7("7 Tage", 7),
-    NEXT_30("30 Tage", 30),
-    NEXT_90("90 Tage", 90)
-}
-
-private enum class ExamSortMode(val title: String) {
-    NEXT_FIRST("Nächste"),
-    LATEST_FIRST("Späteste"),
-    SUBJECT_AZ("Fach A-Z"),
-    TITLE_AZ("Titel A-Z")
-}
-
-private data class TimetableLessonBlock(
-    val id: String,
-    val title: String,
-    val location: String?,
-    val originalLocation: String?,
-    val startsAtEpochMillis: Long,
-    val endsAtEpochMillis: Long,
-    val isMoved: Boolean,
-    val isLocationChanged: Boolean,
-    val isCancelledSlot: Boolean,
-    val lessonCount: Int
-)
-
 private data class StudyWeekdayOption(
     val dayOfWeek: DayOfWeek,
     val shortLabel: String
@@ -239,7 +203,6 @@ private fun studyWeekdayOptions(): List<StudyWeekdayOption> = listOf(
     StudyWeekdayOption(DayOfWeek.SUNDAY, "So")
 )
 
-private const val SUBJECT_FILTER_ALL = "Alle Fächer"
 private const val APP_LOCK_MIN_PIN_DIGITS = 4
 private const val APP_LOCK_MAX_PIN_DIGITS = 10
 private const val BIOMETRIC_KEYSTORE_PROVIDER = "AndroidKeyStore"
@@ -255,8 +218,6 @@ fun ExamCountdownScreen(
 ) {
     val exams by viewModel.exams.collectAsStateWithLifecycle()
     val lessons by viewModel.lessons.collectAsStateWithLifecycle()
-    val events by viewModel.events.collectAsStateWithLifecycle()
-    val timetableChanges by viewModel.timetableChanges.collectAsStateWithLifecycle()
     val savedIcalUrls by viewModel.savedIcalUrls.collectAsStateWithLifecycle()
     val importEventsEnabled by viewModel.importEventsEnabled.collectAsStateWithLifecycle()
     val onboardingDone by viewModel.onboardingDone.collectAsStateWithLifecycle()
@@ -278,6 +239,10 @@ fun ExamCountdownScreen(
     val appLockEnabled by viewModel.appLockEnabled.collectAsStateWithLifecycle()
     val appLockBiometricEnabled by viewModel.appLockBiometricEnabled.collectAsStateWithLifecycle()
     val screenshotProtectionEnabled by viewModel.screenshotProtectionEnabled.collectAsStateWithLifecycle()
+    val examsTabUiState by viewModel.examsTabUiState.collectAsStateWithLifecycle()
+    val timetableTabUiState by viewModel.timetableTabUiState.collectAsStateWithLifecycle()
+    val agendaTabUiState by viewModel.agendaTabUiState.collectAsStateWithLifecycle()
+    val gradesTabUiState by viewModel.gradesTabUiState.collectAsStateWithLifecycle()
     val isDarkMode = isSystemInDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
@@ -1212,111 +1177,112 @@ fun ExamCountdownScreen(
                 .padding(paddingValues)
         ) {
             when (selectedTab) {
-                HomeTab.EXAMS -> ExamListContent(
-                    exams = exams,
-                    lessons = lessons,
-                    events = events,
-                    showCollisionBadges = showExamCollisionBadges,
-                    collisionRules = collisionRuleSettings,
-                    hasIcalUrl = savedIcalUrls.isNotEmpty(),
-                    hasSyncedOnce = syncStatus.lastSyncAtMillis != null,
-                    lastSyncError = syncStatus.lastSyncError,
-                    simpleModeEnabled = simpleModeEnabled,
-                    showSetupGuideCard = showSetupGuideCard,
-                    onOpenIcalImport = {
-                        iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
-                        iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
-                        importEventsToggle = importEventsEnabled
-                        showIcalDialog = true
-                    },
-                    onRefreshNow = triggerManualRefresh,
-                    onOpenHelp = {
-                        showHelpDialog = true
-                    },
-                    onOpenSyncDiagnostics = {
-                        showSyncDiagnosticsDialog = true
-                    },
-                    onHideSetupGuide = {
-                        viewModel.setShowSetupGuideCard(false)
-                    },
-                    onAddClick = { showAddDialog = true },
-                    onPlanStudy = { exam ->
-                        studyPlanExam = exam
-                        studyPlanExamPresentation = buildExamPresentation(exam)
-                    },
-                    onDelete = { exam ->
-                        viewModel.deleteExam(exam.id)
-                        val deletedTitle = buildExamPresentation(exam).title
-                        scope.launch {
-                            val result = snackbarHostState.showSnackbar(
-                                message = "\"$deletedTitle\" gelöscht",
-                                actionLabel = "Rückgängig",
-                                duration = SnackbarDuration.Long
-                            )
-                            if (result == SnackbarResult.ActionPerformed) {
-                                viewModel.restoreExam(exam)
-                                snackbarHostState.showSnackbar("Prüfung wiederhergestellt.")
+                HomeTab.EXAMS -> ExamsTabContent(
+                    state = examsTabUiState,
+                    onEvent = { event ->
+                        when (event) {
+                            ExamsTabEvent.OpenIcalImport -> {
+                                iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                                iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
+                                importEventsToggle = importEventsEnabled
+                                showIcalDialog = true
+                            }
+                            ExamsTabEvent.RefreshNow -> triggerManualRefresh()
+                            ExamsTabEvent.OpenHelp -> {
+                                showHelpDialog = true
+                            }
+                            ExamsTabEvent.OpenSyncDiagnostics -> {
+                                showSyncDiagnosticsDialog = true
+                            }
+                            ExamsTabEvent.AddExam -> {
+                                showAddDialog = true
+                            }
+                            ExamsTabEvent.HideSetupGuide -> {
+                                viewModel.onExamsEvent(event)
+                            }
+                            is ExamsTabEvent.PlanStudy -> {
+                                studyPlanExam = event.exam
+                                studyPlanExamPresentation = buildExamPresentation(event.exam)
+                            }
+                            is ExamsTabEvent.DeleteExam -> {
+                                val exam = event.exam
+                                viewModel.onExamsEvent(event)
+                                val deletedTitle = buildExamPresentation(exam).title
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = "\"$deletedTitle\" gelöscht",
+                                        actionLabel = "Rückgängig",
+                                        duration = SnackbarDuration.Long
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        viewModel.restoreExam(exam)
+                                        snackbarHostState.showSnackbar("Prüfung wiederhergestellt.")
+                                    }
+                                }
                             }
                         }
                     }
                 )
 
-                HomeTab.TIMETABLE -> TimetableContent(
-                    lessons = lessons,
-                    changes = timetableChanges,
-                    hasIcalUrl = savedIcalUrls.isNotEmpty(),
-                    onOpenIcalImport = {
-                        iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
-                        iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
-                        importEventsToggle = importEventsEnabled
-                        showIcalDialog = true
-                    },
-                    onClearChanges = { viewModel.clearTimetableChanges() }
-                )
-
-                HomeTab.EVENTS -> EventsTimelineContent(
-                    exams = exams,
-                    lessons = lessons,
-                    events = events,
-                    hasIcalUrl = savedIcalUrls.isNotEmpty(),
-                    importEventsEnabled = importEventsEnabled,
-                    onOpenIcalImport = {
-                        iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
-                        iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
-                        importEventsToggle = importEventsEnabled
-                        showIcalDialog = true
-                    },
-                    onEnableEventsImportAndSync = {
-                        isSyncingIcal = true
-                        viewModel.enableEventsImportAndRefresh { message ->
-                            isSyncingIcal = false
-                            scope.launch {
-                                snackbarHostState.showSnackbar(message)
+                HomeTab.TIMETABLE -> TimetableTabContent(
+                    state = timetableTabUiState,
+                    onEvent = { event ->
+                        when (event) {
+                            TimetableTabEvent.OpenIcalImport -> {
+                                iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                                iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
+                                importEventsToggle = importEventsEnabled
+                                showIcalDialog = true
                             }
-                        }
-                    },
-                    onAddCustomEvents = { createdEvents ->
-                        viewModel.addCustomEvents(createdEvents)
-                        scope.launch {
-                            val label = if (createdEvents.size == 1) "Event gespeichert." else "${createdEvents.size} Events gespeichert."
-                            snackbarHostState.showSnackbar(label)
-                        }
-                    },
-                    onDeleteCustomEvent = { eventId ->
-                        viewModel.deleteCalendarEvent(eventId)
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Event gelöscht.")
-                        }
-                    },
-                    onUpdateCustomEvent = { event ->
-                        viewModel.updateCalendarEvent(event)
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Event aktualisiert.")
+                            TimetableTabEvent.ClearChanges -> viewModel.onTimetableEvent(event)
                         }
                     }
                 )
 
-                HomeTab.GRADES -> GradeCalculatorScreen(
+                HomeTab.EVENTS -> AgendaTabContent(
+                    state = agendaTabUiState,
+                    onEvent = { event ->
+                        when (event) {
+                            AgendaTabEvent.OpenIcalImport -> {
+                                iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                                iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
+                                importEventsToggle = importEventsEnabled
+                                showIcalDialog = true
+                            }
+                            AgendaTabEvent.EnableEventsImportAndSync -> {
+                                isSyncingIcal = true
+                                viewModel.enableEventsImportAndRefresh { message ->
+                                    isSyncingIcal = false
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(message)
+                                    }
+                                }
+                            }
+                            is AgendaTabEvent.AddCustomEvents -> {
+                                viewModel.onAgendaEvent(event)
+                                scope.launch {
+                                    val label = if (event.events.size == 1) "Event gespeichert." else "${event.events.size} Events gespeichert."
+                                    snackbarHostState.showSnackbar(label)
+                                }
+                            }
+                            is AgendaTabEvent.DeleteCustomEvent -> {
+                                viewModel.onAgendaEvent(event)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Event gelöscht.")
+                                }
+                            }
+                            is AgendaTabEvent.UpdateCustomEvent -> {
+                                viewModel.onAgendaEvent(event)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Event aktualisiert.")
+                                }
+                            }
+                        }
+                    }
+                )
+
+                HomeTab.GRADES -> GradesTabContent(
+                    state = gradesTabUiState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -1630,7 +1596,7 @@ private fun QuickActionsDialog(
                     QuickActionTile(
                         text = "Hilfe",
                         subtitle = "Kurzanleitung und Troubleshooting",
-                        icon = Icons.Outlined.HelpOutline,
+                        icon = Icons.AutoMirrored.Outlined.HelpOutline,
                         onClick = onOpenHelp
                     )
                     QuickActionTile(
@@ -2956,1933 +2922,6 @@ private fun ExportDialog(
 }
 
 @Composable
-private fun TimetableChangesCard(
-    changes: List<TimetableChangeEntry>,
-    onClear: () -> Unit
-) {
-    Card(
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Heute geändert",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                TextButton(onClick = onClear) {
-                    Text("Leeren")
-                }
-            }
-
-            changes.take(6).forEach { change ->
-                TimetableChangeRow(change)
-            }
-        }
-    }
-}
-
-@Composable
-private fun TimetableChangeRow(change: TimetableChangeEntry) {
-    val color = when (change.changeType) {
-        TimetableChangeType.MOVED -> MaterialTheme.colorScheme.tertiary
-        TimetableChangeType.ROOM_CHANGED -> MaterialTheme.colorScheme.secondary
-        TimetableChangeType.ADDED -> MaterialTheme.colorScheme.primary
-        TimetableChangeType.REMOVED -> MaterialTheme.colorScheme.error
-        TimetableChangeType.TIME_CHANGED -> MaterialTheme.colorScheme.primary
-    }
-
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = color.copy(alpha = 0.12f)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                text = change.title,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = formatTimetableChangeDescription(change),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-private fun formatTimetableChangeDescription(change: TimetableChangeEntry): String {
-    val oldText = change.oldValue.orEmpty()
-    val newText = change.newValue.orEmpty()
-
-    val oldTime = oldText.toLongOrNull()?.let { formatExamDateShort(it) }
-    val newTime = newText.toLongOrNull()?.let { formatExamDateShort(it) }
-
-    return when (change.changeType) {
-        TimetableChangeType.MOVED -> "Verschoben: ${oldTime.orEmpty()} -> ${newTime.orEmpty()}".trim()
-        TimetableChangeType.TIME_CHANGED -> "Zeit geändert: ${oldTime.orEmpty()} -> ${newTime.orEmpty()}".trim()
-        TimetableChangeType.ROOM_CHANGED -> {
-            val from = oldText.ifBlank { "unbekannt" }
-            val to = newText.ifBlank { "unbekannt" }
-            "Raum: $from -> $to"
-        }
-        TimetableChangeType.ADDED -> "Neue Lektion im Stundenplan"
-        TimetableChangeType.REMOVED -> "Lektion entfernt/entfallen"
-    }
-}
-
-@Composable
-@OptIn(ExperimentalLayoutApi::class)
-private fun TimetableContent(
-    lessons: List<TimetableLesson>,
-    changes: List<TimetableChangeEntry>,
-    hasIcalUrl: Boolean,
-    onOpenIcalImport: () -> Unit,
-    onClearChanges: () -> Unit
-) {
-    if (lessons.isEmpty()) {
-        if (changes.isNotEmpty()) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                item("today-changes-feed-empty") {
-                    TimetableChangesCard(
-                        changes = changes.take(6),
-                        onClear = onClearChanges
-                    )
-                }
-                item("timetable-empty-state") {
-                    TimetableEmptyState(
-                        hasIcalUrl = hasIcalUrl,
-                        onOpenIcalImport = onOpenIcalImport,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        } else {
-            TimetableEmptyState(
-                hasIcalUrl = hasIcalUrl,
-                onOpenIcalImport = onOpenIcalImport,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-        return
-    }
-
-    var selectedFilter by rememberSaveable { mutableStateOf(TimetableFilter.ALL) }
-    var viewMode by rememberSaveable { mutableStateOf(TimetableViewMode.LIST) }
-    var weekOffset by rememberSaveable { mutableIntStateOf(0) }
-
-    val lessonsWithCancelledSlots = remember(lessons) { addCancelledSlotEntries(lessons) }
-    val mergedLessons = remember(lessonsWithCancelledSlots) {
-        mergeConsecutiveLessons(lessonsWithCancelledSlots)
-    }
-    val schoolZone = remember { ZoneId.of("Europe/Zurich") }
-    val filteredLessons = remember(mergedLessons, selectedFilter) {
-        filterTimetableBlocks(
-            lessons = mergedLessons,
-            filter = selectedFilter,
-            schoolZone = schoolZone
-        )
-    }
-    val grouped = remember(filteredLessons) {
-        filteredLessons
-            .groupBy { lesson ->
-                Instant.ofEpochMilli(lesson.startsAtEpochMillis)
-                    .atZone(schoolZone)
-                    .toLocalDate()
-            }
-            .toSortedMap()
-    }
-    val todayChanges = remember(changes) {
-        val today = LocalDate.now(schoolZone)
-        changes.filter { entry ->
-            Instant.ofEpochMilli(entry.changedAtEpochMillis)
-                .atZone(schoolZone)
-                .toLocalDate() == today &&
-                entry.changeType != TimetableChangeType.ADDED
-        }
-    }
-    val nowMillis = System.currentTimeMillis()
-    val activeLesson = remember(mergedLessons, nowMillis) {
-        mergedLessons.firstOrNull { lesson ->
-            !lesson.isCancelledSlot &&
-                nowMillis in lesson.startsAtEpochMillis until lesson.endsAtEpochMillis
-        }
-    }
-    val upcomingLesson = remember(mergedLessons, nowMillis) {
-        mergedLessons.firstOrNull { lesson ->
-            !lesson.isCancelledSlot &&
-                lesson.startsAtEpochMillis > nowMillis
-        }
-    }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        if (todayChanges.isNotEmpty()) {
-            item(key = "today-changes-feed") {
-                TimetableChangesCard(
-                    changes = todayChanges,
-                    onClear = onClearChanges
-                )
-            }
-        }
-
-        item(key = "now-next-lesson") {
-            TimetableNowNextCard(
-                activeLesson = activeLesson,
-                upcomingLesson = upcomingLesson
-            )
-        }
-
-        item(key = "timetable-controls") {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "Ansicht & Filter",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    TimetableSectionLabel("Ansicht")
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TimetableViewMode.entries.forEach { mode ->
-                            TimetableChoiceChip(
-                                text = mode.title,
-                                selected = viewMode == mode,
-                                onClick = { viewMode = mode }
-                            )
-                        }
-                    }
-
-                    TimetableSectionLabel("Filter")
-                    FlowRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TimetableFilter.entries.forEach { filter ->
-                            TimetableChoiceChip(
-                                text = filter.title,
-                                selected = selectedFilter == filter,
-                                onClick = { selectedFilter = filter }
-                            )
-                        }
-                    }
-
-                    if (
-                        viewMode != TimetableViewMode.LIST ||
-                        selectedFilter != TimetableFilter.ALL ||
-                        weekOffset != 0
-                    ) {
-                        TextButton(
-                            onClick = {
-                                viewMode = TimetableViewMode.LIST
-                                selectedFilter = TimetableFilter.ALL
-                                weekOffset = 0
-                            },
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            Text("Zurücksetzen")
-                        }
-                    }
-                }
-            }
-        }
-
-        if (viewMode == TimetableViewMode.WEEK) {
-            item(key = "week-grid") {
-                TimetableWeekGrid(
-                    groupedLessons = grouped,
-                    weekOffset = weekOffset,
-                    onWeekOffsetChange = { weekOffset = it }
-                )
-            }
-        } else if (grouped.isEmpty()) {
-            item(key = "no-filter-results") {
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surface
-                ) {
-                    Text(
-                        text = "Keine Lektionen für den gewählten Filter.",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-        } else {
-            grouped.forEach { (date, dayLessons) ->
-                item(key = "header-$date") {
-                    Surface(
-                        shape = MaterialTheme.shapes.medium,
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            text = formatDayHeader(dayLessons.first().startsAtEpochMillis),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
-                items(items = dayLessons, key = { it.id }) { lesson ->
-                    TimetableLessonCard(lesson = lesson)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TimetableWeekGrid(
-    groupedLessons: Map<LocalDate, List<TimetableLessonBlock>>,
-    weekOffset: Int,
-    onWeekOffsetChange: (Int) -> Unit
-) {
-    val schoolZone = remember { ZoneId.of("Europe/Zurich") }
-    val weekStart = remember(weekOffset) {
-        LocalDate.now(schoolZone)
-            .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-            .plusWeeks(weekOffset.toLong())
-    }
-    val weekdays = remember(weekStart) {
-        (0..4).map { index -> weekStart.plusDays(index.toLong()) }
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { onWeekOffsetChange(weekOffset - 1) }) {
-                Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowLeft,
-                    contentDescription = "Vorherige Woche"
-                )
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "Woche ab ${formatCompactDay(weekStart)}",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                if (weekOffset != 0) {
-                    TextButton(onClick = { onWeekOffsetChange(0) }) {
-                        Text("Heute")
-                    }
-                }
-            }
-            IconButton(onClick = { onWeekOffsetChange(weekOffset + 1) }) {
-                Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowRight,
-                    contentDescription = "Nächste Woche"
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            weekdays.forEach { day ->
-                val dayLessons = groupedLessons[day].orEmpty()
-                Card(
-                    modifier = Modifier.width(240.dp),
-                    shape = MaterialTheme.shapes.large,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = formatCompactDay(day),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        if (dayLessons.isEmpty()) {
-                            Text(
-                                text = "Keine Lektionen",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            dayLessons.forEach { lesson ->
-                                WeekGridLessonRow(lesson)
-                            }
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.width(2.dp))
-        }
-    }
-}
-
-@Composable
-private fun TimetableSectionLabel(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        fontWeight = FontWeight.Medium
-    )
-}
-
-@Composable
-private fun TimetableChoiceChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-    )
-}
-
-@Composable
-private fun TimetableNowNextCard(
-    activeLesson: TimetableLessonBlock?,
-    upcomingLesson: TimetableLessonBlock?
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = "Jetzt & Nächste Lektion",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            if (activeLesson == null && upcomingLesson == null) {
-                Text(
-                    text = "Keine kommende Lektion gefunden.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                activeLesson?.let { lesson ->
-                    TimetableNowNextLessonTile(
-                        label = "Jetzt",
-                        lesson = lesson,
-                        accentColor = MaterialTheme.colorScheme.tertiary,
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.42f),
-                        dateHint = null
-                    )
-                }
-
-                upcomingLesson?.let { lesson ->
-                    val lessonDay = Instant.ofEpochMilli(lesson.startsAtEpochMillis)
-                        .atZone(ZoneId.of("Europe/Zurich"))
-                        .toLocalDate()
-                    TimetableNowNextLessonTile(
-                        label = "Nächste",
-                        lesson = lesson,
-                        accentColor = MaterialTheme.colorScheme.primary,
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.36f),
-                        dateHint = formatCompactDay(lessonDay)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TimetableNowNextLessonTile(
-    label: String,
-    lesson: TimetableLessonBlock,
-    accentColor: Color,
-    containerColor: Color,
-    dateHint: String?
-) {
-    val room = lesson.location?.trim().orEmpty()
-    Surface(
-        color = containerColor,
-        shape = MaterialTheme.shapes.medium
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 9.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Surface(
-                color = accentColor.copy(alpha = 0.16f),
-                shape = MaterialTheme.shapes.small
-            ) {
-                Text(
-                    text = label,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = accentColor,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            Text(
-                text = formatLessonDisplayTitle(lesson.title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Schedule,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            dateHint?.let { day ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.CalendarToday,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = day,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            if (room.isNotBlank()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.LocationOn,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Raum $room",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun WeekGridLessonRow(lesson: TimetableLessonBlock) {
-    val titleColor = when {
-        lesson.isCancelledSlot -> MaterialTheme.colorScheme.onSurfaceVariant
-        lesson.isMoved -> MaterialTheme.colorScheme.tertiary
-        lesson.isLocationChanged -> MaterialTheme.colorScheme.secondary
-        else -> MaterialTheme.colorScheme.onSurface
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            text = formatLessonDisplayTitle(lesson.title),
-            style = MaterialTheme.typography.labelLarge,
-            color = titleColor,
-            textDecoration = if (lesson.isCancelledSlot) TextDecoration.LineThrough else TextDecoration.None
-        )
-        Text(
-            text = formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textDecoration = if (lesson.isCancelledSlot) TextDecoration.LineThrough else TextDecoration.None
-        )
-    }
-}
-
-@Composable
-@OptIn(ExperimentalLayoutApi::class)
-private fun TimetableLessonCard(lesson: TimetableLessonBlock) {
-    val isCancelled = lesson.isCancelledSlot
-    val nowMillis = System.currentTimeMillis()
-    val isCurrent = !isCancelled && nowMillis in lesson.startsAtEpochMillis until lesson.endsAtEpochMillis
-    val cardColor = if (isCancelled) {
-        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.28f)
-    } else {
-        MaterialTheme.colorScheme.surface
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = formatLessonDisplayTitle(lesson.title),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                    textDecoration = if (isCancelled) TextDecoration.LineThrough else TextDecoration.None,
-                    color = if (isCancelled) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    }
-                )
-
-                if (isCurrent) {
-                    Text(
-                        text = "Jetzt",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
-            }
-
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                if (!isCancelled && lesson.lessonCount > 1) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        val lessonLabel = if (lesson.lessonCount == 1) "Lektion" else "Lektionen"
-                        Text(
-                            text = "${lesson.lessonCount} $lessonLabel",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-
-                if (isCancelled) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = "Ausfall (verschoben)",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                } else if (lesson.isMoved) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = "Verschoben",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-
-                if (!isCancelled && lesson.isLocationChanged) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = "Raum geändert",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-
-            Surface(
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Schedule,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    Text(
-                        text = formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        style = MaterialTheme.typography.labelLarge,
-                        textDecoration = if (isCancelled) TextDecoration.LineThrough else TextDecoration.None
-                    )
-                }
-            }
-
-            val currentLocation = lesson.location?.trim().orEmpty()
-            val previousLocation = lesson.originalLocation?.trim().orEmpty()
-            if (currentLocation.isNotBlank() || previousLocation.isNotBlank()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Outlined.LocationOn,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-
-                    if (!isCancelled && lesson.isLocationChanged && previousLocation.isNotBlank()) {
-                        Text(
-                            text = previousLocation,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textDecoration = TextDecoration.LineThrough
-                        )
-                        Text(
-                            text = "  ->  ",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = currentLocation.ifBlank { "unbekannt" },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    } else {
-                        Text(
-                            text = currentLocation.ifBlank { previousLocation },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textDecoration = if (isCancelled) TextDecoration.LineThrough else TextDecoration.None
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun addCancelledSlotEntries(lessons: List<TimetableLesson>): List<TimetableLesson> {
-    if (lessons.isEmpty()) return emptyList()
-
-    val placeholders = lessons.mapNotNull { lesson ->
-        val originalStart = lesson.originalStartsAtEpochMillis
-        val originalEnd = lesson.originalEndsAtEpochMillis
-        if (!lesson.isMoved || originalStart == null || originalEnd == null) {
-            return@mapNotNull null
-        }
-
-        TimetableLesson(
-            id = "cancelled:${lesson.id}",
-            title = lesson.title,
-            location = lesson.originalLocation ?: lesson.location,
-            startsAtEpochMillis = originalStart,
-            endsAtEpochMillis = originalEnd,
-            isCancelledSlot = true
-        )
-    }
-
-    return (lessons + placeholders)
-        .distinctBy { it.id }
-        .sortedBy { it.startsAtEpochMillis }
-}
-
-private fun mergeConsecutiveLessons(
-    lessons: List<TimetableLesson>,
-    maxGapMinutes: Long = 20L
-): List<TimetableLessonBlock> {
-    if (lessons.isEmpty()) return emptyList()
-
-    val maxGapMillis = maxGapMinutes * 60_000L
-    val sorted = lessons.sortedBy { it.startsAtEpochMillis }
-    val result = mutableListOf<TimetableLessonBlock>()
-
-    var current = TimetableLessonBlock(
-        id = sorted.first().id,
-        title = sorted.first().title,
-        location = sorted.first().location,
-        originalLocation = sorted.first().originalLocation,
-        startsAtEpochMillis = sorted.first().startsAtEpochMillis,
-        endsAtEpochMillis = sorted.first().endsAtEpochMillis,
-        isMoved = sorted.first().isMoved,
-        isLocationChanged = sorted.first().isLocationChanged,
-        isCancelledSlot = sorted.first().isCancelledSlot,
-        lessonCount = 1
-    )
-
-    sorted.drop(1).forEach { next ->
-        val gap = next.startsAtEpochMillis - current.endsAtEpochMillis
-        val sameTitle = current.title.equals(next.title, ignoreCase = true)
-        val sameLocation = current.location.orEmpty().trim().lowercase() ==
-            next.location.orEmpty().trim().lowercase()
-        val canMergeType = !current.isMoved &&
-            !next.isMoved &&
-            !current.isLocationChanged &&
-            !next.isLocationChanged &&
-            !current.isCancelledSlot &&
-            !next.isCancelledSlot
-
-        val shouldMerge = canMergeType && sameTitle && sameLocation && gap in 0..maxGapMillis
-
-        if (shouldMerge) {
-            current = current.copy(
-                endsAtEpochMillis = maxOf(current.endsAtEpochMillis, next.endsAtEpochMillis),
-                isMoved = current.isMoved || next.isMoved,
-                isLocationChanged = current.isLocationChanged || next.isLocationChanged,
-                isCancelledSlot = current.isCancelledSlot || next.isCancelledSlot,
-                lessonCount = current.lessonCount + 1
-            )
-        } else {
-            result += current
-            current = TimetableLessonBlock(
-                id = next.id,
-                title = next.title,
-                location = next.location,
-                originalLocation = next.originalLocation,
-                startsAtEpochMillis = next.startsAtEpochMillis,
-                endsAtEpochMillis = next.endsAtEpochMillis,
-                isMoved = next.isMoved,
-                isLocationChanged = next.isLocationChanged,
-                isCancelledSlot = next.isCancelledSlot,
-                lessonCount = 1
-            )
-        }
-    }
-
-    result += current
-    return result
-}
-
-private fun filterTimetableBlocks(
-    lessons: List<TimetableLessonBlock>,
-    filter: TimetableFilter,
-    schoolZone: ZoneId
-): List<TimetableLessonBlock> {
-    if (lessons.isEmpty()) return emptyList()
-
-    val today = LocalDate.now(schoolZone)
-    return lessons.filter { lesson ->
-        when (filter) {
-            TimetableFilter.ALL -> true
-            TimetableFilter.ONLY_TODAY -> {
-                val lessonDay = Instant.ofEpochMilli(lesson.startsAtEpochMillis)
-                    .atZone(schoolZone)
-                    .toLocalDate()
-                lessonDay == today
-            }
-            TimetableFilter.ONLY_MOVED -> lesson.isMoved || lesson.isCancelledSlot
-            TimetableFilter.ONLY_ROOM_CHANGED -> lesson.isLocationChanged
-        }
-    }
-}
-
-@Composable
-private fun TimetableEmptyState(
-    hasIcalUrl: Boolean,
-    onOpenIcalImport: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier.padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = MaterialTheme.shapes.extraLarge
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Schedule,
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "Noch kein Stundenplan verfügbar",
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Text(
-                    text = if (hasIcalUrl) {
-                        "Tippe oben rechts auf den Pfeil zum Aktualisieren."
-                    } else {
-                        "Gib deinen iCal-Link einmal ein, er bleibt gespeichert."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedButton(onClick = onOpenIcalImport) {
-                    Text(if (hasIcalUrl) "iCal synchronisieren" else "iCal hinzufügen")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExamListContent(
-    exams: List<Exam>,
-    lessons: List<TimetableLesson>,
-    events: List<SchoolEvent>,
-    showCollisionBadges: Boolean,
-    collisionRules: CollisionRuleSettings,
-    hasIcalUrl: Boolean,
-    hasSyncedOnce: Boolean,
-    lastSyncError: String?,
-    simpleModeEnabled: Boolean,
-    showSetupGuideCard: Boolean,
-    onOpenIcalImport: () -> Unit,
-    onRefreshNow: () -> Unit,
-    onOpenHelp: () -> Unit,
-    onOpenSyncDiagnostics: () -> Unit,
-    onHideSetupGuide: () -> Unit,
-    onAddClick: () -> Unit,
-    onPlanStudy: (Exam) -> Unit,
-    onDelete: (Exam) -> Unit
-) {
-    var searchQuery by rememberSaveable { mutableStateOf("") }
-    var selectedSubject by rememberSaveable { mutableStateOf(SUBJECT_FILTER_ALL) }
-    var selectedWindow by rememberSaveable { mutableStateOf(ExamWindowFilter.ALL) }
-    var selectedSortMode by rememberSaveable { mutableStateOf(ExamSortMode.NEXT_FIRST) }
-    val examPresentations = remember(exams) {
-        exams.associate { exam -> exam.id to buildExamPresentation(exam) }
-    }
-    val subjectOptions = remember(examPresentations) {
-        val subjects = examPresentations.values.mapNotNull { info ->
-            info.subject?.trim()?.takeIf { it.isNotBlank() }
-        }
-            .distinct()
-            .sortedBy { it.lowercase() }
-        listOf(SUBJECT_FILTER_ALL) + subjects
-    }
-    LaunchedEffect(subjectOptions) {
-        if (selectedSubject !in subjectOptions) {
-            selectedSubject = SUBJECT_FILTER_ALL
-        }
-    }
-
-    val filteredExams = remember(
-        exams,
-        examPresentations,
-        searchQuery,
-        selectedSubject,
-        selectedWindow,
-        selectedSortMode
-    ) {
-        val query = searchQuery.trim().lowercase()
-        val now = System.currentTimeMillis()
-        val windowEnd = selectedWindow.maxDaysAhead?.let { days ->
-            now + days * 24L * 60L * 60L * 1000L
-        }
-
-        val filtered = exams.filter { exam ->
-            val info = examPresentations[exam.id] ?: buildExamPresentation(exam)
-            val matchesSubject = selectedSubject == SUBJECT_FILTER_ALL ||
-                info.subject?.equals(selectedSubject, ignoreCase = true) == true
-            val matchesQuery = query.isBlank() || listOf(
-                info.subject.orEmpty(),
-                info.title,
-                exam.location.orEmpty()
-            )
-                .joinToString(" ")
-                .lowercase()
-                .contains(query)
-            val matchesWindow = windowEnd == null || exam.startsAtEpochMillis in now..windowEnd
-            matchesSubject && matchesQuery && matchesWindow
-        }
-
-        when (selectedSortMode) {
-            ExamSortMode.NEXT_FIRST -> filtered.sortedBy { it.startsAtEpochMillis }
-            ExamSortMode.LATEST_FIRST -> filtered.sortedByDescending { it.startsAtEpochMillis }
-            ExamSortMode.SUBJECT_AZ -> filtered.sortedWith(
-                compareBy<Exam>(
-                    { examPresentations[it.id]?.subject.orEmpty().lowercase() },
-                    { examPresentations[it.id]?.title.orEmpty().lowercase() },
-                    { it.startsAtEpochMillis }
-                )
-            )
-            ExamSortMode.TITLE_AZ -> filtered.sortedWith(
-                compareBy<Exam>(
-                    { examPresentations[it.id]?.title.orEmpty().lowercase() },
-                    { examPresentations[it.id]?.subject.orEmpty().lowercase() },
-                    { it.startsAtEpochMillis }
-                )
-            )
-        }
-    }
-    val nextExam = remember(filteredExams) {
-        val now = System.currentTimeMillis()
-        filteredExams.firstOrNull { it.startsAtEpochMillis >= now } ?: filteredExams.firstOrNull()
-    }
-    val listExams = remember(filteredExams, nextExam) {
-        val heroId = nextExam?.id ?: return@remember filteredExams
-        filteredExams.filterNot { it.id == heroId }
-    }
-    val showCollisionBadgesEffective = showCollisionBadges && !simpleModeEnabled
-    val collisionMap = remember(
-        exams,
-        lessons,
-        events,
-        showCollisionBadgesEffective,
-        collisionRules
-    ) {
-        if (!showCollisionBadgesEffective) {
-            emptyMap()
-        } else {
-            val collisions = detectExamCollisions(
-                exams = exams,
-                lessons = lessons,
-                events = events,
-                rules = CollisionRules(
-                    includeLessonCollisions = collisionRules.includeLessonCollisions,
-                    includeEventCollisions = collisionRules.includeEventCollisions,
-                    onlyDifferentSubject = collisionRules.onlyDifferentSubject,
-                    requireExactTimeOverlap = collisionRules.requireExactTimeOverlap
-                )
-            )
-            collisionsByExam(collisions)
-        }
-    }
-    val collisionCount = remember(collisionMap) {
-        collisionMap.values.flatten().size
-    }
-    val showSetupGuide = remember(showSetupGuideCard) {
-        showSetupGuideCard
-    }
-    val suggestLinkRepair = remember(lastSyncError) {
-        isIcalLinkRepairRecommended(lastSyncError)
-    }
-
-    if (exams.isEmpty()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            if (showSetupGuide) {
-                item("setup-guide-empty") {
-                    SetupGuideCard(
-                        examCount = exams.size,
-                        hasIcalUrl = hasIcalUrl,
-                        hasSyncedOnce = hasSyncedOnce,
-                        lastSyncError = lastSyncError,
-                        shouldSuggestLinkRepair = suggestLinkRepair,
-                        onOpenIcalImport = onOpenIcalImport,
-                        onRefreshNow = onRefreshNow,
-                        onOpenHelp = onOpenHelp,
-                        onHide = onHideSetupGuide
-                    )
-                }
-            }
-            if (!lastSyncError.isNullOrBlank()) {
-                item("sync-issue-empty") {
-                    SyncIssueCard(
-                        errorText = lastSyncError,
-                        showRepairAction = suggestLinkRepair,
-                        onRetryNow = onRefreshNow,
-                        onRepairLink = onOpenIcalImport,
-                        onOpenDiagnostics = onOpenSyncDiagnostics
-                    )
-                }
-            }
-            item {
-                EmptyState(
-                    onAddClick = onAddClick,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-        return
-    }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        if (showSetupGuide) {
-            item("setup-guide") {
-                SetupGuideCard(
-                    examCount = exams.size,
-                    hasIcalUrl = hasIcalUrl,
-                    hasSyncedOnce = hasSyncedOnce,
-                    lastSyncError = lastSyncError,
-                    shouldSuggestLinkRepair = suggestLinkRepair,
-                    onOpenIcalImport = onOpenIcalImport,
-                    onRefreshNow = onRefreshNow,
-                    onOpenHelp = onOpenHelp,
-                    onHide = onHideSetupGuide
-                )
-            }
-        }
-        if (!lastSyncError.isNullOrBlank()) {
-            item("sync-issue") {
-                SyncIssueCard(
-                    errorText = lastSyncError,
-                    showRepairAction = suggestLinkRepair,
-                    onRetryNow = onRefreshNow,
-                    onRepairLink = onOpenIcalImport,
-                    onOpenDiagnostics = onOpenSyncDiagnostics
-                )
-            }
-        }
-        item {
-            ExamSearchAndFilterCard(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                selectedSubject = selectedSubject,
-                subjects = subjectOptions,
-                onSubjectSelected = { selectedSubject = it },
-                selectedWindow = selectedWindow,
-                onWindowSelected = { selectedWindow = it },
-                simpleModeEnabled = simpleModeEnabled,
-                showSortOptions = !simpleModeEnabled,
-                selectedSortMode = selectedSortMode,
-                onSortModeSelected = { selectedSortMode = it }
-            )
-        }
-        if (!simpleModeEnabled) {
-            item {
-                ExamInsightsCard(
-                    exams = exams,
-                    visibleCount = filteredExams.size
-                )
-            }
-            if (collisionCount > 0) {
-                item {
-                    ExamCollisionOverviewCard(
-                        collisionMap = collisionMap
-                    )
-                }
-            }
-        }
-        item {
-            nextExam?.let { exam ->
-                val info = examPresentations[exam.id] ?: buildExamPresentation(exam)
-                NextExamHero(exam = exam, presentation = info)
-            }
-        }
-
-        if (filteredExams.isEmpty()) {
-            item {
-                NoExamResultsCard(
-                    onClearFilters = {
-                        searchQuery = ""
-                        selectedSubject = SUBJECT_FILTER_ALL
-                    }
-                )
-            }
-        } else {
-            if (listExams.isEmpty()) {
-                item {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                        shape = MaterialTheme.shapes.large
-                    ) {
-                        Text(
-                            text = "Keine weiteren Prüfungen im aktuellen Filter.",
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            } else {
-                items(items = listExams, key = { it.id }) { exam ->
-                    val info = examPresentations[exam.id] ?: buildExamPresentation(exam)
-                    ExamCard(
-                        exam = exam,
-                        presentation = info,
-                        collisions = collisionMap[exam.id].orEmpty(),
-                        onPlanStudy = { onPlanStudy(exam) },
-                        onDelete = { onDelete(exam) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExamInsightsCard(
-    exams: List<Exam>,
-    visibleCount: Int
-) {
-    val now = System.currentTimeMillis()
-    val in7Days = now + 7L * 24L * 60L * 60L * 1000L
-    val in30Days = now + 30L * 24L * 60L * 60L * 1000L
-    val examsNext7 = exams.count { it.startsAtEpochMillis in now..in7Days }
-    val examsNext30 = exams.count { it.startsAtEpochMillis in now..in30Days }
-    val subjectCount = exams.mapNotNull { it.subject?.trim()?.takeIf(String::isNotBlank) }.distinct().size
-
-    Card(
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Überblick",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InsightPill(
-                    label = "Sichtbar",
-                    value = visibleCount.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                InsightPill(
-                    label = "7 Tage",
-                    value = examsNext7.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                InsightPill(
-                    label = "30 Tage",
-                    value = examsNext30.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Text(
-                text = "Fächer mit Prüfungen: $subjectCount",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun SetupGuideCard(
-    examCount: Int,
-    hasIcalUrl: Boolean,
-    hasSyncedOnce: Boolean,
-    lastSyncError: String?,
-    shouldSuggestLinkRepair: Boolean,
-    onOpenIcalImport: () -> Unit,
-    onRefreshNow: () -> Unit,
-    onOpenHelp: () -> Unit,
-    onHide: () -> Unit
-) {
-    val actionText = when {
-        !hasIcalUrl -> "Link einfügen"
-        shouldSuggestLinkRepair -> "Link reparieren"
-        else -> "Aktualisieren"
-    }
-    val statusText = when {
-        !hasIcalUrl -> "Schritt 1: Tippe auf \"Link einfügen\"."
-        shouldSuggestLinkRepair -> "Link scheint ungültig/abgelaufen. Bitte reparieren."
-        !hasSyncedOnce -> "Schritt 2: Tippe auf \"Aktualisieren\"."
-        examCount == 0 -> "Noch keine Prüfungen gefunden. Bitte aktualisieren."
-        !lastSyncError.isNullOrBlank() -> "Es gab ein Problem. Tippe auf \"Hilfe\"."
-        else -> "Alles bereit. Du kannst die App normal nutzen."
-    }
-
-    Card(
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Erste Schritte",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SetupStatusPill(
-                    label = if (hasIcalUrl) "Link verbunden" else "Link fehlt",
-                    ok = hasIcalUrl
-                )
-                SetupStatusPill(
-                    label = if (hasSyncedOnce) "Daten geladen" else "Noch nicht geladen",
-                    ok = hasSyncedOnce
-                )
-                SetupStatusPill(
-                    label = "$examCount Prüfungen sichtbar",
-                    ok = examCount > 0
-                )
-            }
-
-            if (!lastSyncError.isNullOrBlank()) {
-                Text(
-                    text = lastSyncError,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            } else {
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = if (!hasIcalUrl || shouldSuggestLinkRepair) onOpenIcalImport else onRefreshNow,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(actionText)
-                }
-                OutlinedButton(
-                    onClick = onOpenHelp,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("So geht's")
-                }
-            }
-            TextButton(
-                onClick = onHide,
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text("Karte ausblenden")
-            }
-        }
-    }
-}
-
-@Composable
-private fun SetupStatusPill(label: String, ok: Boolean) {
-    val bg = if (ok) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-    val fg = if (ok) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Surface(
-        color = bg,
-        shape = MaterialTheme.shapes.small
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelMedium,
-            color = fg
-        )
-    }
-}
-
-@Composable
-private fun InsightPill(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        shape = MaterialTheme.shapes.medium
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        }
-    }
-}
-
-@Composable
-private fun ExamCollisionOverviewCard(
-    collisionMap: Map<String, List<ExamCollision>>
-) {
-    val totalCount = remember(collisionMap) { collisionMap.values.sumOf { it.size } }
-    val entries = remember(collisionMap) {
-        collisionMap.values.flatten()
-            .sortedBy { it.examStartsAtEpochMillis }
-            .take(5)
-    }
-    Card(
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.28f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Kollisionen erkannt",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onErrorContainer
-            )
-            Text(
-                text = "$totalCount Kollisionen erkannt. Prüfe betroffene Prüfungen unten.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onErrorContainer
-            )
-            entries.forEach { collision ->
-                val sourceText = when (collision.source) {
-                    CollisionSource.LESSON -> "Lektion"
-                    CollisionSource.EVENT -> "Event"
-                }
-                Text(
-                    text = "• ${collision.examTitle} ↔ $sourceText: ${collision.sourceTitle}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExamSearchAndFilterCard(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    selectedSubject: String,
-    subjects: List<String>,
-    onSubjectSelected: (String) -> Unit,
-    selectedWindow: ExamWindowFilter,
-    onWindowSelected: (ExamWindowFilter) -> Unit,
-    simpleModeEnabled: Boolean,
-    showSortOptions: Boolean,
-    selectedSortMode: ExamSortMode,
-    onSortModeSelected: (ExamSortMode) -> Unit
-) {
-    var showExtendedFilters by rememberSaveable(simpleModeEnabled) { mutableStateOf(!simpleModeEnabled) }
-
-    Card(
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("Suche") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Search,
-                        contentDescription = null
-                    )
-                },
-                trailingIcon = {
-                    if (query.isNotBlank()) {
-                        IconButton(onClick = { onQueryChange("") }) {
-                            Icon(
-                                imageVector = Icons.Outlined.Close,
-                                contentDescription = "Suche löschen"
-                            )
-                        }
-                    }
-                }
-            )
-            Text(
-                text = "Zeitraum",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ExamWindowFilter.entries.forEach { window ->
-                    FilterChip(
-                        selected = selectedWindow == window,
-                        onClick = { onWindowSelected(window) },
-                        label = { Text(window.title) }
-                    )
-                }
-            }
-            if (simpleModeEnabled) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(
-                        text = if (showExtendedFilters) "Weniger Filter" else "Weitere Filter",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .clickable { showExtendedFilters = !showExtendedFilters }
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                    )
-                }
-            }
-            val showSubjectFilters = subjects.size > 1 && (!simpleModeEnabled || showExtendedFilters)
-            if (showSubjectFilters) {
-                Text(
-                    text = "Fächer",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    subjects.forEach { subject ->
-                        FilterChip(
-                            selected = selectedSubject == subject,
-                            onClick = { onSubjectSelected(subject) },
-                            label = { Text(subject) }
-                        )
-                    }
-                }
-            }
-            if (showSortOptions && (!simpleModeEnabled || showExtendedFilters)) {
-                Text(
-                    text = "Sortierung",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ExamSortMode.entries.forEach { mode ->
-                        FilterChip(
-                            selected = selectedSortMode == mode,
-                            onClick = { onSortModeSelected(mode) },
-                            label = { Text(mode.title) }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun NoExamResultsCard(
-    onClearFilters: () -> Unit
-) {
-    Card(
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "Keine Prüfungen für diesen Filter.",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            OutlinedButton(onClick = onClearFilters) {
-                Text("Filter zurücksetzen")
-            }
-        }
-    }
-}
-
-@Composable
-private fun NextExamHero(
-    exam: Exam,
-    presentation: ExamPresentation
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Nächste Prüfung",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
-            )
-            presentation.subject?.takeIf { it.isNotBlank() }?.let { subject ->
-                Surface(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        text = "Fach: $subject",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
-            Text(
-                text = presentation.title,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = formatExamDate(exam.startsAtEpochMillis),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
-            )
-            Surface(
-                color = MaterialTheme.colorScheme.primary,
-                shape = MaterialTheme.shapes.small
-            ) {
-                Text(
-                    text = formatCountdown(exam.startsAtEpochMillis),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    style = MaterialTheme.typography.titleSmall
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SyncIssueCard(
-    errorText: String,
-    showRepairAction: Boolean,
-    onRetryNow: () -> Unit,
-    onRepairLink: () -> Unit,
-    onOpenDiagnostics: () -> Unit
-) {
-    Card(
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.72f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Synchronisierung braucht Aufmerksamkeit",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onTertiaryContainer
-            )
-            Text(
-                text = errorText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onTertiaryContainer
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(onClick = onRetryNow) {
-                    Text("Erneut versuchen")
-                }
-                if (showRepairAction) {
-                    OutlinedButton(onClick = onRepairLink) {
-                        Text("Link reparieren")
-                    }
-                }
-                OutlinedButton(onClick = onOpenDiagnostics) {
-                    Text("Diagnose öffnen")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyState(
-    onAddClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier.padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = MaterialTheme.shapes.extraLarge
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.School,
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "Noch keine Prüfungen geplant",
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Text(
-                    text = "Füge jetzt deine erste Prüfung hinzu.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedButton(onClick = onAddClick) {
-                    Text("Prüfung hinzufügen")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExamCard(
-    exam: Exam,
-    presentation: ExamPresentation,
-    collisions: List<ExamCollision>,
-    onPlanStudy: () -> Unit,
-    onDelete: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            presentation.subject?.takeIf { it.isNotBlank() }?.let { subject ->
-                Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        text = "Fach: $subject",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-            }
-            if (collisions.isNotEmpty()) {
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.9f),
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        text = if (collisions.size == 1) {
-                            "Kollision mit ${collisionSourceLabel(collisions.first().source)}"
-                        } else {
-                            "${collisions.size} Kollisionen"
-                        },
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = presentation.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                IconButton(onClick = onPlanStudy) {
-                    Icon(
-                        imageVector = Icons.Outlined.Schedule,
-                        contentDescription = "Lern-Sessions planen"
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(imageVector = Icons.Outlined.Delete, contentDescription = "Löschen")
-                }
-            }
-
-            Text(
-                text = formatExamDate(exam.startsAtEpochMillis),
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = MaterialTheme.shapes.small
-            ) {
-                Text(
-                    text = formatCountdown(exam.startsAtEpochMillis),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-
-            exam.location?.let { location ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Outlined.LocationOn,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text(text = location, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-
-            val reminderText = when {
-                exam.reminderAtEpochMillis != null && exam.reminderLeadTimesMinutes.isNotEmpty() -> {
-                    val leads = exam.reminderLeadTimesMinutes
-                        .take(3)
-                        .joinToString(", ") { formatReminderLeadTime(it) }
-                    "Erinnerung: fix ${formatReminderDateTime(exam.reminderAtEpochMillis)} + $leads"
-                }
-                exam.reminderAtEpochMillis != null -> "Erinnerung: ${formatReminderDateTime(exam.reminderAtEpochMillis)}"
-                exam.reminderLeadTimesMinutes.isNotEmpty() -> {
-                    val leads = exam.reminderLeadTimesMinutes
-                        .take(3)
-                        .joinToString(", ") { formatReminderLeadTime(it) }
-                    val suffix = if (exam.reminderLeadTimesMinutes.size > 3) ", ..." else ""
-                    "Erinnerung: $leads$suffix"
-                }
-                exam.reminderMinutesBefore != null -> "Erinnerung: ${formatReminderLeadTime(exam.reminderMinutesBefore)}"
-                else -> null
-            }
-
-            reminderText?.let { text ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Outlined.NotificationsActive,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text(text = text, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-
-            if (collisions.isNotEmpty()) {
-                collisions.take(2).forEach { collision ->
-                    val source = collisionSourceLabel(collision.source)
-                    Text(
-                        text = "Kollision $source: ${collision.sourceTitle}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun PlanExamStudySessionsDialog(
     exam: Exam,
     presentation: ExamPresentation,
@@ -5639,59 +3678,20 @@ private fun buildExamStudySessions(
     startMinutesOfDay: Int,
     schoolZone: ZoneId
 ): List<SchoolEvent> {
-    if (startWeeksBefore <= 0 || durationMinutes <= 0 || targetSessions <= 0 || weekdays.isEmpty()) {
-        return emptyList()
-    }
-
-    val nowMillis = System.currentTimeMillis()
-    val examStart = Instant.ofEpochMilli(examStartsAtMillis).atZone(schoolZone)
-    val examDate = examStart.toLocalDate()
-    val firstDateByRule = examDate.minusWeeks(startWeeksBefore.toLong())
-    val todayDate = Instant.ofEpochMilli(nowMillis).atZone(schoolZone).toLocalDate()
-    val startDate = if (firstDateByRule.isBefore(todayDate)) todayDate else firstDateByRule
-    val lastDate = examDate.minusDays(1)
-    if (lastDate.isBefore(startDate)) return emptyList()
-
-    val hour = (startMinutesOfDay / 60).coerceIn(0, 23)
-    val minute = (startMinutesOfDay % 60).coerceIn(0, 59)
-    val baseTitle = buildString {
-        append("Lernen")
-        subject.orEmpty().trim().takeIf { it.isNotBlank() }?.let {
-            append(" $it")
-        }
-        append(": ${examTitle.trim()}")
-    }
-    val safeLocation = examLocation.orEmpty().trim().takeIf { it.isNotBlank() }
-    val seed = System.currentTimeMillis()
-    val maxCount = targetSessions.coerceIn(1, 400)
-
-    val sessions = mutableListOf<SchoolEvent>()
-    var currentDate = startDate
-    var index = 0
-    while (!currentDate.isAfter(lastDate) && index < 500 && sessions.size < maxCount) {
-        if (currentDate.dayOfWeek in weekdays) {
-            val sessionStart = currentDate
-                .atTime(hour, minute)
-                .atZone(schoolZone)
-            val startsAtMillis = sessionStart.toInstant().toEpochMilli()
-            if (startsAtMillis > nowMillis && startsAtMillis < examStartsAtMillis) {
-                sessions += SchoolEvent(
-                    id = "manual-study:$seed:$index",
-                    title = baseTitle,
-                    type = com.andrin.examcountdown.model.SchoolEventType.INFO,
-                    location = safeLocation,
-                    description = "Lern-Session für ${examTitle.trim()}",
-                    startsAtEpochMillis = startsAtMillis,
-                    endsAtEpochMillis = sessionStart.plusMinutes(durationMinutes.toLong()).toInstant().toEpochMilli(),
-                    isAllDay = false,
-                    source = "manual"
-                )
-            }
-        }
-        currentDate = currentDate.plusDays(1)
-        index += 1
-    }
-    return sessions
+    return PlanStudySessionsUseCase().invoke(
+        PlanStudySessionsUseCase.Params(
+            subject = subject,
+            examTitle = examTitle,
+            examLocation = examLocation,
+            examStartsAtMillis = examStartsAtMillis,
+            startWeeksBefore = startWeeksBefore,
+            durationMinutes = durationMinutes,
+            targetSessions = targetSessions,
+            weekdays = weekdays,
+            startMinutesOfDay = startMinutesOfDay,
+            schoolZone = schoolZone
+        )
+    )
 }
 
 private data class ReminderSeriesLeadTimes(
@@ -6254,12 +4254,12 @@ private fun formatDurationMillis(durationMillis: Long): String {
     return "${seconds}s ${millis}ms"
 }
 
-private data class ExamPresentation(
+internal data class ExamPresentation(
     val subject: String?,
     val title: String
 )
 
-private fun buildExamPresentation(exam: Exam): ExamPresentation {
+internal fun buildExamPresentation(exam: Exam): ExamPresentation {
     val normalizedTitle = normalizeExamDisplayText(exam.title)
     val parsedFromTitle = parseEmbeddedSubjectFromTitle(normalizedTitle)
     val subject = normalizeSubjectForDisplay(exam.subject) ?: parsedFromTitle?.subject
@@ -6329,34 +4329,12 @@ private fun normalizeExamDisplayText(raw: String): String {
     return text
 }
 
-private fun formatLessonDisplayTitle(raw: String): String {
-    val trimmed = raw.trim()
-    if (trimmed.isBlank()) return "Lektion"
-
-    val underscoreParts = trimmed.split('_')
-        .map { it.trim() }
-        .filter { it.isNotBlank() }
-
-    if (underscoreParts.size >= 2) {
-        val subject = underscoreParts[0].uppercase()
-        val clazz = underscoreParts[1].uppercase()
-        val teacher = underscoreParts.getOrNull(2)
-            ?.replace(Regex("[^A-Za-zÄÖÜäöü]"), "")
-            ?.takeIf { it.length in 2..10 }
-        return listOf(subject, clazz, teacher).filterNotNull().joinToString(" · ")
-    }
-
-    return trimmed
-        .replace('_', ' ')
-        .replace(Regex("\\s+"), " ")
-}
-
 private fun replaceWordCaseInsensitive(input: String, from: String, replacement: String): String {
     val regex = Regex("\\b$from\\b", RegexOption.IGNORE_CASE)
     return regex.replace(input, replacement)
 }
 
-private fun isIcalLinkRepairRecommended(lastSyncError: String?): Boolean {
+internal fun isIcalLinkRepairRecommended(lastSyncError: String?): Boolean {
     val error = lastSyncError.orEmpty().lowercase()
     if (error.isBlank()) return false
     return listOf(
@@ -6602,13 +4580,6 @@ private fun formatDurationCompact(totalMinutes: Long): String {
     return parts.joinToString(" ").ifBlank { "0 Min" }
 }
 
-private fun collisionSourceLabel(source: CollisionSource): String {
-    return when (source) {
-        CollisionSource.LESSON -> "Lektion"
-        CollisionSource.EVENT -> "Event"
-    }
-}
-
 private fun maskUrlForDisplay(raw: String): String {
     val trimmed = raw.trim()
     if (trimmed.isBlank()) return ""
@@ -6699,3 +4670,4 @@ private fun openDateTimePicker(
         initial.get(Calendar.DAY_OF_MONTH)
     ).show()
 }
+
