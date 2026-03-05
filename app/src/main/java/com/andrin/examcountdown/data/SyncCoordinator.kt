@@ -19,9 +19,17 @@ sealed interface SyncExecutionResult {
  */
 object SyncCoordinator {
     private val syncMutex = Mutex()
+    @Volatile
+    internal var repositoryFactory: (Context) -> ExamRepository = { context ->
+        ExamRepository(context)
+    }
 
     internal suspend fun <T> withSingleflightLockForTest(block: suspend () -> T): T {
         return syncMutex.withLock { block() }
+    }
+
+    internal fun resetRepositoryFactoryForTest() {
+        repositoryFactory = { context -> ExamRepository(context) }
     }
 
     suspend fun syncFromRepository(
@@ -29,7 +37,7 @@ object SyncCoordinator {
         emitChangeNotification: Boolean
     ): SyncExecutionResult {
         val appContext = context.applicationContext
-        val repository = ExamRepository(appContext)
+        val repository = repositoryFactory(appContext)
         val urls = repository.readIcalUrls()
         val includeEvents = repository.readImportEventsEnabled()
         return syncInternal(
@@ -48,7 +56,7 @@ object SyncCoordinator {
         emitChangeNotification: Boolean
     ): SyncExecutionResult {
         val appContext = context.applicationContext
-        val repository = ExamRepository(appContext)
+        val repository = repositoryFactory(appContext)
         return syncInternal(
             context = appContext,
             repository = repository,
@@ -83,7 +91,10 @@ object SyncCoordinator {
         }
 
         return runCatching {
-            IcalSyncEngine(context).syncFromUrls(
+            IcalSyncEngine(
+                context = context,
+                repository = repository
+            ).syncFromUrls(
                 urls = normalizedUrls,
                 emitChangeNotification = emitChangeNotification,
                 importEvents = includeEvents

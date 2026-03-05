@@ -1,6 +1,6 @@
 package com.andrin.examcountdown.data
 
-import android.content.Context
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -55,22 +55,22 @@ internal class ExamSyncMetadataStore {
             )
         }
 
-    suspend fun markSyncSuccess(appContext: Context, summary: String) {
-        appContext.dataStore.edit { preferences ->
+    suspend fun markSyncSuccess(dataStore: DataStore<Preferences>, summary: String) {
+        dataStore.edit { preferences ->
             preferences[lastSyncAtMillisKey] = System.currentTimeMillis()
             preferences[lastSyncSummaryKey] = summary.trim()
             preferences.remove(lastSyncErrorKey)
         }
     }
 
-    suspend fun markSyncError(appContext: Context, error: String) {
-        appContext.dataStore.edit { preferences ->
+    suspend fun markSyncError(dataStore: DataStore<Preferences>, error: String) {
+        dataStore.edit { preferences ->
             preferences[lastSyncErrorKey] = error.trim()
         }
     }
 
-    suspend fun saveIcalSyncCacheHeaders(appContext: Context, headers: IcalSyncCacheHeaders) {
-        appContext.dataStore.edit { preferences ->
+    suspend fun saveIcalSyncCacheHeaders(dataStore: DataStore<Preferences>, headers: IcalSyncCacheHeaders) {
+        dataStore.edit { preferences ->
             val etag = headers.etag?.trim().orEmpty()
             val lastModified = headers.lastModified?.trim().orEmpty()
             if (etag.isBlank()) {
@@ -86,8 +86,8 @@ internal class ExamSyncMetadataStore {
         }
     }
 
-    suspend fun saveSyncDiagnostics(appContext: Context, diagnostics: SyncDiagnostics) {
-        appContext.dataStore.edit { preferences ->
+    suspend fun saveSyncDiagnostics(dataStore: DataStore<Preferences>, diagnostics: SyncDiagnostics) {
+        dataStore.edit { preferences ->
             diagnostics.lastAttemptAtMillis?.let {
                 preferences[diagAttemptAtMillisKey] = it
             } ?: preferences.remove(diagAttemptAtMillisKey)

@@ -1,6 +1,6 @@
 package com.andrin.examcountdown.data
 
-import android.content.Context
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -15,7 +15,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 internal class ExamSnapshotStore(
-    private val appContext: Context,
+    private val dataStore: DataStore<Preferences>,
     private val json: Json
 ) {
     private val examsKey = stringPreferencesKey("exams_json")
@@ -68,7 +68,7 @@ internal class ExamSnapshotStore(
         importedLessons: List<TimetableLesson>,
         importedEvents: List<SchoolEvent>
     ) {
-        appContext.dataStore.edit { preferences ->
+        dataStore.edit { preferences ->
             val currentExams = decodeExams(preferences[examsKey])
             val manualExams = currentExams.filterNot { it.id.startsWith("ical:") }
             val mergedExams = (manualExams + importedExams)
@@ -100,7 +100,7 @@ internal class ExamSnapshotStore(
     }
 
     suspend fun replaceSyncedLessons(imported: List<TimetableLesson>) {
-        appContext.dataStore.edit { preferences ->
+        dataStore.edit { preferences ->
             val updated = imported.sortedBy { it.startsAtEpochMillis }
             val updatedJson = json.encodeToString(updated)
             if (preferences[lessonsKey] != updatedJson) {
@@ -110,7 +110,7 @@ internal class ExamSnapshotStore(
     }
 
     suspend fun replaceSyncedEvents(imported: List<SchoolEvent>) {
-        appContext.dataStore.edit { preferences ->
+        dataStore.edit { preferences ->
             val current = decodeEvents(preferences[eventsKey])
             val manualEvents = current.filterNot { isSyncedCalendarEventId(it.id) }
             val updated = imported
@@ -160,7 +160,7 @@ internal class ExamSnapshotStore(
         maxEntries: Int = 120
     ) {
         if (changes.isEmpty()) return
-        appContext.dataStore.edit { preferences ->
+        dataStore.edit { preferences ->
             val current = decodeTimetableChanges(preferences[timetableChangesKey])
             val merged = (changes + current)
                 .sortedByDescending { it.changedAtEpochMillis }
@@ -173,7 +173,7 @@ internal class ExamSnapshotStore(
     }
 
     suspend fun clearTimetableChanges() {
-        appContext.dataStore.edit { preferences ->
+        dataStore.edit { preferences ->
             preferences.remove(timetableChangesKey)
         }
     }
@@ -191,7 +191,7 @@ internal class ExamSnapshotStore(
         timetableChangesFlow(preferencesFlow).first()
 
     private suspend fun updateExams(transform: (List<Exam>) -> List<Exam>) {
-        appContext.dataStore.edit { preferences ->
+        dataStore.edit { preferences ->
             val updated = transform(decodeExams(preferences[examsKey]))
             val updatedJson = json.encodeToString(updated)
             if (preferences[examsKey] != updatedJson) {
@@ -201,7 +201,7 @@ internal class ExamSnapshotStore(
     }
 
     private suspend fun updateEvents(transform: (List<SchoolEvent>) -> List<SchoolEvent>) {
-        appContext.dataStore.edit { preferences ->
+        dataStore.edit { preferences ->
             val updated = transform(decodeEvents(preferences[eventsKey]))
             val updatedJson = json.encodeToString(updated)
             if (preferences[eventsKey] != updatedJson) {

@@ -66,7 +66,10 @@ data class AppLockVerificationResult(
     val lockoutRemainingMillis: Long = 0L
 )
 
-class ExamRepository(private val appContext: Context) {
+class ExamRepository(
+    private val appContext: Context,
+    preferencesDataStoreOverride: DataStore<Preferences>? = null
+) {
     private val examsKey = stringPreferencesKey("exams_json")
     private val lessonsKey = stringPreferencesKey("lessons_json")
     private val eventsKey = stringPreferencesKey("events_json")
@@ -117,11 +120,15 @@ class ExamRepository(private val appContext: Context) {
     private val diagRoomChangedLessonsKey = longPreferencesKey("sync_diag_room_changed_lessons")
     private val diagLastErrorReasonKey = stringPreferencesKey("sync_diag_last_error_reason")
     private val json = Json { ignoreUnknownKeys = true }
-    private val secureIcalUrlStore = SecureIcalUrlStore(appContext)
-    private val snapshotStore = ExamSnapshotStore(appContext, json)
+    private val preferencesDataStore: DataStore<Preferences> =
+        preferencesDataStoreOverride ?: appContext.dataStore
+    private val secureIcalUrlStore: SecureIcalUrlStore by lazy {
+        SecureIcalUrlStore(appContext)
+    }
+    private val snapshotStore = ExamSnapshotStore(preferencesDataStore, json)
     private val syncMetadataStore = ExamSyncMetadataStore()
 
-    private val preferencesFlow: Flow<Preferences> = appContext.dataStore.data
+    private val preferencesFlow: Flow<Preferences> = preferencesDataStore.data
         .catch { exception ->
             if (exception is IOException) {
                 emit(emptyPreferences())
@@ -327,7 +334,7 @@ class ExamRepository(private val appContext: Context) {
 
         val previous = secureIcalUrlStore.readAll()
         secureIcalUrlStore.writeAll(normalized)
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             // Remove legacy plain-text value after migration/update.
             preferences.remove(iCalUrlKey)
             preferences[iCalUrlRevisionKey] = System.currentTimeMillis()
@@ -342,32 +349,32 @@ class ExamRepository(private val appContext: Context) {
         val preferences = preferencesFlow.first()
         val legacyUrl = normalizeImportedIcalUrlOrNull(preferences[iCalUrlKey]) ?: return
         secureIcalUrlStore.writeAll(listOf(legacyUrl))
-        appContext.dataStore.edit { editable ->
+        preferencesDataStore.edit { editable ->
             editable.remove(iCalUrlKey)
             editable[iCalUrlRevisionKey] = System.currentTimeMillis()
         }
     }
 
     suspend fun setImportEventsEnabled(enabled: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[importEventsEnabledKey] = enabled
         }
     }
 
     suspend fun setOnboardingDone(done: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[onboardingDoneKey] = done
         }
     }
 
     suspend fun setOnboardingPromptSeen(seen: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[onboardingPromptSeenKey] = seen
         }
     }
 
     suspend fun saveQuietHours(config: QuietHoursConfig) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[quietHoursEnabledKey] = config.enabled
             preferences[quietHoursStartMinutesKey] = config.startMinutesOfDay.toLong()
             preferences[quietHoursEndMinutesKey] = config.endMinutesOfDay.toLong()
@@ -375,53 +382,53 @@ class ExamRepository(private val appContext: Context) {
     }
 
     suspend fun markSyncSuccess(summary: String) {
-        syncMetadataStore.markSyncSuccess(appContext, summary)
+        syncMetadataStore.markSyncSuccess(preferencesDataStore, summary)
     }
 
     suspend fun markSyncError(error: String) {
-        syncMetadataStore.markSyncError(appContext, error)
+        syncMetadataStore.markSyncError(preferencesDataStore, error)
     }
 
     suspend fun saveIcalSyncCacheHeaders(headers: IcalSyncCacheHeaders) {
-        syncMetadataStore.saveIcalSyncCacheHeaders(appContext, headers)
+        syncMetadataStore.saveIcalSyncCacheHeaders(preferencesDataStore, headers)
     }
 
     suspend fun saveSyncDiagnostics(diagnostics: SyncDiagnostics) {
-        syncMetadataStore.saveSyncDiagnostics(appContext, diagnostics)
+        syncMetadataStore.saveSyncDiagnostics(preferencesDataStore, diagnostics)
     }
 
     suspend fun saveSyncIntervalMinutes(minutes: Long) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[syncIntervalMinutesKey] = normalizeSyncIntervalMinutes(minutes)
         }
     }
 
     suspend fun setShowSyncStatusStrip(enabled: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[showSyncStatusStripKey] = enabled
         }
     }
 
     suspend fun setShowTimetableTab(enabled: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[showTimetableTabKey] = enabled
         }
     }
 
     suspend fun setShowAgendaTab(enabled: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[showAgendaTabKey] = enabled
         }
     }
 
     suspend fun setShowExamCollisionBadges(enabled: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[showExamCollisionBadgesKey] = enabled
         }
     }
 
     suspend fun saveCollisionRuleSettings(settings: CollisionRuleSettings) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[collisionIncludeLessonsKey] = settings.includeLessonCollisions
             preferences[collisionIncludeEventsKey] = settings.includeEventCollisions
             preferences[collisionOnlyDifferentSubjectKey] = settings.onlyDifferentSubject
@@ -430,20 +437,20 @@ class ExamRepository(private val appContext: Context) {
     }
 
     suspend fun setAccessibilityModeEnabled(enabled: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[accessibilityModeEnabledKey] = enabled
         }
     }
 
     suspend fun setSimpleModeEnabled(enabled: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[simpleModeEnabledKey] = enabled
         }
     }
 
     suspend fun setLastSeenVersion(versionName: String) {
         val normalized = versionName.trim()
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             if (normalized.isBlank()) {
                 preferences.remove(lastSeenVersionKey)
             } else {
@@ -453,13 +460,13 @@ class ExamRepository(private val appContext: Context) {
     }
 
     suspend fun setShowSetupGuideCard(enabled: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[showSetupGuideCardKey] = enabled
         }
     }
 
     suspend fun setScreenshotProtectionEnabled(enabled: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[screenshotProtectionEnabledKey] = enabled
         }
     }
@@ -470,7 +477,7 @@ class ExamRepository(private val appContext: Context) {
         val encodedSalt = Base64.encodeToString(saltBytes, Base64.NO_WRAP)
         val encodedHash = encodePinHashV2(normalizedPin, saltBytes)
 
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[appLockEnabledKey] = true
             preferences[appLockPinSaltKey] = encodedSalt
             preferences[appLockPinHashKey] = encodedHash
@@ -481,7 +488,7 @@ class ExamRepository(private val appContext: Context) {
     }
 
     suspend fun disableAppLock() {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[appLockEnabledKey] = false
             preferences.remove(appLockPinSaltKey)
             preferences.remove(appLockPinHashKey)
@@ -492,7 +499,7 @@ class ExamRepository(private val appContext: Context) {
     }
 
     suspend fun setAppLockBiometricEnabled(enabled: Boolean) {
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             if (preferences[appLockEnabledKey] ?: false) {
                 preferences[appLockBiometricEnabledKey] = enabled
             } else {
@@ -544,7 +551,7 @@ class ExamRepository(private val appContext: Context) {
         )
 
         if (isValid) {
-            appContext.dataStore.edit { editable ->
+            preferencesDataStore.edit { editable ->
                 editable[appLockFailedAttemptsKey] = 0L
                 editable.remove(appLockLockUntilMillisKey)
                 if (!encodedHash.startsWith(PIN_HASH_PREFIX_V2)) {
@@ -556,7 +563,7 @@ class ExamRepository(private val appContext: Context) {
 
         val failedAttempts = (preferences[appLockFailedAttemptsKey] ?: 0L) + 1L
         val lockoutDuration = computeLockoutDurationMillis(failedAttempts)
-        appContext.dataStore.edit { editable ->
+        preferencesDataStore.edit { editable ->
             editable[appLockFailedAttemptsKey] = failedAttempts
             if (lockoutDuration > 0L) {
                 editable[appLockLockUntilMillisKey] = now + lockoutDuration
@@ -670,7 +677,7 @@ class ExamRepository(private val appContext: Context) {
             endMinutesOfDay = backup.quietHours.endMinutesOfDay.coerceIn(0, 24 * 60 - 1)
         )
 
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences[examsKey] = json.encodeToString(
                 sanitizedExams
             )
@@ -722,7 +729,7 @@ class ExamRepository(private val appContext: Context) {
 
     suspend fun clearAllLocalData() {
         secureIcalUrlStore.writeAll(emptyList())
-        appContext.dataStore.edit { preferences ->
+        preferencesDataStore.edit { preferences ->
             preferences.clear()
         }
     }
@@ -824,3 +831,4 @@ class ExamRepository(private val appContext: Context) {
         private const val MAX_BACKUP_TIMETABLE_CHANGES: Int = 500
     }
 }
+
