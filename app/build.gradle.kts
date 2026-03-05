@@ -29,8 +29,8 @@ android {
         applicationId = "com.andrin.examcountdown"
         minSdk = 26
         targetSdk = 34
-        versionCode = 18
-        versionName = "1.6.6"
+        versionCode = 19
+        versionName = "1.6.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -1,27 +1,29 @@
 # Troubleshooting
 
 ## Schwarzer Emulator
-1. AVD im Device Manager auswählen.
+1. AVD im Android Device Manager auswählen.
 2. `Cold Boot Now` ausführen.
-3. Falls weiterhin schwarz: Graphics auf `Software` stellen.
+3. Falls weiterhin schwarz: Grafikmodus auf `Software` stellen.
 4. Emulator neu starten.
 
 ## iCal-Sync schlägt fehl
-- URL prüfen (muss mit `https://` starten).
+- Prüfen, ob die URL mit `https://` beginnt.
 - Internetverbindung prüfen.
-- Bei `HTTP 410`: Link in schulNetz neu generieren.
-- Bei `HTTP 401/403`: Zugriffsrechte oder abgelaufener Link.
+- Bei `HTTP 410`: Link in schulNetz neu erstellen.
+- Bei `HTTP 401/403`: Zugriffsrechte prüfen oder neuen Link erzeugen.
+- Bei `HTTP 304`: Kein Fehler, es wurden nur keine Änderungen gefunden.
 
-## Es werden keine Events importiert
-- In `iCal-Link verwalten` den Schalter `Events zusätzlich importieren` aktivieren.
+## Keine Events importiert
+- In der Kalender-Konfiguration `Events zusätzlich importieren` aktivieren.
 - Danach erneut synchronisieren.
 
-## App fragt wieder nach Erststart
-- Prüfen, ob der iCal-Link erfolgreich getestet wurde.
+## Erststart erscheint erneut
+- Prüfen, ob der iCal-Link-Test erfolgreich war.
 - Nach erfolgreichem Test immer `Fertig` drücken.
-- Bei sehr aggressiven Akku-Einstellungen App nicht sofort killen.
+- Bei aggressiven Akku-Einstellungen die App nicht direkt beenden.
 
 ## Benachrichtigungen kommen nicht
 - Android-Berechtigung `Benachrichtigungen` erlauben.
 - In-App `Stille Zeiten` prüfen.
-- Falls Prüfung schon in der Vergangenheit liegt, wird kein Reminder geplant.
+- Erinnerungen für vergangene Termine werden nicht neu geplant.
+- Sicherstellen, dass die Prüfung eine gültige Vorlaufzeit oder exakte Zeit gesetzt hat.

@@ -46,9 +46,9 @@ import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.KeyboardArrowLeft
-import androidx.compose.material.icons.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MoreVert
@@ -1630,7 +1630,7 @@ private fun QuickActionsDialog(
                     QuickActionTile(
                         text = "Hilfe",
                         subtitle = "Kurzanleitung und Troubleshooting",
-                        icon = Icons.Outlined.HelpOutline,
+                        icon = Icons.AutoMirrored.Outlined.HelpOutline,
                         onClick = onOpenHelp
                     )
                     QuickActionTile(
@@ -3291,7 +3291,7 @@ private fun TimetableWeekGrid(
         ) {
             IconButton(onClick = { onWeekOffsetChange(weekOffset - 1) }) {
                 Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowLeft,
+                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                     contentDescription = "Vorherige Woche"
                 )
             }
@@ -3309,7 +3309,7 @@ private fun TimetableWeekGrid(
             }
             IconButton(onClick = { onWeekOffsetChange(weekOffset + 1) }) {
                 Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowRight,
+                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                     contentDescription = "Nächste Woche"
                 )
             }
@@ -4132,7 +4132,11 @@ private fun ExamListContent(
         item {
             nextExam?.let { exam ->
                 val info = examPresentations[exam.id] ?: buildExamPresentation(exam)
-                NextExamHero(exam = exam, presentation = info)
+                NextExamHero(
+                    exam = exam,
+                    presentation = info,
+                    onPlanStudy = { onPlanStudy(exam) }
+                )
             }
         }
 
@@ -4583,7 +4587,8 @@ private fun NoExamResultsCard(
 @Composable
 private fun NextExamHero(
     exam: Exam,
-    presentation: ExamPresentation
+    presentation: ExamPresentation,
+    onPlanStudy: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -4596,11 +4601,24 @@ private fun NextExamHero(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = "Nächste Prüfung",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Nächste Prüfung",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onPlanStudy) {
+                    Icon(
+                        imageVector = Icons.Outlined.Schedule,
+                        contentDescription = "Lern-Sessions planen",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
             presentation.subject?.takeIf { it.isNotBlank() }?.let { subject ->
                 Surface(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),

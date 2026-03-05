@@ -1,34 +1,31 @@
-# Contributing Guide
+# Beitragsrichtlinien
 
-Thanks for contributing to Exam Countdown.
+Danke für Beiträge zu Prüfungs-Countdown.
 
-## Quick Start
-
-1. Fork or create a branch from `main`.
-2. Make small, focused changes.
-3. Run checks locally:
+## Schnellstart
+1. Branch von `main` erstellen (oder Fork verwenden).
+2. Änderungen klein und thematisch fokussiert halten.
+3. Lokale Checks ausführen:
    - `./gradlew :app:compileDebugKotlin --no-daemon`
    - `./gradlew :app:testDebugUnitTest --no-daemon`
-4. Open a pull request.
+   - `./gradlew :app:lintDebug --no-daemon`
+4. Pull Request eröffnen.
 
-## Commit Style
+## Commits
+- Pro Commit nur ein Thema.
+- Aussagekräftige, kurze Commit-Nachrichten.
 
-- Keep commit messages short and clear.
-- Prefer one topic per commit.
+## Code- und UI-Qualität
+- Kotlin/Jetpack-Compose-Konventionen einhalten.
+- Bestehendes Import-/Sync-Verhalten nicht unbeabsichtigt ändern.
+- Nutzertexte konsistent und verständlich formulieren.
 
-## Code Style
+## Anforderungen an Pull Requests
+- Ziel und technische Änderung klar beschreiben.
+- Bei UI-Änderungen Screenshots hinzufügen.
+- Risiken benennen (z. B. Sync, Reminder, Widgets, Backup).
+- Wenn möglich kurz angeben, welche Tests manuell/automatisch geprüft wurden.
 
-- Kotlin + Jetpack Compose conventions.
-- Keep UI texts user-friendly and consistent.
-- Avoid breaking existing import/sync behavior.
-
-## Pull Request Requirements
-
-- Describe what changed and why.
-- Add screenshots for UI changes.
-- Mention risk areas (sync, reminders, widgets).
-
-## Security
-
-- Never commit secrets or private iCal links.
-- Follow `SECURITY.md` for vulnerability reporting.
+## Sicherheit
+- Keine Secrets, Tokens oder private iCal-Links committen.
+- Für Sicherheitslücken den Prozess in `SECURITY.md` verwenden.
