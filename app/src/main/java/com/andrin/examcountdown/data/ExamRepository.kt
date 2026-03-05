@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "exam_store")
+internal val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "exam_store")
 
 data class SyncStatus(
     val lastSyncAtMillis: Long? = null,
@@ -118,6 +118,8 @@ class ExamRepository(private val appContext: Context) {
     private val diagLastErrorReasonKey = stringPreferencesKey("sync_diag_last_error_reason")
     private val json = Json { ignoreUnknownKeys = true }
     private val secureIcalUrlStore = SecureIcalUrlStore(appContext)
+    private val snapshotStore = ExamSnapshotStore(appContext, json)
+    private val syncMetadataStore = ExamSyncMetadataStore()
 
     private val preferencesFlow: Flow<Preferences> = appContext.dataStore.data
         .catch { exception ->
@@ -128,29 +130,14 @@ class ExamRepository(private val appContext: Context) {
             }
         }
 
-    val examsFlow: Flow<List<Exam>> = preferencesFlow
-        .map { preferences ->
-            decodeExams(preferences[examsKey])
-                .sortedBy { it.startsAtEpochMillis }
-        }
+    val examsFlow: Flow<List<Exam>> = snapshotStore.examsFlow(preferencesFlow)
 
-    val lessonsFlow: Flow<List<TimetableLesson>> = preferencesFlow
-        .map { preferences ->
-            decodeLessons(preferences[lessonsKey])
-                .sortedBy { it.startsAtEpochMillis }
-        }
+    val lessonsFlow: Flow<List<TimetableLesson>> = snapshotStore.lessonsFlow(preferencesFlow)
 
-    val eventsFlow: Flow<List<SchoolEvent>> = preferencesFlow
-        .map { preferences ->
-            decodeEvents(preferences[eventsKey])
-                .sortedBy { it.startsAtEpochMillis }
-        }
+    val eventsFlow: Flow<List<SchoolEvent>> = snapshotStore.eventsFlow(preferencesFlow)
 
-    val timetableChangesFlow: Flow<List<TimetableChangeEntry>> = preferencesFlow
-        .map { preferences ->
-            decodeTimetableChanges(preferences[timetableChangesKey])
-                .sortedByDescending { it.changedAtEpochMillis }
-        }
+    val timetableChangesFlow: Flow<List<TimetableChangeEntry>> =
+        snapshotStore.timetableChangesFlow(preferencesFlow)
 
     val iCalUrlsFlow: Flow<List<String>> = preferencesFlow
         .map { preferences ->
@@ -195,31 +182,8 @@ class ExamRepository(private val appContext: Context) {
             )
         }
 
-    val syncStatusFlow: Flow<SyncStatus> = preferencesFlow
-        .map { preferences ->
-            SyncStatus(
-                lastSyncAtMillis = preferences[lastSyncAtMillisKey],
-                lastSyncSummary = preferences[lastSyncSummaryKey],
-                lastSyncError = preferences[lastSyncErrorKey]
-            )
-        }
-
-    val syncDiagnosticsFlow: Flow<SyncDiagnostics> = preferencesFlow
-        .map { preferences ->
-            SyncDiagnostics(
-                lastAttemptAtMillis = preferences[diagAttemptAtMillisKey],
-                lastDurationMillis = preferences[diagDurationMillisKey],
-                lastHttpStatusCode = preferences[diagHttpStatusKey]?.toInt(),
-                lastDeltaNotModified = preferences[diagDeltaNotModifiedKey] ?: false,
-                importedExams = preferences[diagImportedExamsKey]?.toInt() ?: 0,
-                importedLessons = preferences[diagImportedLessonsKey]?.toInt() ?: 0,
-                importedEvents = preferences[diagImportedEventsKey]?.toInt() ?: 0,
-                changedLessons = preferences[diagChangedLessonsKey]?.toInt() ?: 0,
-                movedLessons = preferences[diagMovedLessonsKey]?.toInt() ?: 0,
-                roomChangedLessons = preferences[diagRoomChangedLessonsKey]?.toInt() ?: 0,
-                lastErrorReason = preferences[diagLastErrorReasonKey]
-            )
-        }
+    val syncStatusFlow: Flow<SyncStatus> = syncMetadataStore.syncStatusFlow(preferencesFlow)
+    val syncDiagnosticsFlow: Flow<SyncDiagnostics> = syncMetadataStore.syncDiagnosticsFlow(preferencesFlow)
 
     val syncIntervalMinutesFlow: Flow<Long> = preferencesFlow
         .map { preferences ->
@@ -296,19 +260,11 @@ class ExamRepository(private val appContext: Context) {
         }
 
     suspend fun addExam(exam: Exam) {
-        updateExams { current ->
-            (current + exam)
-                .distinctBy { it.id }
-                .sortedBy { it.startsAtEpochMillis }
-        }
+        snapshotStore.addExam(exam)
     }
 
     suspend fun replaceIcalImportedExams(imported: List<Exam>) {
-        updateExams { current ->
-            val manualExams = current.filterNot { it.id.startsWith("ical:") }
-            (manualExams + imported)
-                .sortedBy { it.startsAtEpochMillis }
-        }
+        snapshotStore.replaceIcalImportedExams(imported)
     }
 
     suspend fun replaceIcalSyncSnapshot(
@@ -316,120 +272,46 @@ class ExamRepository(private val appContext: Context) {
         importedLessons: List<TimetableLesson>,
         importedEvents: List<SchoolEvent>
     ) {
-        appContext.dataStore.edit { preferences ->
-            val currentExams = decodeExams(preferences[examsKey])
-            val manualExams = currentExams.filterNot { it.id.startsWith("ical:") }
-            val mergedExams = (manualExams + importedExams)
-                .distinctBy { it.id }
-                .sortedBy { it.startsAtEpochMillis }
-            val mergedLessons = importedLessons
-                .distinctBy { it.id }
-                .sortedBy { it.startsAtEpochMillis }
-            val currentEvents = decodeEvents(preferences[eventsKey])
-            val manualEvents = currentEvents.filterNot { isSyncedCalendarEventId(it.id) }
-            val mergedEvents = importedEvents
-                .plus(manualEvents)
-                .distinctBy { it.id }
-                .sortedBy { it.startsAtEpochMillis }
-            val mergedExamsJson = json.encodeToString(mergedExams)
-            val mergedLessonsJson = json.encodeToString(mergedLessons)
-            val mergedEventsJson = json.encodeToString(mergedEvents)
-
-            if (preferences[examsKey] != mergedExamsJson) {
-                preferences[examsKey] = mergedExamsJson
-            }
-            if (preferences[lessonsKey] != mergedLessonsJson) {
-                preferences[lessonsKey] = mergedLessonsJson
-            }
-            if (preferences[eventsKey] != mergedEventsJson) {
-                preferences[eventsKey] = mergedEventsJson
-            }
-        }
+        snapshotStore.replaceIcalSyncSnapshot(
+            importedExams = importedExams,
+            importedLessons = importedLessons,
+            importedEvents = importedEvents
+        )
     }
 
     suspend fun replaceSyncedLessons(imported: List<TimetableLesson>) {
-        appContext.dataStore.edit { preferences ->
-            val updated = imported.sortedBy { it.startsAtEpochMillis }
-            val updatedJson = json.encodeToString(updated)
-            if (preferences[lessonsKey] != updatedJson) {
-                preferences[lessonsKey] = updatedJson
-            }
-        }
+        snapshotStore.replaceSyncedLessons(imported)
     }
 
     suspend fun replaceSyncedEvents(imported: List<SchoolEvent>) {
-        appContext.dataStore.edit { preferences ->
-            val current = decodeEvents(preferences[eventsKey])
-            val manualEvents = current.filterNot { isSyncedCalendarEventId(it.id) }
-            val updated = imported
-                .plus(manualEvents)
-                .distinctBy { it.id }
-                .sortedBy { it.startsAtEpochMillis }
-            val updatedJson = json.encodeToString(updated)
-            if (preferences[eventsKey] != updatedJson) {
-                preferences[eventsKey] = updatedJson
-            }
-        }
+        snapshotStore.replaceSyncedEvents(imported)
     }
 
     suspend fun addCustomEvents(events: List<SchoolEvent>) {
-        if (events.isEmpty()) return
-        updateEvents { current ->
-            (current + events)
-                .distinctBy { it.id }
-                .sortedBy { it.startsAtEpochMillis }
-        }
+        snapshotStore.addCustomEvents(events)
     }
 
     suspend fun deleteEvent(eventId: String) {
-        updateEvents { current ->
-            current.filterNot { it.id == eventId }
-        }
+        snapshotStore.deleteEvent(eventId)
     }
 
     suspend fun updateEvent(event: SchoolEvent) {
-        updateEvents { current ->
-            var found = false
-            val updated = current.map { existing ->
-                if (existing.id == event.id) {
-                    found = true
-                    event
-                } else {
-                    existing
-                }
-            }
-            val merged = if (found) updated else (updated + event)
-            merged.sortedBy { it.startsAtEpochMillis }
-        }
+        snapshotStore.updateEvent(event)
     }
 
     suspend fun appendTimetableChanges(
         changes: List<TimetableChangeEntry>,
         maxEntries: Int = 120
     ) {
-        if (changes.isEmpty()) return
-        appContext.dataStore.edit { preferences ->
-            val current = decodeTimetableChanges(preferences[timetableChangesKey])
-            val merged = (changes + current)
-                .sortedByDescending { it.changedAtEpochMillis }
-                .distinctBy { entry ->
-                    "${entry.lessonId}|${entry.changeType}|${entry.startsAtEpochMillis}|${entry.oldValue.orEmpty()}|${entry.newValue.orEmpty()}|${entry.changedAtEpochMillis}"
-                }
-                .take(maxEntries)
-            preferences[timetableChangesKey] = json.encodeToString(merged)
-        }
+        snapshotStore.appendTimetableChanges(changes, maxEntries)
     }
 
     suspend fun clearTimetableChanges() {
-        appContext.dataStore.edit { preferences ->
-            preferences.remove(timetableChangesKey)
-        }
+        snapshotStore.clearTimetableChanges()
     }
 
     suspend fun deleteExam(examId: String) {
-        updateExams { current ->
-            current.filterNot { it.id == examId }
-        }
+        snapshotStore.deleteExam(examId)
     }
 
     suspend fun saveIcalUrl(url: String) {
@@ -450,22 +332,7 @@ class ExamRepository(private val appContext: Context) {
             preferences.remove(iCalUrlKey)
             preferences[iCalUrlRevisionKey] = System.currentTimeMillis()
             if (previous != normalized) {
-                preferences.remove(iCalEtagKey)
-                preferences.remove(iCalLastModifiedKey)
-                preferences.remove(lastSyncAtMillisKey)
-                preferences.remove(lastSyncSummaryKey)
-                preferences.remove(lastSyncErrorKey)
-                preferences.remove(diagAttemptAtMillisKey)
-                preferences.remove(diagDurationMillisKey)
-                preferences.remove(diagHttpStatusKey)
-                preferences.remove(diagDeltaNotModifiedKey)
-                preferences.remove(diagImportedExamsKey)
-                preferences.remove(diagImportedLessonsKey)
-                preferences.remove(diagImportedEventsKey)
-                preferences.remove(diagChangedLessonsKey)
-                preferences.remove(diagMovedLessonsKey)
-                preferences.remove(diagRoomChangedLessonsKey)
-                preferences.remove(diagLastErrorReasonKey)
+                syncMetadataStore.clearSyncMetadata(preferences)
             }
         }
     }
@@ -508,63 +375,19 @@ class ExamRepository(private val appContext: Context) {
     }
 
     suspend fun markSyncSuccess(summary: String) {
-        appContext.dataStore.edit { preferences ->
-            preferences[lastSyncAtMillisKey] = System.currentTimeMillis()
-            preferences[lastSyncSummaryKey] = summary.trim()
-            preferences.remove(lastSyncErrorKey)
-        }
+        syncMetadataStore.markSyncSuccess(appContext, summary)
     }
 
     suspend fun markSyncError(error: String) {
-        appContext.dataStore.edit { preferences ->
-            preferences[lastSyncErrorKey] = error.trim()
-        }
+        syncMetadataStore.markSyncError(appContext, error)
     }
 
     suspend fun saveIcalSyncCacheHeaders(headers: IcalSyncCacheHeaders) {
-        appContext.dataStore.edit { preferences ->
-            val etag = headers.etag?.trim().orEmpty()
-            val lastModified = headers.lastModified?.trim().orEmpty()
-            if (etag.isBlank()) {
-                preferences.remove(iCalEtagKey)
-            } else {
-                preferences[iCalEtagKey] = etag
-            }
-            if (lastModified.isBlank()) {
-                preferences.remove(iCalLastModifiedKey)
-            } else {
-                preferences[iCalLastModifiedKey] = lastModified
-            }
-        }
+        syncMetadataStore.saveIcalSyncCacheHeaders(appContext, headers)
     }
 
     suspend fun saveSyncDiagnostics(diagnostics: SyncDiagnostics) {
-        appContext.dataStore.edit { preferences ->
-            diagnostics.lastAttemptAtMillis?.let {
-                preferences[diagAttemptAtMillisKey] = it
-            } ?: preferences.remove(diagAttemptAtMillisKey)
-            diagnostics.lastDurationMillis?.let {
-                preferences[diagDurationMillisKey] = it
-            } ?: preferences.remove(diagDurationMillisKey)
-            diagnostics.lastHttpStatusCode?.let {
-                preferences[diagHttpStatusKey] = it.toLong()
-            } ?: preferences.remove(diagHttpStatusKey)
-
-            preferences[diagDeltaNotModifiedKey] = diagnostics.lastDeltaNotModified
-            preferences[diagImportedExamsKey] = diagnostics.importedExams.toLong()
-            preferences[diagImportedLessonsKey] = diagnostics.importedLessons.toLong()
-            preferences[diagImportedEventsKey] = diagnostics.importedEvents.toLong()
-            preferences[diagChangedLessonsKey] = diagnostics.changedLessons.toLong()
-            preferences[diagMovedLessonsKey] = diagnostics.movedLessons.toLong()
-            preferences[diagRoomChangedLessonsKey] = diagnostics.roomChangedLessons.toLong()
-
-            val error = diagnostics.lastErrorReason?.trim().orEmpty()
-            if (error.isBlank()) {
-                preferences.remove(diagLastErrorReasonKey)
-            } else {
-                preferences[diagLastErrorReasonKey] = error
-            }
-        }
+        syncMetadataStore.saveSyncDiagnostics(appContext, diagnostics)
     }
 
     suspend fun saveSyncIntervalMinutes(minutes: Long) {
@@ -760,18 +583,14 @@ class ExamRepository(private val appContext: Context) {
     suspend fun readCollisionRuleSettings(): CollisionRuleSettings = collisionRuleSettingsFlow.first()
     suspend fun readAccessibilityModeEnabled(): Boolean = accessibilityModeEnabledFlow.first()
     suspend fun readScreenshotProtectionEnabled(): Boolean = screenshotProtectionEnabledFlow.first()
-    suspend fun readIcalSyncCacheHeaders(): IcalSyncCacheHeaders {
-        val preferences = preferencesFlow.first()
-        return IcalSyncCacheHeaders(
-            etag = preferences[iCalEtagKey],
-            lastModified = preferences[iCalLastModifiedKey]
-        )
-    }
+    suspend fun readIcalSyncCacheHeaders(): IcalSyncCacheHeaders =
+        syncMetadataStore.readIcalSyncCacheHeaders(preferencesFlow)
 
-    suspend fun readSnapshot(): List<Exam> = examsFlow.first()
-    suspend fun readLessonsSnapshot(): List<TimetableLesson> = lessonsFlow.first()
-    suspend fun readEventsSnapshot(): List<SchoolEvent> = eventsFlow.first()
-    suspend fun readTimetableChangesSnapshot(): List<TimetableChangeEntry> = timetableChangesFlow.first()
+    suspend fun readSnapshot(): List<Exam> = snapshotStore.readSnapshot(preferencesFlow)
+    suspend fun readLessonsSnapshot(): List<TimetableLesson> = snapshotStore.readLessonsSnapshot(preferencesFlow)
+    suspend fun readEventsSnapshot(): List<SchoolEvent> = snapshotStore.readEventsSnapshot(preferencesFlow)
+    suspend fun readTimetableChangesSnapshot(): List<TimetableChangeEntry> =
+        snapshotStore.readTimetableChangesSnapshot(preferencesFlow)
     suspend fun readQuietHoursConfig(): QuietHoursConfig = quietHoursFlow.first()
     suspend fun readSyncDiagnostics(): SyncDiagnostics = syncDiagnosticsFlow.first()
 
@@ -895,22 +714,7 @@ class ExamRepository(private val appContext: Context) {
             preferences[quietHoursEndMinutesKey] = sanitizedQuietHours.endMinutesOfDay.toLong()
             preferences[syncIntervalMinutesKey] = normalizeSyncIntervalMinutes(backup.syncIntervalMinutes)
             preferences[showSyncStatusStripKey] = backup.showSyncStatusStrip
-            preferences.remove(lastSyncAtMillisKey)
-            preferences.remove(lastSyncSummaryKey)
-            preferences.remove(lastSyncErrorKey)
-            preferences.remove(iCalEtagKey)
-            preferences.remove(iCalLastModifiedKey)
-            preferences.remove(diagAttemptAtMillisKey)
-            preferences.remove(diagDurationMillisKey)
-            preferences.remove(diagHttpStatusKey)
-            preferences.remove(diagDeltaNotModifiedKey)
-            preferences.remove(diagImportedExamsKey)
-            preferences.remove(diagImportedLessonsKey)
-            preferences.remove(diagImportedEventsKey)
-            preferences.remove(diagChangedLessonsKey)
-            preferences.remove(diagMovedLessonsKey)
-            preferences.remove(diagRoomChangedLessonsKey)
-            preferences.remove(diagLastErrorReasonKey)
+            syncMetadataStore.clearSyncMetadata(preferences)
             preferences.remove(lastSeenVersionKey)
         }
         return backup
@@ -923,56 +727,8 @@ class ExamRepository(private val appContext: Context) {
         }
     }
 
-    private suspend fun updateExams(transform: (List<Exam>) -> List<Exam>) {
-        appContext.dataStore.edit { preferences ->
-            val updated = transform(decodeExams(preferences[examsKey]))
-            val updatedJson = json.encodeToString(updated)
-            if (preferences[examsKey] != updatedJson) {
-                preferences[examsKey] = updatedJson
-            }
-        }
-    }
-
-    private suspend fun updateEvents(transform: (List<SchoolEvent>) -> List<SchoolEvent>) {
-        appContext.dataStore.edit { preferences ->
-            val updated = transform(decodeEvents(preferences[eventsKey]))
-            val updatedJson = json.encodeToString(updated)
-            if (preferences[eventsKey] != updatedJson) {
-                preferences[eventsKey] = updatedJson
-            }
-        }
-    }
-
-    private fun decodeExams(raw: String?): List<Exam> {
-        if (raw.isNullOrBlank()) return emptyList()
-        return runCatching { json.decodeFromString<List<Exam>>(raw) }
-            .getOrDefault(emptyList())
-    }
-
-    private fun decodeLessons(raw: String?): List<TimetableLesson> {
-        if (raw.isNullOrBlank()) return emptyList()
-        return runCatching { json.decodeFromString<List<TimetableLesson>>(raw) }
-            .getOrDefault(emptyList())
-    }
-
-    private fun decodeEvents(raw: String?): List<SchoolEvent> {
-        if (raw.isNullOrBlank()) return emptyList()
-        return runCatching { json.decodeFromString<List<SchoolEvent>>(raw) }
-            .getOrDefault(emptyList())
-    }
-
-    private fun decodeTimetableChanges(raw: String?): List<TimetableChangeEntry> {
-        if (raw.isNullOrBlank()) return emptyList()
-        return runCatching { json.decodeFromString<List<TimetableChangeEntry>>(raw) }
-            .getOrDefault(emptyList())
-    }
-
     private fun normalizeSyncIntervalMinutes(value: Long): Long {
         return value.coerceIn(15L, 12L * 60L)
-    }
-
-    private fun isSyncedCalendarEventId(id: String): Boolean {
-        return id.startsWith("ical-event:") || id.startsWith("ical:")
     }
 
     private fun normalizeImportedIcalUrl(raw: String?): String? {
