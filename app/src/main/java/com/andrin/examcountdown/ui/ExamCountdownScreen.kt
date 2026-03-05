@@ -142,7 +142,6 @@ import com.andrin.examcountdown.ui.tabs.GradesTabContent
 import com.andrin.examcountdown.ui.tabs.TimetableTabContent
 import com.andrin.examcountdown.ui.tabs.events.AgendaTabEvent
 import com.andrin.examcountdown.ui.tabs.events.ExamsTabEvent
-import com.andrin.examcountdown.ui.tabs.events.GradesTabEvent
 import com.andrin.examcountdown.ui.tabs.events.TimetableTabEvent
 import com.andrin.examcountdown.util.CollisionSource
 import com.andrin.examcountdown.util.CollisionRules
@@ -1288,7 +1287,6 @@ fun ExamCountdownScreen(
 
                 HomeTab.GRADES -> GradesTabContent(
                     state = gradesTabUiState,
-                    onEvent = viewModel::onGradesEvent,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp, vertical = 12.dp)
