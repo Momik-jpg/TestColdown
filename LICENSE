@@ -1,41 +1,21 @@
-Exam Countdown - Proprietary License (Switzerland)
-Version 1.0, March 2026
+MIT License
 
-Copyright (c) 2026-2027 Andrin Maag.
-Alle Rechte vorbehalten.
+Copyright (c) 2026-2027 Andrin Maag
 
-1. Zweck
-Diese Lizenz regelt Nutzung, Weitergabe und Schutz der Software "Exam Countdown"
-einschließlich Quellcode, Binärdateien, Assets und Dokumentation.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-2. Erlaubt
-Erlaubt ist ausschließlich:
-- Nutzung der unveränderten Software für private oder schulische Zwecke.
-- Unentgeltliche Weitergabe unveränderter Originalversionen (z. B. APK aus den offiziellen Releases),
-  sofern Copyright- und Lizenzhinweise vollständig erhalten bleiben.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-3. Nicht erlaubt (ohne vorherige schriftliche Zustimmung des Rechteinhabers)
-- Bearbeiten, Anpassen, Übersetzen oder sonstige Veränderungen der Software.
-- Erstellen oder Verbreiten abgeleiteter Werke.
-- Reverse Engineering, Dekompilierung oder Umgehung technischer Schutzmaßnahmen, soweit rechtlich zulässig.
-- Verkauf, Vermietung, kostenpflichtige Weitergabe oder sonstige kommerzielle Nutzung.
-- Entfernen, Verbergen oder Ändern von Urheberrechts-, Marken- oder Lizenzhinweisen.
-- Missbräuchliche, rechtswidrige oder sicherheitsgefährdende Nutzung.
-
-4. Kommerzielle Nutzung / Sonderfreigaben
-Für kommerzielle Nutzung oder Änderungsfreigaben ist eine separate schriftliche Lizenzvereinbarung erforderlich.
-
-5. Datenschutz und Verantwortung
-Nutzende sind für die datenschutzkonforme Verwendung der Software und importierter Kalenderdaten verantwortlich.
-
-6. Gewährleistung und Haftung
-Die Software wird "wie besehen" bereitgestellt, ohne ausdrückliche oder stillschweigende Gewährleistung.
-Soweit gesetzlich zulässig, ist jede Haftung des Rechteinhabers ausgeschlossen.
-Zwingende gesetzliche Haftungsvorschriften bleiben vorbehalten.
-
-7. Anwendbares Recht und Gerichtsstand
-Es gilt ausschließlich schweizerisches Recht unter Ausschluss kollisionsrechtlicher Bestimmungen.
-Gerichtsstand ist Aarau, Schweiz, soweit gesetzlich zulässig.
-
-8. Schlussbestimmungen
-Sollte eine Bestimmung dieser Lizenz unwirksam sein oder werden, bleibt die Wirksamkeit der übrigen Bestimmungen unberührt.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
