@@ -50,6 +50,7 @@ import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.ui.ExamPresentation
 import com.andrin.examcountdown.ui.buildExamPresentation
 import com.andrin.examcountdown.ui.isIcalLinkRepairRecommended
+import com.andrin.examcountdown.ui.tabs.events.ExamsTabEvent
 import com.andrin.examcountdown.ui.tabs.state.ExamsTabUiState
 import com.andrin.examcountdown.util.CollisionSource
 import com.andrin.examcountdown.util.ExamCollision
@@ -79,14 +80,7 @@ private enum class ExamSortMode(val title: String) {
 @Composable
 fun ExamsTabContent(
     state: ExamsTabUiState,
-    onOpenIcalImport: () -> Unit,
-    onRefreshNow: () -> Unit,
-    onOpenHelp: () -> Unit,
-    onOpenSyncDiagnostics: () -> Unit,
-    onHideSetupGuide: () -> Unit,
-    onAddClick: () -> Unit,
-    onPlanStudy: (Exam) -> Unit,
-    onDelete: (Exam) -> Unit
+    onEvent: (ExamsTabEvent) -> Unit
 ) {
     val exams = state.exams
     val lessons = state.lessons
@@ -211,6 +205,12 @@ fun ExamsTabContent(
     val suggestLinkRepair = remember(lastSyncError) {
         isIcalLinkRepairRecommended(lastSyncError)
     }
+    val onOpenIcalImport = { onEvent(ExamsTabEvent.OpenIcalImport) }
+    val onRefreshNow = { onEvent(ExamsTabEvent.RefreshNow) }
+    val onOpenHelp = { onEvent(ExamsTabEvent.OpenHelp) }
+    val onOpenSyncDiagnostics = { onEvent(ExamsTabEvent.OpenSyncDiagnostics) }
+    val onHideSetupGuide = { onEvent(ExamsTabEvent.HideSetupGuide) }
+    val onAddClick = { onEvent(ExamsTabEvent.AddExam) }
 
     if (exams.isEmpty()) {
         LazyColumn(
@@ -321,8 +321,8 @@ fun ExamsTabContent(
                 NextExamHero(
                     exam = exam,
                     presentation = info,
-                    onPlanStudy = { onPlanStudy(exam) },
-                    onDelete = { onDelete(exam) }
+                    onPlanStudy = { onEvent(ExamsTabEvent.PlanStudy(exam)) },
+                    onDelete = { onEvent(ExamsTabEvent.DeleteExam(exam)) }
                 )
             }
         }
@@ -359,8 +359,8 @@ fun ExamsTabContent(
                         exam = exam,
                         presentation = info,
                         collisions = collisionMap[exam.id].orEmpty(),
-                        onPlanStudy = { onPlanStudy(exam) },
-                        onDelete = { onDelete(exam) }
+                        onPlanStudy = { onEvent(ExamsTabEvent.PlanStudy(exam)) },
+                        onDelete = { onEvent(ExamsTabEvent.DeleteExam(exam)) }
                     )
                 }
             }

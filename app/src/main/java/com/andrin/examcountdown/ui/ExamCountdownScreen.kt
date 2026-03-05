@@ -140,6 +140,10 @@ import com.andrin.examcountdown.ui.tabs.AgendaTabContent
 import com.andrin.examcountdown.ui.tabs.ExamsTabContent
 import com.andrin.examcountdown.ui.tabs.GradesTabContent
 import com.andrin.examcountdown.ui.tabs.TimetableTabContent
+import com.andrin.examcountdown.ui.tabs.events.AgendaTabEvent
+import com.andrin.examcountdown.ui.tabs.events.ExamsTabEvent
+import com.andrin.examcountdown.ui.tabs.events.GradesTabEvent
+import com.andrin.examcountdown.ui.tabs.events.TimetableTabEvent
 import com.andrin.examcountdown.util.CollisionSource
 import com.andrin.examcountdown.util.CollisionRules
 import com.andrin.examcountdown.util.ExamCollision
@@ -1180,39 +1184,46 @@ fun ExamCountdownScreen(
             when (selectedTab) {
                 HomeTab.EXAMS -> ExamsTabContent(
                     state = examsTabUiState,
-                    onOpenIcalImport = {
-                        iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
-                        iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
-                        importEventsToggle = importEventsEnabled
-                        showIcalDialog = true
-                    },
-                    onRefreshNow = triggerManualRefresh,
-                    onOpenHelp = {
-                        showHelpDialog = true
-                    },
-                    onOpenSyncDiagnostics = {
-                        showSyncDiagnosticsDialog = true
-                    },
-                    onHideSetupGuide = {
-                        viewModel.setShowSetupGuideCard(false)
-                    },
-                    onAddClick = { showAddDialog = true },
-                    onPlanStudy = { exam ->
-                        studyPlanExam = exam
-                        studyPlanExamPresentation = buildExamPresentation(exam)
-                    },
-                    onDelete = { exam ->
-                        viewModel.deleteExam(exam.id)
-                        val deletedTitle = buildExamPresentation(exam).title
-                        scope.launch {
-                            val result = snackbarHostState.showSnackbar(
-                                message = "\"$deletedTitle\" gelöscht",
-                                actionLabel = "Rückgängig",
-                                duration = SnackbarDuration.Long
-                            )
-                            if (result == SnackbarResult.ActionPerformed) {
-                                viewModel.restoreExam(exam)
-                                snackbarHostState.showSnackbar("Prüfung wiederhergestellt.")
+                    onEvent = { event ->
+                        when (event) {
+                            ExamsTabEvent.OpenIcalImport -> {
+                                iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                                iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
+                                importEventsToggle = importEventsEnabled
+                                showIcalDialog = true
+                            }
+                            ExamsTabEvent.RefreshNow -> triggerManualRefresh()
+                            ExamsTabEvent.OpenHelp -> {
+                                showHelpDialog = true
+                            }
+                            ExamsTabEvent.OpenSyncDiagnostics -> {
+                                showSyncDiagnosticsDialog = true
+                            }
+                            ExamsTabEvent.AddExam -> {
+                                showAddDialog = true
+                            }
+                            ExamsTabEvent.HideSetupGuide -> {
+                                viewModel.onExamsEvent(event)
+                            }
+                            is ExamsTabEvent.PlanStudy -> {
+                                studyPlanExam = event.exam
+                                studyPlanExamPresentation = buildExamPresentation(event.exam)
+                            }
+                            is ExamsTabEvent.DeleteExam -> {
+                                val exam = event.exam
+                                viewModel.onExamsEvent(event)
+                                val deletedTitle = buildExamPresentation(exam).title
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = "\"$deletedTitle\" gelöscht",
+                                        actionLabel = "Rückgängig",
+                                        duration = SnackbarDuration.Long
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        viewModel.restoreExam(exam)
+                                        snackbarHostState.showSnackbar("Prüfung wiederhergestellt.")
+                                    }
+                                }
                             }
                         }
                     }
@@ -1220,55 +1231,64 @@ fun ExamCountdownScreen(
 
                 HomeTab.TIMETABLE -> TimetableTabContent(
                     state = timetableTabUiState,
-                    onOpenIcalImport = {
-                        iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
-                        iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
-                        importEventsToggle = importEventsEnabled
-                        showIcalDialog = true
-                    },
-                    onClearChanges = { viewModel.clearTimetableChanges() }
+                    onEvent = { event ->
+                        when (event) {
+                            TimetableTabEvent.OpenIcalImport -> {
+                                iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                                iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
+                                importEventsToggle = importEventsEnabled
+                                showIcalDialog = true
+                            }
+                            TimetableTabEvent.ClearChanges -> viewModel.onTimetableEvent(event)
+                        }
+                    }
                 )
 
                 HomeTab.EVENTS -> AgendaTabContent(
                     state = agendaTabUiState,
-                    onOpenIcalImport = {
-                        iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
-                        iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
-                        importEventsToggle = importEventsEnabled
-                        showIcalDialog = true
-                    },
-                    onEnableEventsImportAndSync = {
-                        isSyncingIcal = true
-                        viewModel.enableEventsImportAndRefresh { message ->
-                            isSyncingIcal = false
-                            scope.launch {
-                                snackbarHostState.showSnackbar(message)
+                    onEvent = { event ->
+                        when (event) {
+                            AgendaTabEvent.OpenIcalImport -> {
+                                iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                                iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
+                                importEventsToggle = importEventsEnabled
+                                showIcalDialog = true
                             }
-                        }
-                    },
-                    onAddCustomEvents = { createdEvents ->
-                        viewModel.addCustomEvents(createdEvents)
-                        scope.launch {
-                            val label = if (createdEvents.size == 1) "Event gespeichert." else "${createdEvents.size} Events gespeichert."
-                            snackbarHostState.showSnackbar(label)
-                        }
-                    },
-                    onDeleteCustomEvent = { eventId ->
-                        viewModel.deleteCalendarEvent(eventId)
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Event gelöscht.")
-                        }
-                    },
-                    onUpdateCustomEvent = { event ->
-                        viewModel.updateCalendarEvent(event)
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Event aktualisiert.")
+                            AgendaTabEvent.EnableEventsImportAndSync -> {
+                                isSyncingIcal = true
+                                viewModel.enableEventsImportAndRefresh { message ->
+                                    isSyncingIcal = false
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(message)
+                                    }
+                                }
+                            }
+                            is AgendaTabEvent.AddCustomEvents -> {
+                                viewModel.onAgendaEvent(event)
+                                scope.launch {
+                                    val label = if (event.events.size == 1) "Event gespeichert." else "${event.events.size} Events gespeichert."
+                                    snackbarHostState.showSnackbar(label)
+                                }
+                            }
+                            is AgendaTabEvent.DeleteCustomEvent -> {
+                                viewModel.onAgendaEvent(event)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Event gelöscht.")
+                                }
+                            }
+                            is AgendaTabEvent.UpdateCustomEvent -> {
+                                viewModel.onAgendaEvent(event)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Event aktualisiert.")
+                                }
+                            }
                         }
                     }
                 )
 
                 HomeTab.GRADES -> GradesTabContent(
                     state = gradesTabUiState,
+                    onEvent = viewModel::onGradesEvent,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp, vertical = 12.dp)

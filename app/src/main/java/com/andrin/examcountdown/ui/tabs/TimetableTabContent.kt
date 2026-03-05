@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.model.TimetableChangeEntry
 import com.andrin.examcountdown.model.TimetableChangeType
 import com.andrin.examcountdown.model.TimetableLesson
+import com.andrin.examcountdown.ui.tabs.events.TimetableTabEvent
 import com.andrin.examcountdown.ui.tabs.state.TimetableTabUiState
 import com.andrin.examcountdown.util.formatCompactDay
 import com.andrin.examcountdown.util.formatDayHeader
@@ -184,12 +185,13 @@ private fun formatTimetableChangeDescription(change: TimetableChangeEntry): Stri
 @OptIn(ExperimentalLayoutApi::class)
 fun TimetableTabContent(
     state: TimetableTabUiState,
-    onOpenIcalImport: () -> Unit,
-    onClearChanges: () -> Unit
+    onEvent: (TimetableTabEvent) -> Unit
 ) {
     val lessons = state.lessons
     val changes = state.changes
     val hasIcalUrl = state.hasIcalUrl
+    val onOpenIcalImport = { onEvent(TimetableTabEvent.OpenIcalImport) }
+    val onClearChanges = { onEvent(TimetableTabEvent.ClearChanges) }
 
     if (lessons.isEmpty()) {
         if (changes.isNotEmpty()) {

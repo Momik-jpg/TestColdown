@@ -19,6 +19,10 @@ import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.reminder.ExamNotificationManager
 import com.andrin.examcountdown.reminder.ExamReminderScheduler
+import com.andrin.examcountdown.ui.tabs.events.AgendaTabEvent
+import com.andrin.examcountdown.ui.tabs.events.ExamsTabEvent
+import com.andrin.examcountdown.ui.tabs.events.GradesTabEvent
+import com.andrin.examcountdown.ui.tabs.events.TimetableTabEvent
 import com.andrin.examcountdown.ui.tabs.state.AgendaTabUiState
 import com.andrin.examcountdown.ui.tabs.state.ExamsTabUiState
 import com.andrin.examcountdown.ui.tabs.state.GradesTabUiState
@@ -576,6 +580,42 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
     fun setShowSetupGuideCard(enabled: Boolean) {
         viewModelScope.launch {
             repository.setShowSetupGuideCard(enabled)
+        }
+    }
+
+    fun onExamsEvent(event: ExamsTabEvent) {
+        when (event) {
+            ExamsTabEvent.HideSetupGuide -> setShowSetupGuideCard(false)
+            is ExamsTabEvent.DeleteExam -> deleteExam(event.exam.id)
+            ExamsTabEvent.OpenIcalImport,
+            ExamsTabEvent.RefreshNow,
+            ExamsTabEvent.OpenHelp,
+            ExamsTabEvent.OpenSyncDiagnostics,
+            ExamsTabEvent.AddExam,
+            is ExamsTabEvent.PlanStudy -> Unit
+        }
+    }
+
+    fun onTimetableEvent(event: TimetableTabEvent) {
+        when (event) {
+            TimetableTabEvent.ClearChanges -> clearTimetableChanges()
+            TimetableTabEvent.OpenIcalImport -> Unit
+        }
+    }
+
+    fun onAgendaEvent(event: AgendaTabEvent) {
+        when (event) {
+            is AgendaTabEvent.AddCustomEvents -> addCustomEvents(event.events)
+            is AgendaTabEvent.DeleteCustomEvent -> deleteCalendarEvent(event.eventId)
+            is AgendaTabEvent.UpdateCustomEvent -> updateCalendarEvent(event.event)
+            AgendaTabEvent.OpenIcalImport,
+            AgendaTabEvent.EnableEventsImportAndSync -> Unit
+        }
+    }
+
+    fun onGradesEvent(event: GradesTabEvent) {
+        when (event) {
+            GradesTabEvent.NoOp -> Unit
         }
     }
 
