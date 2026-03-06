@@ -2,27 +2,56 @@ package com.andrin.examcountdown.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.annotation.VisibleForTesting
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKeys
+import androidx.security.crypto.MasterKey
 
-internal class SecureIcalUrlStore(context: Context) {
-    private val appContext = context.applicationContext
-
-    private val securePreferences: SharedPreferences by lazy {
-        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
-        EncryptedSharedPreferences.create(
-            PREFERENCES_NAME,
-            masterKeyAlias,
-            appContext,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+internal class SecureIcalUrlStore private constructor(
+    private val securePreferences: SharedPreferences,
+    private val legacyPreferences: SharedPreferences?
+) {
+    constructor(context: Context) : this(
+        securePreferences = createEncryptedPreferences(
+            context = context.applicationContext,
+            fileName = PREFERENCES_NAME
+        ),
+        legacyPreferences = createEncryptedPreferences(
+            context = context.applicationContext,
+            fileName = LEGACY_PREFERENCES_NAME
         )
+    )
+
+    @VisibleForTesting
+    internal constructor(
+        securePreferencesOverride: SharedPreferences,
+        legacyPreferencesOverride: SharedPreferences? = null,
+        @Suppress("UNUSED_PARAMETER")
+        marker: TestConstructorMarker = TestConstructorMarker
+    ) : this(
+        securePreferences = securePreferencesOverride,
+        legacyPreferences = legacyPreferencesOverride
+    )
+
+    private fun migrateLegacyUrlsIfNeeded(): List<String> {
+        val secureUrls = readUrlsFromPreferences(securePreferences)
+        if (secureUrls.isNotEmpty()) {
+            return secureUrls
+        }
+
+        val legacyUrls = readUrlsFromPreferences(legacyPreferences)
+        if (legacyUrls.isEmpty()) {
+            return emptyList()
+        }
+
+        persistUrls(legacyUrls)
+        clearLegacyEntries()
+        return legacyUrls
     }
 
-    fun read(): String? = readAll().firstOrNull()
+    private fun readUrlsFromPreferences(preferences: SharedPreferences?): List<String> {
+        if (preferences == null) return emptyList()
 
-    fun readAll(): List<String> {
-        val combined = securePreferences.getString(KEY_ICAL_URLS, null)
+        val combined = preferences.getString(KEY_ICAL_URLS, null)
             ?.trim()
             .orEmpty()
         if (combined.isNotBlank()) {
@@ -34,12 +63,42 @@ internal class SecureIcalUrlStore(context: Context) {
                 .take(MAX_ICAL_URLS)
         }
 
-        // Backward compatibility: older app versions stored one URL.
-        return securePreferences.getString(KEY_ICAL_URL_LEGACY, null)
+        val legacySingle = preferences.getString(KEY_ICAL_URL_LEGACY, null)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             ?.let { listOf(it) }
             ?: emptyList()
+        return legacySingle
+            .distinct()
+            .take(MAX_ICAL_URLS)
+    }
+
+    private fun persistUrls(urls: List<String>) {
+        if (urls.isEmpty()) {
+            securePreferences.edit()
+                .remove(KEY_ICAL_URLS)
+                .remove(KEY_ICAL_URL_LEGACY)
+                .apply()
+            return
+        }
+
+        securePreferences.edit()
+            .remove(KEY_ICAL_URL_LEGACY)
+            .putString(KEY_ICAL_URLS, urls.joinToString("\n"))
+            .apply()
+    }
+
+    private fun clearLegacyEntries() {
+        legacyPreferences?.edit()
+            ?.remove(KEY_ICAL_URLS)
+            ?.remove(KEY_ICAL_URL_LEGACY)
+            ?.apply()
+    }
+
+    fun read(): String? = readAll().firstOrNull()
+
+    fun readAll(): List<String> {
+        return migrateLegacyUrlsIfNeeded()
     }
 
     fun write(url: String?) {
@@ -53,20 +112,33 @@ internal class SecureIcalUrlStore(context: Context) {
             .distinct()
             .take(MAX_ICAL_URLS)
 
-        securePreferences.edit().apply {
-            remove(KEY_ICAL_URL_LEGACY)
-            if (normalized.isEmpty()) {
-                remove(KEY_ICAL_URLS)
-            } else {
-                putString(KEY_ICAL_URLS, normalized.joinToString("\n"))
-            }
-        }.apply()
+        persistUrls(normalized)
+        clearLegacyEntries()
     }
 
     companion object {
         private const val PREFERENCES_NAME = "secure_exam_store"
+        private const val LEGACY_PREFERENCES_NAME = "secure_exam_store_legacy"
         private const val KEY_ICAL_URLS = "secure_ical_urls"
         private const val KEY_ICAL_URL_LEGACY = "secure_ical_url"
         private const val MAX_ICAL_URLS = 2
+        internal object TestConstructorMarker
+
+        private fun createEncryptedPreferences(
+            context: Context,
+            fileName: String
+        ): SharedPreferences {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+
+            return EncryptedSharedPreferences.create(
+                context,
+                fileName,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        }
     }
 }

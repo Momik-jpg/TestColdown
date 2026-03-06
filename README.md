@@ -69,6 +69,5 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 - No-Regression-Checkliste: `docs/no-regression-checkliste.md`
 
 ## Lizenz
-Proprietäre Lizenz (Schweiz).  
-Teilen unveränderter Originalversionen ist erlaubt. Änderungen und kommerzielle Nutzung sind nur mit schriftlicher Zustimmung erlaubt.  
+MIT License.  
 Details in `LICENSE`.

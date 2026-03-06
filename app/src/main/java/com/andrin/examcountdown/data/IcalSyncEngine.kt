@@ -44,10 +44,10 @@ data class IcalSyncResult(
 }
 
 class IcalSyncEngine(
-    private val context: Context
+    private val context: Context,
+    private val repository: ExamRepository = ExamRepository(context.applicationContext)
 ) {
     private val appContext = context.applicationContext
-    private val repository = ExamRepository(appContext)
     private val examImporter = IcalImporter()
     private val timetableImporter = TimetableIcalImporter()
     private val eventImporter = SchoolEventIcalImporter()
@@ -98,7 +98,7 @@ class IcalSyncEngine(
                         lastDeltaNotModified = true
                     )
                 )
-                WidgetUpdater.updateAll(appContext)
+                widgetUpdateHook(appContext)
                 return result
             }
 
@@ -119,7 +119,7 @@ class IcalSyncEngine(
                 importedLessons = timetableResult.lessons,
                 importedEvents = eventsResult.events
             )
-            WidgetUpdater.updateAll(appContext)
+            widgetUpdateHook(appContext)
 
             val changes = computeTimetableChanges(previousLessons, timetableResult.lessons)
             val duration = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
@@ -234,7 +234,7 @@ class IcalSyncEngine(
                 importedLessons = mergedLessons,
                 importedEvents = mergedEvents
             )
-            WidgetUpdater.updateAll(appContext)
+            widgetUpdateHook(appContext)
 
             val changes = computeTimetableChanges(previousLessons, mergedLessons)
             val duration = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
@@ -397,5 +397,18 @@ class IcalSyncEngine(
                 "${event.title.trim().lowercase()}|${event.startsAtEpochMillis}|${event.endsAtEpochMillis}|${event.location.orEmpty().trim().lowercase()}|${event.type.name}"
             }
             .sortedBy { it.startsAtEpochMillis }
+    }
+
+    companion object {
+        @Volatile
+        internal var widgetUpdateHook: (Context) -> Unit = { context ->
+            WidgetUpdater.updateAll(context)
+        }
+
+        internal fun resetWidgetUpdateHookForTest() {
+            widgetUpdateHook = { context ->
+                WidgetUpdater.updateAll(context)
+            }
+        }
     }
 }
