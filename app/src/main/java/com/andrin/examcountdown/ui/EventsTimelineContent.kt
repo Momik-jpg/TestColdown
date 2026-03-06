@@ -31,8 +31,8 @@ import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.KeyboardArrowLeft
-import androidx.compose.material.icons.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Schedule
@@ -68,6 +68,8 @@ import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.model.SchoolEventType
 import com.andrin.examcountdown.model.TimetableLesson
+import com.andrin.examcountdown.ui.theme.AppDimens
+import com.andrin.examcountdown.util.SchoolTime
 import com.andrin.examcountdown.util.formatCountdown
 import com.andrin.examcountdown.util.formatExamDateShort
 import com.andrin.examcountdown.util.formatTimeRange
@@ -119,6 +121,21 @@ private data class DayKindSummary(
 
 private const val AGENDA_MONTH_DAY_CELL_ASPECT_RATIO = 0.80f
 
+internal fun hasActiveAgendaFilters(
+    searchQuery: String,
+    sourceFilterIsAll: Boolean,
+    layoutModeIsMonth: Boolean
+): Boolean {
+    return searchQuery.isNotBlank() || !sourceFilterIsAll || !layoutModeIsMonth
+}
+
+internal fun shouldShowEnableEventImportAction(
+    sourceFilterIsEventsOnly: Boolean,
+    importEventsEnabled: Boolean
+): Boolean {
+    return sourceFilterIsEventsOnly && !importEventsEnabled
+}
+
 @Composable
 private fun EventControlsSectionLabel(text: String) {
     Text(
@@ -158,6 +175,7 @@ fun EventsTimelineContent(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var sourceFilter by rememberSaveable { mutableStateOf(CalendarSourceFilter.ALL) }
     var layoutMode by rememberSaveable { mutableStateOf(AgendaLayoutMode.MONTH) }
+    var showAdvancedFilters by rememberSaveable { mutableStateOf(false) }
     var showAddCustomEventDialog by rememberSaveable { mutableStateOf(false) }
     var eventDialogInitialStartsAtMillis by rememberSaveable { mutableStateOf<Long?>(null) }
     var editingEventId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -227,7 +245,7 @@ fun EventsTimelineContent(
     }
 
     val filteredItems = remember(items, sourceFilter, searchQuery) {
-        val now = System.currentTimeMillis()
+        val now = SchoolTime.nowMillis()
         val query = searchQuery.trim().lowercase()
 
         items.filter { item ->
@@ -283,8 +301,11 @@ fun EventsTimelineContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        contentPadding = PaddingValues(
+            horizontal = AppDimens.screenHorizontalPadding,
+            vertical = AppDimens.sectionSpacing
+        ),
+        verticalArrangement = Arrangement.spacedBy(AppDimens.itemSpacing)
     ) {
         item("calendar-controls") {
             Card(
@@ -293,8 +314,8 @@ fun EventsTimelineContent(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier.padding(AppDimens.cardInnerPadding),
+                    verticalArrangement = Arrangement.spacedBy(AppDimens.itemSpacing)
                 ) {
                     OutlinedTextField(
                         value = searchQuery,
@@ -303,7 +324,10 @@ fun EventsTimelineContent(
                         singleLine = true,
                         label = { Text("Suche im Kalender") },
                         leadingIcon = {
-                            Icon(imageVector = Icons.Outlined.Search, contentDescription = null)
+                            Icon(
+                                imageVector = Icons.Outlined.Search,
+                                contentDescription = "Suche"
+                            )
                         },
                         trailingIcon = {
                             if (searchQuery.isNotBlank()) {
@@ -333,19 +357,28 @@ fun EventsTimelineContent(
                         }
                     }
 
-                    EventControlsSectionLabel("Typ")
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    TextButton(
+                        onClick = { showAdvancedFilters = !showAdvancedFilters },
+                        modifier = Modifier.align(Alignment.End)
                     ) {
-                        CalendarSourceFilter.entries.forEach { filter ->
-                            EventChoiceChip(
-                                text = filter.title,
-                                selected = sourceFilter == filter,
-                                onClick = { sourceFilter = filter }
-                            )
+                        Text(if (showAdvancedFilters) "Weniger Filter" else "Weitere Filter")
+                    }
+
+                    if (showAdvancedFilters) {
+                        EventControlsSectionLabel("Typ")
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CalendarSourceFilter.entries.forEach { filter ->
+                                EventChoiceChip(
+                                    text = filter.title,
+                                    selected = sourceFilter == filter,
+                                    onClick = { sourceFilter = filter }
+                                )
+                            }
                         }
                     }
 
@@ -365,29 +398,38 @@ fun EventsTimelineContent(
                         Text("Eigenes Event")
                     }
 
-                    if (
-                        searchQuery.isNotBlank() ||
-                        sourceFilter != CalendarSourceFilter.ALL ||
-                        layoutMode != AgendaLayoutMode.MONTH
-                    ) {
-                        TextButton(
-                            onClick = {
-                                searchQuery = ""
-                                sourceFilter = CalendarSourceFilter.ALL
-                                layoutMode = AgendaLayoutMode.MONTH
-                            },
-                            modifier = Modifier.align(Alignment.End)
+                    if (showAdvancedFilters) {
+                        if (
+                            hasActiveAgendaFilters(
+                                searchQuery = searchQuery,
+                                sourceFilterIsAll = sourceFilter == CalendarSourceFilter.ALL,
+                                layoutModeIsMonth = layoutMode == AgendaLayoutMode.MONTH
+                            )
                         ) {
-                            Text("Filter zurücksetzen")
+                            TextButton(
+                                onClick = {
+                                    searchQuery = ""
+                                    sourceFilter = CalendarSourceFilter.ALL
+                                    layoutMode = AgendaLayoutMode.MONTH
+                                },
+                                modifier = Modifier.align(Alignment.End)
+                            ) {
+                                Text("Filter zurücksetzen")
+                            }
                         }
-                    }
 
-                    if (sourceFilter == CalendarSourceFilter.EVENTS_ONLY && !importEventsEnabled) {
-                        OutlinedButton(
-                            onClick = onEnableEventsImportAndSync,
-                            modifier = Modifier.fillMaxWidth()
+                        if (
+                            shouldShowEnableEventImportAction(
+                                sourceFilterIsEventsOnly = sourceFilter == CalendarSourceFilter.EVENTS_ONLY,
+                                importEventsEnabled = importEventsEnabled
+                            )
                         ) {
-                            Text("Event-Import aktivieren")
+                            OutlinedButton(
+                                onClick = onEnableEventsImportAndSync,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Event-Import aktivieren")
+                            }
                         }
                     }
                 }
@@ -551,7 +593,7 @@ private fun AgendaMonthContent(
                         monthAnchorEpochDay = previous.toEpochDay()
                         selectedEpochDay = previous.toEpochDay()
                     }) {
-                        Icon(Icons.Outlined.KeyboardArrowLeft, contentDescription = "Vorheriger Monat")
+                        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, contentDescription = "Vorheriger Monat")
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
@@ -570,7 +612,7 @@ private fun AgendaMonthContent(
                         monthAnchorEpochDay = next.toEpochDay()
                         selectedEpochDay = next.toEpochDay()
                     }) {
-                        Icon(Icons.Outlined.KeyboardArrowRight, contentDescription = "Nächster Monat")
+                        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = "Nächster Monat")
                     }
                 }
 
@@ -948,7 +990,7 @@ private fun AgendaDayTimelineContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onPreviousDay) {
-                        Icon(Icons.Outlined.KeyboardArrowLeft, contentDescription = "Vorheriger Tag")
+                        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, contentDescription = "Vorheriger Tag")
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
@@ -963,7 +1005,7 @@ private fun AgendaDayTimelineContent(
                         )
                     }
                     IconButton(onClick = onNextDay) {
-                        Icon(Icons.Outlined.KeyboardArrowRight, contentDescription = "Nächster Tag")
+                        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = "Nächster Tag")
                     }
                 }
 
@@ -1158,7 +1200,7 @@ private fun AddCustomEventDialog(
 ) {
     val context = LocalContext.current
     val schoolZone = remember { ZoneId.of("Europe/Zurich") }
-    val now = remember { System.currentTimeMillis() }
+    val now = remember { SchoolTime.nowMillis() }
     val initialStart = remember(editingEvent, initialStartsAtMillis, now) {
         editingEvent?.startsAtEpochMillis ?: initialStartsAtMillis ?: now
     }
@@ -1325,7 +1367,7 @@ private fun buildSingleCustomEvent(
     schoolZone: ZoneId
 ): SchoolEvent {
     val baseStart = Instant.ofEpochMilli(startsAtEpochMillis).atZone(schoolZone)
-    val seed = System.currentTimeMillis()
+    val seed = SchoolTime.nowMillis()
     val end = baseStart.plusMinutes(durationMinutes.toLong())
     return SchoolEvent(
         id = eventId ?: "manual-event:$seed",

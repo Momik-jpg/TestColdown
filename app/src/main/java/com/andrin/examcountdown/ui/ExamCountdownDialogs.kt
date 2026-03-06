@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.data.SyncDiagnostics
 import com.andrin.examcountdown.data.SyncStatus
+import com.andrin.examcountdown.util.SchoolTime
 import com.andrin.examcountdown.util.formatSyncDateTime
 
 @Composable
@@ -158,7 +159,7 @@ internal fun SyncStatusStrip(
     onRepairIcalLink: (() -> Unit)? = null
 ) {
     val error = syncStatus.lastSyncError
-    val now = System.currentTimeMillis()
+    val now = SchoolTime.nowMillis()
     val staleThresholdMillis = 24L * 60L * 60L * 1000L
     val isStale = syncStatus.lastSyncAtMillis?.let { last ->
         now - last > staleThresholdMillis

@@ -585,6 +585,7 @@ class ExamRepository(
 
     suspend fun readIcalUrls(): List<String> = iCalUrlsFlow.first()
     suspend fun readIcalUrl(): String? = readIcalUrls().firstOrNull()
+    suspend fun readSyncStatus(): SyncStatus = syncStatusFlow.first()
     suspend fun readImportEventsEnabled(): Boolean = importEventsEnabledFlow.first()
     suspend fun readSyncIntervalMinutes(): Long = syncIntervalMinutesFlow.first()
     suspend fun readCollisionRuleSettings(): CollisionRuleSettings = collisionRuleSettingsFlow.first()
