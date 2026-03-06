@@ -132,7 +132,7 @@ internal fun IcalImportDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "schulNetz: Agenda > Schüler/-innenpläne > Exports > \"Diesen Plan im iCal Format abonnieren\" > Link kopieren (nicht öffnen). Beispiel: https://www.examplelink.com",
+                    text = "schulNetz: Agenda > Schüler/-innenpläne > Exports > \"Diesen Plan im iCal-Format abonnieren\" > Link kopieren.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -154,9 +154,9 @@ internal fun IcalImportDialog(
 
                 Text(
                     text = if (includeEvents) {
-                        "iCal-Link bleibt gespeichert. Es werden Prüfungen, Lektionen und Events importiert."
+                        "Es werden Prüfungen, Lektionen und Events importiert."
                     } else {
-                        "iCal-Link bleibt gespeichert. Standard: nur Prüfungen und Lektionen (ohne Events)."
+                        "Standard: nur Prüfungen und Lektionen."
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -216,7 +216,7 @@ internal fun QuickActionsDialog(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "Alles Wichtige an einem Ort",
+                    text = "Schnellzugriff auf wichtige Aktionen",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -281,19 +281,19 @@ internal fun QuickActionsDialog(
                     }
                     QuickActionTile(
                         text = "Kalender verbinden",
-                        subtitle = "iCal-Links prüfen oder ändern",
+                        subtitle = null,
                         icon = Icons.Outlined.CloudDownload,
                         onClick = onOpenIcalImport
                     )
                     QuickActionTile(
                         text = "Benachrichtigungen",
-                        subtitle = "Vorzeiten, Quiet Hours, Test",
+                        subtitle = "Vorzeiten und Ruhezeiten",
                         icon = Icons.Outlined.NotificationsActive,
                         onClick = onOpenReminderSettings
                     )
                     QuickActionTile(
                         text = "Automatisch aktualisieren",
-                        subtitle = "Zeitplan und Hintergrund-Sync",
+                        subtitle = "Intervall für Hintergrund-Sync",
                         icon = Icons.Outlined.Sync,
                         onClick = onOpenSyncSettings
                     )
@@ -305,13 +305,13 @@ internal fun QuickActionsDialog(
                 ) {
                     QuickActionTile(
                         text = "App anpassen",
-                        subtitle = "Ansicht und Tabs verwalten",
+                        subtitle = null,
                         icon = Icons.Outlined.MoreVert,
                         onClick = onOpenPersonalization
                     )
                     QuickActionTile(
                         text = "Hilfe",
-                        subtitle = "Kurzanleitung und Troubleshooting",
+                        subtitle = "Kurzanleitung",
                         icon = Icons.AutoMirrored.Outlined.HelpOutline,
                         onClick = onOpenHelp
                     )
@@ -337,13 +337,13 @@ internal fun QuickActionsDialog(
                         )
                         QuickActionTile(
                             text = "Datenschutz",
-                            subtitle = "Sicherheit, Screenshots, lokale Daten",
+                            subtitle = "Lokale Daten und Screenshot-Schutz",
                             icon = Icons.Outlined.Lock,
                             onClick = onOpenPrivacy
                         )
                         QuickActionTile(
                             text = "Sync-Diagnose",
-                            subtitle = "Status, Dauer und Fehlersuche",
+                            subtitle = "Status und Fehlersuche",
                             icon = Icons.Outlined.Schedule,
                             onClick = onOpenSyncDiagnostics
                         )
@@ -384,7 +384,7 @@ internal fun QuickActionsDialog(
                     ) {
                         QuickActionTile(
                             text = "Was ist neu",
-                            subtitle = "Neue Funktionen der Version",
+                            subtitle = "Update-Verlauf anzeigen",
                             icon = Icons.Outlined.CalendarToday,
                             showAlertBadge = hasUnseenChangelog,
                             onClick = onOpenChangelog
@@ -446,7 +446,7 @@ internal fun OnboardingDialog(
 
                 if (step == 0) {
                     Text(
-                        text = "Schritt 1: Füge 1-2 iCal-Links ein. schulNetz: Agenda > Schüler/-innenpläne > Exports > \"Diesen Plan im iCal Format abonnieren\" > Link kopieren (nicht öffnen). Beispiel: https://www.examplelink.com",
+                        text = "Schritt 1: Füge deinen iCal-Link ein. schulNetz: Agenda > Schüler/-innenpläne > Exports > \"Diesen Plan im iCal-Format abonnieren\" > Link kopieren.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -521,7 +521,7 @@ internal fun OnboardingDialog(
 
                 if (step == 1) {
                     Text(
-                        text = "Schritt 2: Teste die Verbindung.",
+                        text = "Schritt 2: Verbindung testen.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -558,7 +558,7 @@ internal fun OnboardingDialog(
 
                 if (step == 2) {
                     Text(
-                        text = "Schritt 3: Fertigstellen und loslegen.",
+                        text = "Schritt 3: Fertig und starten.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

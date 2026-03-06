@@ -119,17 +119,17 @@ internal fun SetupGuideCard(
     onHide: () -> Unit
 ) {
     val actionText = when {
-        !hasIcalUrl -> "Link einfügen"
+        !hasIcalUrl -> "Kalender verbinden"
         shouldSuggestLinkRepair -> "Link reparieren"
-        else -> "Aktualisieren"
+        else -> "Jetzt synchronisieren"
     }
     val statusText = when {
-        !hasIcalUrl -> "Schritt 1: Tippe auf \"Link einfügen\"."
-        shouldSuggestLinkRepair -> "Link scheint ungültig/abgelaufen. Bitte reparieren."
-        !hasSyncedOnce -> "Schritt 2: Tippe auf \"Aktualisieren\"."
-        examCount == 0 -> "Noch keine Prüfungen gefunden. Bitte aktualisieren."
-        !lastSyncError.isNullOrBlank() -> "Es gab ein Problem. Tippe auf \"Hilfe\"."
-        else -> "Alles bereit. Du kannst die App normal nutzen."
+        !hasIcalUrl -> "Verbinde zuerst deinen iCal-Kalender."
+        shouldSuggestLinkRepair -> "Der gespeicherte Link ist ungültig oder abgelaufen."
+        !hasSyncedOnce -> "Starte den ersten Sync mit \"Jetzt synchronisieren\"."
+        examCount == 0 -> "Sync war erfolgreich, aber es wurden noch keine Prüfungen gefunden."
+        !lastSyncError.isNullOrBlank() -> "Beim letzten Sync gab es ein Problem."
+        else -> "Alles bereit. Deine Prüfungen sind aktuell."
     }
 
     Card(
@@ -141,7 +141,7 @@ internal fun SetupGuideCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Erste Schritte",
+                text = "Start-Hilfe",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold
             )
@@ -152,15 +152,15 @@ internal fun SetupGuideCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 SetupStatusPill(
-                    label = if (hasIcalUrl) "Link verbunden" else "Link fehlt",
+                    label = if (hasIcalUrl) "Kalender verbunden" else "Kalender fehlt",
                     ok = hasIcalUrl
                 )
                 SetupStatusPill(
-                    label = if (hasSyncedOnce) "Daten geladen" else "Noch nicht geladen",
+                    label = if (hasSyncedOnce) "Sync erledigt" else "Noch kein Sync",
                     ok = hasSyncedOnce
                 )
                 SetupStatusPill(
-                    label = "$examCount Prüfungen sichtbar",
+                    label = "$examCount Prüfungen",
                     ok = examCount > 0
                 )
             }
@@ -190,14 +190,14 @@ internal fun SetupGuideCard(
                     onClick = onOpenHelp,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("So geht's")
+                    Text("Hilfe")
                 }
             }
             TextButton(
                 onClick = onHide,
                 modifier = Modifier.align(Alignment.End)
             ) {
-                Text("Karte ausblenden")
+                Text("Nicht mehr anzeigen")
             }
         }
     }

@@ -322,7 +322,7 @@ fun EventsTimelineContent(
                         onValueChange = { searchQuery = it },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        label = { Text("Suche im Kalender") },
+                        label = { Text("Suche") },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Outlined.Search,
@@ -361,11 +361,11 @@ fun EventsTimelineContent(
                         onClick = { showAdvancedFilters = !showAdvancedFilters },
                         modifier = Modifier.align(Alignment.End)
                     ) {
-                        Text(if (showAdvancedFilters) "Weniger Filter" else "Weitere Filter")
+                        Text(if (showAdvancedFilters) "Weniger Optionen" else "Mehr Optionen")
                     }
 
                     if (showAdvancedFilters) {
-                        EventControlsSectionLabel("Typ")
+                        EventControlsSectionLabel("Inhalt")
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -395,7 +395,7 @@ fun EventsTimelineContent(
                             contentDescription = null,
                             modifier = Modifier.padding(end = 6.dp)
                         )
-                        Text("Eigenes Event")
+                        Text("Termin hinzufügen")
                     }
 
                     if (showAdvancedFilters) {

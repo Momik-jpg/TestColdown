@@ -43,6 +43,32 @@ private fun normalizeVersionName(versionName: String): String {
 internal fun changelogTimeline(): List<ChangelogVersion> {
     return listOf(
         ChangelogVersion(
+            versionName = "1.6.10",
+            highlights = listOf(
+                "Benutzerführung vereinfacht: klarere Texte in Setup, Hilfe und Einstellungen.",
+                "Werkzeuge strukturierter dargestellt, damit wichtige Aktionen schneller erreichbar sind."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.9",
+            highlights = listOf(
+                "Stabilitäts-Release auf aktuellem Main-Stand für konsistente Builds."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.8",
+            highlights = listOf(
+                "Tag-Release zur Bereinigung der Release-Kette."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.7",
+            highlights = listOf(
+                "UI-Struktur weiter aufgeräumt und Dialog-/Tab-Code besser getrennt.",
+                "Sync und Zeitbehandlung robuster gemacht (weniger unnötige Start-Syncs)."
+            )
+        ),
+        ChangelogVersion(
             versionName = "1.6.6",
             highlights = listOf(
                 "Was ist neu: Button 'Mehr anzeigen' öffnet jetzt den vollständigen Update-Verlauf.",

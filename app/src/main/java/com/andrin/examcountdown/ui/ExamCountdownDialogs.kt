@@ -64,7 +64,7 @@ internal fun SettingsSectionCard(
 @Composable
 internal fun QuickActionTile(
     text: String,
-    subtitle: String,
+    subtitle: String? = null,
     icon: ImageVector,
     showAlertBadge: Boolean = false,
     onClick: () -> Unit
@@ -96,13 +96,15 @@ internal fun QuickActionTile(
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                subtitle?.takeIf { it.isNotBlank() }?.let { helperText ->
+                    Text(
+                        text = helperText,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             if (showAlertBadge) {
                 Surface(
