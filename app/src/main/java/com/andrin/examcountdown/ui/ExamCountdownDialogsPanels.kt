@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -39,6 +41,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -203,11 +206,21 @@ internal fun QuickActionsDialog(
     hasUnseenChangelog: Boolean
 ) {
     val scrollState = rememberScrollState()
-    val dialogContainer = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = AppOpacity.settingsContainer)
+    val isDark = isSystemInDarkTheme()
+    val dialogContainer = if (isDark) {
+        MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = if (isDark) {
+            MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
@@ -216,7 +229,7 @@ internal fun QuickActionsDialog(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "Schnellzugriff auf wichtige Aktionen",
+                    text = "Wichtige Aktionen und Optionen",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -268,9 +281,21 @@ internal fun QuickActionsDialog(
                     title = "Kalender & Sync",
                     containerColor = dialogContainer
                 ) {
-                    Button(
+                    FilledTonalButton(
                         onClick = onSyncNow,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = if (isDark) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                            } else {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f)
+                            },
+                            contentColor = if (isDark) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            }
+                        )
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Refresh,
@@ -287,13 +312,13 @@ internal fun QuickActionsDialog(
                     )
                     QuickActionTile(
                         text = "Benachrichtigungen",
-                        subtitle = "Vorzeiten und Ruhezeiten",
+                        subtitle = null,
                         icon = Icons.Outlined.NotificationsActive,
                         onClick = onOpenReminderSettings
                     )
                     QuickActionTile(
                         text = "Automatisch aktualisieren",
-                        subtitle = "Intervall für Hintergrund-Sync",
+                        subtitle = null,
                         icon = Icons.Outlined.Sync,
                         onClick = onOpenSyncSettings
                     )
@@ -311,7 +336,7 @@ internal fun QuickActionsDialog(
                     )
                     QuickActionTile(
                         text = "Hilfe",
-                        subtitle = "Kurzanleitung",
+                        subtitle = null,
                         icon = Icons.AutoMirrored.Outlined.HelpOutline,
                         onClick = onOpenHelp
                     )
@@ -337,13 +362,13 @@ internal fun QuickActionsDialog(
                         )
                         QuickActionTile(
                             text = "Datenschutz",
-                            subtitle = "Lokale Daten und Screenshot-Schutz",
+                            subtitle = null,
                             icon = Icons.Outlined.Lock,
                             onClick = onOpenPrivacy
                         )
                         QuickActionTile(
                             text = "Sync-Diagnose",
-                            subtitle = "Status und Fehlersuche",
+                            subtitle = null,
                             icon = Icons.Outlined.Schedule,
                             onClick = onOpenSyncDiagnostics
                         )
@@ -355,7 +380,7 @@ internal fun QuickActionsDialog(
                     ) {
                         QuickActionTile(
                             text = "CSV/PDF Export",
-                            subtitle = "Prüfungen und Agenda exportieren",
+                            subtitle = null,
                             icon = Icons.Outlined.CloudDownload,
                             onClick = onOpenExport
                         )
@@ -365,13 +390,37 @@ internal fun QuickActionsDialog(
                         ) {
                             FilledTonalButton(
                                 onClick = onExportBackup,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = if (isDark) {
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                    } else {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
+                                    },
+                                    contentColor = if (isDark) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    }
+                                )
                             ) {
                                 Text("Backup Export")
                             }
                             FilledTonalButton(
                                 onClick = onImportBackup,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = if (isDark) {
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                    } else {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
+                                    },
+                                    contentColor = if (isDark) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    }
+                                )
                             ) {
                                 Text("Backup Import")
                             }
@@ -384,7 +433,7 @@ internal fun QuickActionsDialog(
                     ) {
                         QuickActionTile(
                             text = "Was ist neu",
-                            subtitle = "Update-Verlauf anzeigen",
+                            subtitle = null,
                             icon = Icons.Outlined.CalendarToday,
                             showAlertBadge = hasUnseenChangelog,
                             onClick = onOpenChangelog
@@ -394,8 +443,23 @@ internal fun QuickActionsDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Schließen")
+            FilledTonalButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = if (isDark) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                    } else {
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f)
+                    },
+                    contentColor = if (isDark) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    }
+                )
+            ) {
+                Text("Fertig")
             }
         }
     )

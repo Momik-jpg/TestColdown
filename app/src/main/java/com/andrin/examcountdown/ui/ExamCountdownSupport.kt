@@ -43,6 +43,19 @@ private fun normalizeVersionName(versionName: String): String {
 internal fun changelogTimeline(): List<ChangelogVersion> {
     return listOf(
         ChangelogVersion(
+            versionName = "1.6.12",
+            highlights = listOf(
+                "Dark Mode überarbeitet: Karten, Dialoge und Eingabefelder wirken ruhiger und klarer.",
+                "Notenrechner und Einstellungen optisch geglättet, damit sich die App insgesamt flüssiger anfühlt."
+            )
+        ),
+        ChangelogVersion(
+            versionName = "1.6.11",
+            highlights = listOf(
+                "Zwischenrelease für UI-Feinschliff und bessere Benutzerführung."
+            )
+        ),
+        ChangelogVersion(
             versionName = "1.6.10",
             highlights = listOf(
                 "Benutzerführung vereinfacht: klarere Texte in Setup, Hilfe und Einstellungen.",

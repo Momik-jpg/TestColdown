@@ -311,7 +311,14 @@ fun EventsTimelineContent(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+                ),
+                border = BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(AppDimens.cardInnerPadding),
@@ -441,7 +448,14 @@ fun EventsTimelineContent(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.large,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+                    ),
+                    border = BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
@@ -577,7 +591,14 @@ private fun AgendaMonthContent(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+            ),
+            border = BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(
                 modifier = Modifier.padding(8.dp),
@@ -767,7 +788,7 @@ private fun CalendarDayCell(
     val containerColor = when {
         isSelected -> MaterialTheme.colorScheme.primaryContainer
         isToday -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
-        else -> MaterialTheme.colorScheme.surface
+        else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
     }
     val borderColor = when {
         isSelected -> MaterialTheme.colorScheme.primary
@@ -781,7 +802,8 @@ private fun CalendarDayCell(
             .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.medium,
         color = containerColor,
-        border = BorderStroke(1.dp, borderColor)
+        tonalElevation = if (isSelected || isToday) 2.dp else 0.dp,
+        border = BorderStroke(1.dp, borderColor.copy(alpha = if (isSelected || isToday) 0.9f else 0.55f))
     ) {
         Column(
             modifier = Modifier
@@ -978,7 +1000,14 @@ private fun AgendaDayTimelineContent(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+            ),
+            border = BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -1036,7 +1065,14 @@ private fun AgendaDayTimelineContent(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+                ),
+                border = BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(12.dp),
@@ -1062,7 +1098,14 @@ private fun AgendaDayTimelineContent(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+            ),
+            border = BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column(
                 modifier = Modifier.padding(vertical = 8.dp),
@@ -1139,7 +1182,16 @@ private fun DayTimelineItemCard(
 
     Surface(
         shape = MaterialTheme.shapes.medium,
-        color = containerColor
+        color = containerColor,
+        tonalElevation = 1.dp,
+        border = BorderStroke(
+            1.dp,
+            when (item.kind) {
+                CalendarItemKind.EXAM -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                CalendarItemKind.LESSON -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
+                CalendarItemKind.EVENT -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
+            }
+        )
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1397,11 +1449,21 @@ private fun CalendarTimelineCard(
         CalendarItemKind.LESSON -> "Lektion"
         CalendarItemKind.EVENT -> eventTypeLabel(item.eventType)
     }
+    val containerColor = when (item.kind) {
+        CalendarItemKind.EXAM -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f)
+        CalendarItemKind.LESSON -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.18f)
+        CalendarItemKind.EVENT -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.18f)
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = BorderStroke(
+            1.dp,
+            badgeColor.copy(alpha = 0.18f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
