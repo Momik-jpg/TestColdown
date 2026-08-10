@@ -1,6 +1,7 @@
 package com.andrin.examcountdown.data
 
 import com.andrin.examcountdown.model.SchoolEventType
+import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -100,6 +101,7 @@ class SchoolEventIcalImporterTest {
 
     @Test
     fun importFromRaw_dstTimedEventInZurich_hasCorrectStartAndEnd() = runBlocking {
+        val importer = importerAt(LocalDate.of(2026, 3, 1))
         val raw = """
             BEGIN:VCALENDAR
             BEGIN:VEVENT
@@ -131,6 +133,7 @@ class SchoolEventIcalImporterTest {
 
     @Test
     fun importFromRaw_dstAllDayEventInZurich_usesLocalDayBoundaryForEnd() = runBlocking {
+        val importer = importerAt(LocalDate.of(2026, 3, 1))
         val raw = """
             BEGIN:VCALENDAR
             BEGIN:VEVENT
@@ -158,5 +161,10 @@ class SchoolEventIcalImporterTest {
         assertTrue(event.isAllDay)
         assertEquals(expectedStart, event.startsAtEpochMillis)
         assertEquals(expectedEnd, event.endsAtEpochMillis)
+    }
+
+    private fun importerAt(date: LocalDate): SchoolEventIcalImporter {
+        val instant = date.atStartOfDay(zone).toInstant()
+        return SchoolEventIcalImporter(clock = Clock.fixed(instant, zone))
     }
 }
