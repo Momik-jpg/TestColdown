@@ -2,6 +2,7 @@ package com.andrin.examcountdown.data
 
 import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.model.SchoolEventType
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -19,7 +20,9 @@ data class SchoolEventImportResult(
     val message: String
 )
 
-class SchoolEventIcalImporter {
+class SchoolEventIcalImporter(
+    private val clock: Clock = Clock.system(ZoneId.of("Europe/Zurich"))
+) {
     private val schoolZone: ZoneId = ZoneId.of("Europe/Zurich")
 
     suspend fun importFromUrl(url: String): SchoolEventImportResult = withContext(Dispatchers.IO) {
@@ -33,12 +36,14 @@ class SchoolEventIcalImporter {
     }
 
     private fun importFromRawInternal(raw: String): SchoolEventImportResult {
-        val now = System.currentTimeMillis()
-        val windowStart = LocalDate.now(schoolZone)
+        val importClock = clock.withZone(schoolZone)
+        val today = LocalDate.now(importClock)
+        val now = importClock.millis()
+        val windowStart = today
             .atStartOfDay(schoolZone)
             .toInstant()
             .toEpochMilli()
-        val windowEnd = LocalDate.now(schoolZone)
+        val windowEnd = today
             .plusDays(180)
             .atTime(23, 59, 59)
             .atZone(schoolZone)
