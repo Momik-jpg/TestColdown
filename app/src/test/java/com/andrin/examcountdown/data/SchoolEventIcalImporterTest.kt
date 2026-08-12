@@ -100,6 +100,9 @@ class SchoolEventIcalImporterTest {
 
     @Test
     fun importFromRaw_dstTimedEventInZurich_hasCorrectStartAndEnd() = runBlocking {
+        val dstImporter = SchoolEventIcalImporter {
+            LocalDate.of(2026, 3, 1).atStartOfDay(zone).toInstant().toEpochMilli()
+        }
         val raw = """
             BEGIN:VCALENDAR
             BEGIN:VEVENT
@@ -111,7 +114,7 @@ class SchoolEventIcalImporterTest {
             END:VCALENDAR
         """.trimIndent()
 
-        val result = importer.importFromRaw(raw)
+        val result = dstImporter.importFromRaw(raw)
 
         assertEquals(1, result.events.size)
         val event = result.events.first()
@@ -131,6 +134,9 @@ class SchoolEventIcalImporterTest {
 
     @Test
     fun importFromRaw_dstAllDayEventInZurich_usesLocalDayBoundaryForEnd() = runBlocking {
+        val dstImporter = SchoolEventIcalImporter {
+            LocalDate.of(2026, 3, 1).atStartOfDay(zone).toInstant().toEpochMilli()
+        }
         val raw = """
             BEGIN:VCALENDAR
             BEGIN:VEVENT
@@ -142,7 +148,7 @@ class SchoolEventIcalImporterTest {
             END:VCALENDAR
         """.trimIndent()
 
-        val result = importer.importFromRaw(raw)
+        val result = dstImporter.importFromRaw(raw)
 
         assertEquals(1, result.events.size)
         val event = result.events.first()
