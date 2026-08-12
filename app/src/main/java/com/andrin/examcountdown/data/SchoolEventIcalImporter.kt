@@ -19,7 +19,9 @@ data class SchoolEventImportResult(
     val message: String
 )
 
-class SchoolEventIcalImporter {
+class SchoolEventIcalImporter(
+    private val nowProvider: () -> Long = System::currentTimeMillis
+) {
     private val schoolZone: ZoneId = ZoneId.of("Europe/Zurich")
 
     suspend fun importFromUrl(url: String): SchoolEventImportResult = withContext(Dispatchers.IO) {
@@ -33,12 +35,13 @@ class SchoolEventIcalImporter {
     }
 
     private fun importFromRawInternal(raw: String): SchoolEventImportResult {
-        val now = System.currentTimeMillis()
-        val windowStart = LocalDate.now(schoolZone)
+        val now = nowProvider()
+        val currentDate = Instant.ofEpochMilli(now).atZone(schoolZone).toLocalDate()
+        val windowStart = currentDate
             .atStartOfDay(schoolZone)
             .toInstant()
             .toEpochMilli()
-        val windowEnd = LocalDate.now(schoolZone)
+        val windowEnd = currentDate
             .plusDays(180)
             .atTime(23, 59, 59)
             .atZone(schoolZone)

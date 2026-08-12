@@ -6,6 +6,7 @@ import java.time.format.DateTimeFormatter
 import java.util.TimeZone
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -83,6 +84,24 @@ class IcalImporterTest {
             assertEquals(expectedMillis, result.exams.first().startsAtEpochMillis)
         } finally {
             TimeZone.setDefault(original)
+        }
+    }
+
+    @Test
+    fun importFromRaw_rejectsHtmlResponse() {
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking {
+                importer.importFromRaw("<html><body>Sign in</body></html>")
+            }
+        }
+    }
+
+    @Test
+    fun importFromRaw_rejectsUnclosedCalendar() {
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking {
+                importer.importFromRaw("BEGIN:VCALENDAR\nBEGIN:VEVENT\nSUMMARY:Mathematik Prüfung")
+            }
         }
     }
 }

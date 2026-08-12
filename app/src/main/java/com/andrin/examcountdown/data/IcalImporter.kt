@@ -30,7 +30,8 @@ class IcalImporter {
     }
 
     private fun importFromRawInternal(raw: String): IcalImportResult {
-        val parsedEvents = parseIcalEvents(raw)
+        val lines = validateAndUnfoldCalendar(raw)
+        val parsedEvents = parseIcalEvents(lines)
             .filter { it.startsAtEpochMillis > System.currentTimeMillis() }
             .sortedBy { it.startsAtEpochMillis }
 
@@ -114,8 +115,7 @@ class IcalImporter {
         val startsAtEpochMillis: Long
     )
 
-    private fun parseIcalEvents(raw: String): List<ParsedIcalEvent> {
-        val lines = unfoldIcalLines(raw)
+    private fun parseIcalEvents(lines: List<String>): List<ParsedIcalEvent> {
         val events = mutableListOf<ParsedIcalEvent>()
 
         var inEvent = false
@@ -172,6 +172,22 @@ class IcalImporter {
         }
 
         return events
+    }
+
+    private fun validateAndUnfoldCalendar(raw: String): List<String> {
+        val lines = unfoldIcalLines(raw)
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+
+        require(lines.firstOrNull() == "BEGIN:VCALENDAR" && lines.lastOrNull() == "END:VCALENDAR") {
+            "Ungültige iCal-Antwort"
+        }
+        require(lines.count { it == "BEGIN:VCALENDAR" } == 1 &&
+            lines.count { it == "END:VCALENDAR" } == 1 &&
+            lines.count { it == "BEGIN:VEVENT" } == lines.count { it == "END:VEVENT" }) {
+            "Unvollständige iCal-Antwort"
+        }
+        return lines
     }
 
     private fun unfoldIcalLines(raw: String): List<String> {
