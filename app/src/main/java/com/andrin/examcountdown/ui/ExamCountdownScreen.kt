@@ -70,7 +70,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -83,8 +82,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -106,6 +103,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -184,6 +182,76 @@ enum class HomeTab(
     companion object {
         fun fromRoute(route: String?): HomeTab {
             return entries.firstOrNull { it.route == route } ?: EXAMS
+        }
+    }
+}
+
+@Composable
+private fun HomeTabPillRow(
+    visibleTabs: List<HomeTab>,
+    selectedTab: HomeTab,
+    onTabSelected: (HomeTab) -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f)
+        ),
+        tonalElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            visibleTabs.forEach { tab ->
+                val selected = selectedTab == tab
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(
+                            if (selected) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f)
+                            } else {
+                                Color.Transparent
+                            }
+                        )
+                        .clickable { onTabSelected(tab) }
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = tab.icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                    Text(
+                        text = tab.shortTitle,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 }
@@ -1099,19 +1167,43 @@ fun ExamCountdownScreen(
         isDarkMode,
         scheme.background,
         scheme.surface,
-        scheme.surfaceVariant
+        scheme.surfaceVariant,
+        scheme.primaryContainer
     ) {
         val colors = if (isDarkMode) {
             listOf(
                 scheme.background,
+                scheme.surfaceVariant.copy(alpha = 0.92f),
                 scheme.surface,
-                scheme.surfaceVariant.copy(alpha = 0.7f)
+                scheme.background
             )
         } else {
             listOf(
+                scheme.primaryContainer.copy(alpha = 0.45f),
                 scheme.background,
                 scheme.surface,
-                scheme.surfaceVariant.copy(alpha = 0.55f)
+                scheme.surfaceVariant.copy(alpha = 0.78f)
+            )
+        }
+        Brush.verticalGradient(colors)
+    }
+    val headerBrush = remember(
+        isDarkMode,
+        scheme.primaryContainer,
+        scheme.surface,
+        scheme.background
+    ) {
+        val colors = if (isDarkMode) {
+            listOf(
+                scheme.primaryContainer.copy(alpha = 0.72f),
+                scheme.surface.copy(alpha = 0.98f),
+                scheme.background.copy(alpha = 0.94f)
+            )
+        } else {
+            listOf(
+                scheme.primaryContainer.copy(alpha = 0.98f),
+                scheme.surface.copy(alpha = 0.96f),
+                scheme.background.copy(alpha = 0.94f)
             )
         }
         Brush.verticalGradient(colors)
@@ -1120,91 +1212,89 @@ fun ExamCountdownScreen(
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            val topBarColor = MaterialTheme.colorScheme.background.copy(
-                alpha = if (isDarkMode) 0.94f else 0.98f
-            )
             Column {
-                Surface(color = topBarColor) {
-                    Column {
-                        TopAppBar(
-                            title = {
-                                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                                    Text(
-                                        text = "Prüfungs-Planer",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = "Klar organisiert für den Schulalltag",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            },
-                            actions = {
-                                if (selectedTab != HomeTab.GRADES) {
-                                    FilledTonalIconButton(
-                                        enabled = !isSyncingIcal,
-                                        onClick = triggerManualRefresh
-                                    ) {
-                                        if (isSyncingIcal) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(18.dp),
-                                                strokeWidth = 2.dp
-                                            )
-                                        } else {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Refresh,
-                                                contentDescription = "Jetzt aktualisieren"
-                                            )
-                                        }
-                                    }
-                                    IconButton(
-                                        onClick = {
-                                            showQuickActionsDialog = true
-                                        }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.MoreVert,
-                                            contentDescription = "Mehr Aktionen"
-                                        )
-                                    }
-                                }
-                            },
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = Color.Transparent,
-                                scrolledContainerColor = Color.Transparent
-                            )
-                        )
-                        TabRow(
-                            selectedTabIndex = visibleTabs.indexOf(selectedTab).coerceAtLeast(0),
-                            containerColor = Color.Transparent,
-                            divider = {
-                                HorizontalDivider(
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)
-                                )
-                            }
-                        ) {
-                            visibleTabs.forEach { tab ->
-                                Tab(
-                                    selected = selectedTab == tab,
-                                    onClick = { selectedTab = tab },
-                                    icon = {
-                                        Icon(
-                                            imageVector = tab.icon,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    },
-                                    text = {
+                Surface(
+                    color = Color.Transparent,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(
+                        bottomStart = 24.dp,
+                        bottomEnd = 24.dp
+                    ),
+                    tonalElevation = if (isDarkMode) 2.dp else 4.dp,
+                    shadowElevation = if (isDarkMode) 0.dp else 8.dp
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(headerBrush)
+                    ) {
+                        Column {
+                            TopAppBar(
+                                title = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Text(
-                                            text = tab.shortTitle,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            text = "Prüfungs-Planer",
+                                            style = MaterialTheme.typography.headlineSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Alles an einem Ort",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
+                                },
+                                actions = {
+                                    if (selectedTab != HomeTab.GRADES) {
+                                        FilledTonalIconButton(
+                                            enabled = !isSyncingIcal,
+                                            onClick = triggerManualRefresh,
+                                            colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
+                                                containerColor = MaterialTheme.colorScheme.surface.copy(
+                                                    alpha = if (isDarkMode) 0.32f else 0.84f
+                                                ),
+                                                contentColor = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        ) {
+                                            if (isSyncingIcal) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(18.dp),
+                                                    strokeWidth = 2.dp
+                                                )
+                                            } else {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.Refresh,
+                                                    contentDescription = "Jetzt aktualisieren"
+                                                )
+                                            }
+                                        }
+                                        FilledTonalIconButton(
+                                            onClick = {
+                                                showQuickActionsDialog = true
+                                            },
+                                            colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
+                                                containerColor = MaterialTheme.colorScheme.surface.copy(
+                                                    alpha = if (isDarkMode) 0.32f else 0.84f
+                                                ),
+                                                contentColor = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.MoreVert,
+                                                contentDescription = "Mehr Aktionen"
+                                            )
+                                        }
+                                    }
+                                },
+                                colors = TopAppBarDefaults.topAppBarColors(
+                                    containerColor = Color.Transparent,
+                                    scrolledContainerColor = Color.Transparent
                                 )
-                            }
+                            )
+                            HomeTabPillRow(
+                                visibleTabs = visibleTabs,
+                                selectedTab = selectedTab,
+                                onTabSelected = { selectedTab = it }
+                            )
                         }
                     }
                 }
@@ -1223,7 +1313,12 @@ fun ExamCountdownScreen(
         },
         floatingActionButton = {
             if (selectedTab == HomeTab.EXAMS) {
-                FloatingActionButton(onClick = { showAddDialog = true }) {
+                FloatingActionButton(
+                    onClick = { showAddDialog = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = MaterialTheme.shapes.large
+                ) {
                     Icon(imageVector = Icons.Outlined.Add, contentDescription = "Prüfung hinzufügen")
                 }
             }
