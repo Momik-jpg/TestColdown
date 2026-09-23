@@ -31,8 +31,11 @@ import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -74,7 +77,14 @@ internal fun TimetableChangesCard(
 ) {
     Card(
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+        ),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -114,7 +124,8 @@ private fun TimetableChangeRow(change: TimetableChangeEntry) {
 
     Surface(
         shape = MaterialTheme.shapes.medium,
-        color = color.copy(alpha = 0.12f)
+        color = color.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.18f))
     ) {
         Column(
             modifier = Modifier
@@ -215,7 +226,14 @@ internal fun TimetableWeekGrid(
                 Card(
                     modifier = Modifier.width(240.dp),
                     shape = MaterialTheme.shapes.large,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+                    ),
+                    border = BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(
                         modifier = Modifier.padding(12.dp),
@@ -264,7 +282,13 @@ internal fun TimetableChoiceChip(
     FilterChip(
         selected = selected,
         onClick = onClick,
-        label = { Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        label = { Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            containerColor = MaterialTheme.colorScheme.surface,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     )
 }
 
@@ -276,7 +300,14 @@ internal fun TimetableNowNextCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+        ),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -333,7 +364,9 @@ private fun TimetableNowNextLessonTile(
     val room = lesson.location?.trim().orEmpty()
     Surface(
         color = containerColor,
-        shape = MaterialTheme.shapes.medium
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.16f)),
+        tonalElevation = 1.dp
     ) {
         Column(
             modifier = Modifier
@@ -446,7 +479,7 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
     val cardColor = if (isCancelled) {
         MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.28f)
     } else {
-        MaterialTheme.colorScheme.surface
+        MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
     }
 
     Card(
@@ -457,7 +490,7 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
             width = 1.dp,
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -484,13 +517,18 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                 )
 
                 if (isCurrent) {
-                    Text(
-                        text = "Jetzt",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = "Jetzt",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
 
@@ -556,7 +594,7 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
             }
 
             Surface(
-                color = MaterialTheme.colorScheme.secondaryContainer,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.86f),
                 shape = MaterialTheme.shapes.medium
             ) {
                 Row(
@@ -567,11 +605,11 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                     Icon(
                         imageVector = Icons.Outlined.Schedule,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
                         text = formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                         style = MaterialTheme.typography.labelLarge,
                         textDecoration = if (isCancelled) TextDecoration.LineThrough else TextDecoration.None
                     )
@@ -746,8 +784,15 @@ internal fun TimetableEmptyState(
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = MaterialTheme.shapes.extraLarge
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+            ),
+            shape = MaterialTheme.shapes.extraLarge,
+            border = BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),

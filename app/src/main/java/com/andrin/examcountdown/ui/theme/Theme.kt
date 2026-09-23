@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -14,7 +15,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
 private val LightColors = lightColorScheme(
@@ -78,10 +81,10 @@ private val LightAccessibleColors = lightColorScheme(
     onSecondary = Color(0xFFFFFFFF),
     secondaryContainer = Color(0xFFD8E7FF),
     onSecondaryContainer = Color(0xFF002A58),
-    tertiary = Color(0xFF006B87),
+    tertiary = Color(0xFF3F66A8),
     onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFB9EBFF),
-    onTertiaryContainer = Color(0xFF003141),
+    tertiaryContainer = Color(0xFFD9E5FF),
+    onTertiaryContainer = Color(0xFF0F2B58),
     background = Color(0xFFFFFFFF),
     onBackground = Color(0xFF111111),
     surface = Color(0xFFFFFFFF),
@@ -101,10 +104,10 @@ private val DarkAccessibleColors = darkColorScheme(
     onSecondary = Color(0xFF002855),
     secondaryContainer = Color(0xFF00428A),
     onSecondaryContainer = Color(0xFFD8E7FF),
-    tertiary = Color(0xFF8DE7FF),
-    onTertiary = Color(0xFF00333F),
-    tertiaryContainer = Color(0xFF005464),
-    onTertiaryContainer = Color(0xFFBEEBFF),
+    tertiary = Color(0xFFCAD8FF),
+    onTertiary = Color(0xFF18345A),
+    tertiaryContainer = Color(0xFF35507A),
+    onTertiaryContainer = Color(0xFFE1E8FF),
     background = Color(0xFF000000),
     onBackground = Color(0xFFEFEFEF),
     surface = Color(0xFF0D0D0D),
@@ -113,6 +116,14 @@ private val DarkAccessibleColors = darkColorScheme(
     onSurfaceVariant = Color(0xFFC7D2DF),
     outline = Color(0xFFA8BACF),
     outlineVariant = Color(0xFF5D6F84)
+)
+
+private val AppShapes = Shapes(
+    extraSmall = RoundedCornerShape(10.dp),
+    small = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(20.dp),
+    large = RoundedCornerShape(28.dp),
+    extraLarge = RoundedCornerShape(36.dp)
 )
 
 @Composable
@@ -149,6 +160,7 @@ fun ExamCountdownTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = typography,
+        shapes = AppShapes,
         content = content
     )
 }
