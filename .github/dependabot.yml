@@ -7,10 +7,18 @@ updates:
       day: "monday"
       time: "06:00"
       timezone: "Europe/Zurich"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "android"
+    open-pull-requests-limit: 3
+    groups:
+      safe-gradle-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
     commit-message:
       prefix: "deps"
       include: "scope"
@@ -22,10 +30,11 @@ updates:
       day: "monday"
       time: "06:15"
       timezone: "Europe/Zurich"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "ci"
+    open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     commit-message:
       prefix: "deps"
       include: "scope"
