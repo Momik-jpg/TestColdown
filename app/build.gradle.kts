@@ -70,6 +70,7 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+kotlinCompilerExtensionVersion
 
     buildFeatures {
         buildConfig = true
@@ -77,7 +78,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
+        kotlinCompilerExtensionVersion = "1.5.15"
     }
 
     packaging {
