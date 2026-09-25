@@ -70,7 +70,6 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-kotlinCompilerExtensionVersion
 
     buildFeatures {
         buildConfig = true
