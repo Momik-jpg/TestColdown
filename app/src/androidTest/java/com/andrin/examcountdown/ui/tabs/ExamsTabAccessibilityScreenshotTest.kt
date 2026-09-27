@@ -1,6 +1,9 @@
 package com.andrin.examcountdown.ui.tabs
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
@@ -55,7 +58,8 @@ class ExamsTabAccessibilityScreenshotTest {
         }
 
         composeRule.onNodeWithTag("exam-details-dialog").assertIsDisplayed()
-        composeRule.onNodeWithText("Prüfungsdetails").assertIsDisplayed()
+        composeRule.onNodeWithText("Prüfungsdetails", useUnmergedTree = true)
+            .assert(hasAccessibilityHeading())
         composeRule.onNodeWithText("Fach").assertIsDisplayed()
         composeRule.onNodeWithText("Lern-Sessions planen").assertHasClickAction()
 
@@ -67,4 +71,33 @@ class ExamsTabAccessibilityScreenshotTest {
             screenshot.width > 0 && screenshot.height > 0
         )
     }
+
+    @Test
+    fun longExamTitle_remainsFullyVisible() {
+        val longTitle = "Mathematik Prüfung mit einer langen vollständig lesbaren Bezeichnung"
+        val exam = Exam(
+            title = longTitle,
+            subject = "MAT",
+            location = "Raum 3",
+            startsAtEpochMillis = System.currentTimeMillis() + 24L * 60L * 60L * 1000L
+        )
+
+        composeRule.setContent {
+            MaterialTheme {
+                ExamDetailsDialog(
+                    exam = exam,
+                    presentation = buildExamPresentation(exam),
+                    collisions = emptyList(),
+                    onDismiss = {},
+                    onPlanStudy = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(longTitle, useUnmergedTree = true).assertIsDisplayed()
+    }
+}
+
+private fun hasAccessibilityHeading() = SemanticsMatcher("is an accessibility heading") { node ->
+    node.config.contains(SemanticsProperties.Heading)
 }
