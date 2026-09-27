@@ -1,6 +1,7 @@
 package com.andrin.examcountdown.ui.tabs
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -34,6 +35,65 @@ class ExamsTabAccessibilityScreenshotTest {
         composeRule.onNodeWithTag("exam-no-results").assertIsDisplayed()
         composeRule.onNodeWithText("Keine Prüfungen für diesen Filter.").assertIsDisplayed()
         composeRule.onNodeWithText("Filter zurücksetzen").assertHasClickAction()
+    }
+
+    @Test
+    fun dashboardSections_exposeHeadingSemantics() {
+        val exam = Exam(
+            title = "Mathematik Prüfung",
+            subject = "MAT",
+            location = "Raum 3",
+            startsAtEpochMillis = System.currentTimeMillis() + 24L * 60L * 60L * 1000L
+        )
+
+        composeRule.setContent {
+            MaterialTheme {
+                Column {
+                    WorkloadSummary(exams = emptyList(), visibleCount = 0)
+                    SetupGuideCard(
+                        examCount = 0,
+                        hasIcalUrl = false,
+                        hasSyncedOnce = false,
+                        lastSyncError = null,
+                        shouldSuggestLinkRepair = false,
+                        onOpenIcalImport = {},
+                        onRefreshNow = {},
+                        onOpenHelp = {},
+                        onHide = {}
+                    )
+                    ExamCollisionOverviewCard(collisionMap = emptyMap())
+                    CountdownHero(
+                        exam = exam,
+                        presentation = buildExamPresentation(exam),
+                        onOpenDetails = {},
+                        onPlanStudy = {},
+                        onDelete = {}
+                    )
+                    SyncIssueCard(
+                        errorText = "Verbindung fehlgeschlagen",
+                        showRepairAction = true,
+                        onRetryNow = {},
+                        onRepairLink = {},
+                        onOpenDiagnostics = {}
+                    )
+                    EmptyState(onAddClick = {})
+                    NoExamResultsCard(onClearFilters = {})
+                }
+            }
+        }
+
+        listOf(
+            "Überblick",
+            "Start-Hilfe",
+            "Kollisionen erkannt",
+            "Nächste Prüfung",
+            "Synchronisierung braucht Aufmerksamkeit",
+            "Noch keine Prüfungen geplant",
+            "Keine Prüfungen für diesen Filter."
+        ).forEach { heading ->
+            composeRule.onNodeWithText(heading, useUnmergedTree = true)
+                .assert(hasAccessibilityHeading())
+        }
     }
 
     @Test
