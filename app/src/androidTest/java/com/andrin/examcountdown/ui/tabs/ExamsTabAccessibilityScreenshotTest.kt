@@ -1,6 +1,7 @@
 package com.andrin.examcountdown.ui.tabs
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -12,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.ui.buildExamPresentation
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -34,6 +36,78 @@ class ExamsTabAccessibilityScreenshotTest {
         composeRule.onNodeWithTag("exam-no-results").assertIsDisplayed()
         composeRule.onNodeWithText("Keine Prüfungen für diesen Filter.").assertIsDisplayed()
         composeRule.onNodeWithText("Filter zurücksetzen").assertHasClickAction()
+    }
+
+    @Test
+    fun dashboardSections_exposeHeadingSemantics() {
+        val exam = Exam(
+            title = "Mathematik Prüfung",
+            subject = "MAT",
+            location = "Raum 3",
+            startsAtEpochMillis = System.currentTimeMillis() + 24L * 60L * 60L * 1000L
+        )
+
+        val nowMillis = System.currentTimeMillis()
+
+        composeRule.setContent {
+            MaterialTheme {
+                Column {
+                    AgendaPreview(
+                        lessons = emptyList(),
+                        events = listOf(
+                            SchoolEvent(
+                                title = "Lernblock",
+                                startsAtEpochMillis = nowMillis + 60L * 60L * 1000L,
+                                endsAtEpochMillis = nowMillis + 2L * 60L * 60L * 1000L
+                            )
+                        )
+                    )
+                    WorkloadSummary(exams = emptyList(), visibleCount = 0)
+                    SetupGuideCard(
+                        examCount = 0,
+                        hasIcalUrl = false,
+                        hasSyncedOnce = false,
+                        lastSyncError = null,
+                        shouldSuggestLinkRepair = false,
+                        onOpenIcalImport = {},
+                        onRefreshNow = {},
+                        onOpenHelp = {},
+                        onHide = {}
+                    )
+                    ExamCollisionOverviewCard(collisionMap = emptyMap())
+                    CountdownHero(
+                        exam = exam,
+                        presentation = buildExamPresentation(exam),
+                        onOpenDetails = {},
+                        onPlanStudy = {},
+                        onDelete = {}
+                    )
+                    SyncIssueCard(
+                        errorText = "Verbindung fehlgeschlagen",
+                        showRepairAction = true,
+                        onRetryNow = {},
+                        onRepairLink = {},
+                        onOpenDiagnostics = {}
+                    )
+                    EmptyState(onAddClick = {})
+                    NoExamResultsCard(onClearFilters = {})
+                }
+            }
+        }
+
+        listOf(
+            "Als Nächstes",
+            "Überblick",
+            "Start-Hilfe",
+            "Kollisionen erkannt",
+            "Nächste Prüfung",
+            "Synchronisierung braucht Aufmerksamkeit",
+            "Noch keine Prüfungen geplant",
+            "Keine Prüfungen für diesen Filter."
+        ).forEach { heading ->
+            composeRule.onNodeWithText(heading, useUnmergedTree = true)
+                .assert(hasAccessibilityHeading())
+        }
     }
 
     @Test
