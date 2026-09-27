@@ -52,6 +52,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -163,6 +165,7 @@ internal fun AgendaPreview(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Als Nächstes",
+                        modifier = Modifier.semantics { heading() },
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -264,6 +267,7 @@ internal fun WorkloadSummary(
         ) {
             Text(
                 text = "Überblick",
+                modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -336,6 +340,7 @@ internal fun SetupGuideCard(
         ) {
             Text(
                 text = "Start-Hilfe",
+                modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold
             )
@@ -476,6 +481,7 @@ internal fun ExamCollisionOverviewCard(
         ) {
             Text(
                 text = "Kollisionen erkannt",
+                modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onErrorContainer
@@ -672,6 +678,7 @@ internal fun NoExamResultsCard(
             )
             Text(
                 text = "Keine Prüfungen für diesen Filter.",
+                modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -714,14 +721,13 @@ internal fun ExamDetailsDialog(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = "Prüfungsdetails",
+                    modifier = Modifier.semantics { heading() },
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = presentation.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    style = MaterialTheme.typography.headlineSmall
                 )
             }
         },
@@ -850,9 +856,7 @@ private fun ExamDetailRow(
             )
             Text(
                 text = value,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis
+                style = MaterialTheme.typography.bodyMedium
             )
         }
     }
@@ -898,6 +902,9 @@ internal fun CountdownHero(
                 ) {
                     Text(
                         text = "Nächste Prüfung",
+                        modifier = Modifier
+                            .weight(1f)
+                            .semantics { heading() },
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
                         modifier = Modifier.weight(1f)
@@ -1003,6 +1010,7 @@ internal fun SyncIssueCard(
         ) {
             Text(
                 text = "Synchronisierung braucht Aufmerksamkeit",
+                modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onTertiaryContainer
@@ -1061,6 +1069,7 @@ internal fun EmptyState(
                 )
                 Text(
                     text = "Noch keine Prüfungen geplant",
+                    modifier = Modifier.semantics { heading() },
                     style = MaterialTheme.typography.titleLarge
                 )
                 Text(
