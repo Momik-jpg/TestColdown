@@ -907,7 +907,6 @@ internal fun CountdownHero(
                             .semantics { heading() },
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
-                        modifier = Modifier.weight(1f)
                     )
                     FilledTonalIconButton(
                         onClick = onOpenDetails,
