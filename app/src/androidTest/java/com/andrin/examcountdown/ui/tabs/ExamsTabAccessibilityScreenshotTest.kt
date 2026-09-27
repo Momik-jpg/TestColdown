@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.model.SchoolEvent
 import com.andrin.examcountdown.ui.buildExamPresentation
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -46,9 +47,21 @@ class ExamsTabAccessibilityScreenshotTest {
             startsAtEpochMillis = System.currentTimeMillis() + 24L * 60L * 60L * 1000L
         )
 
+        val nowMillis = System.currentTimeMillis()
+
         composeRule.setContent {
             MaterialTheme {
                 Column {
+                    AgendaPreview(
+                        lessons = emptyList(),
+                        events = listOf(
+                            SchoolEvent(
+                                title = "Lernblock",
+                                startsAtEpochMillis = nowMillis + 60L * 60L * 1000L,
+                                endsAtEpochMillis = nowMillis + 2L * 60L * 60L * 1000L
+                            )
+                        )
+                    )
                     WorkloadSummary(exams = emptyList(), visibleCount = 0)
                     SetupGuideCard(
                         examCount = 0,
@@ -83,6 +96,7 @@ class ExamsTabAccessibilityScreenshotTest {
         }
 
         listOf(
+            "Als Nächstes",
             "Überblick",
             "Start-Hilfe",
             "Kollisionen erkannt",
