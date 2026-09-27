@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
@@ -16,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.LocationOn
@@ -51,17 +53,185 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.model.SchoolEvent
+import com.andrin.examcountdown.model.TimetableLesson
 import com.andrin.examcountdown.ui.ExamPresentation
 import com.andrin.examcountdown.util.CollisionSource
 import com.andrin.examcountdown.util.ExamCollision
 import com.andrin.examcountdown.util.SchoolTime
 import com.andrin.examcountdown.util.formatCountdown
 import com.andrin.examcountdown.util.formatExamDate
+import com.andrin.examcountdown.util.formatExamDateShort
+import com.andrin.examcountdown.util.formatTimeRange
 import com.andrin.examcountdown.util.formatReminderDateTime
 import com.andrin.examcountdown.util.formatReminderLeadTime
+import com.andrin.examcountdown.ui.theme.AppDimens
+
+private data class AgendaPreviewEntry(
+    val id: String,
+    val kind: String,
+    val title: String,
+    val startsAtEpochMillis: Long,
+    val endsAtEpochMillis: Long,
+    val location: String?,
+    val isAllDay: Boolean
+)
+
+private fun buildAgendaPreviewEntries(
+    lessons: List<TimetableLesson>,
+    events: List<SchoolEvent>,
+    nowMillis: Long
+): List<AgendaPreviewEntry> {
+    return (lessons.map { lesson ->
+        AgendaPreviewEntry(
+            id = "lesson:${lesson.id}",
+            kind = "Stundenplan",
+            title = lesson.title,
+            startsAtEpochMillis = lesson.startsAtEpochMillis,
+            endsAtEpochMillis = lesson.endsAtEpochMillis,
+            location = lesson.location,
+            isAllDay = false
+        )
+    } + events.map { event ->
+        AgendaPreviewEntry(
+            id = "event:${event.id}",
+            kind = "Agenda",
+            title = event.title,
+            startsAtEpochMillis = event.startsAtEpochMillis,
+            endsAtEpochMillis = event.endsAtEpochMillis,
+            location = event.location,
+            isAllDay = event.isAllDay
+        )
+    })
+        .filter { entry -> entry.endsAtEpochMillis >= nowMillis }
+        .sortedBy(AgendaPreviewEntry::startsAtEpochMillis)
+        .take(4)
+}
 
 @Composable
-internal fun ExamInsightsCard(
+internal fun AgendaPreview(
+    lessons: List<TimetableLesson>,
+    events: List<SchoolEvent>,
+    modifier: Modifier = Modifier
+) {
+    val entries = remember(lessons, events) {
+        buildAgendaPreviewEntries(
+            lessons = lessons,
+            events = events,
+            nowMillis = SchoolTime.nowMillis()
+        )
+    }
+    if (entries.isEmpty()) return
+
+    val sourceLabel = when {
+        lessons.isNotEmpty() && events.isNotEmpty() -> "Stundenplan und Agenda"
+        lessons.isNotEmpty() -> "Stundenplan"
+        else -> "Agenda"
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(AppDimens.cardInnerPadding),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.CalendarToday,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Als Nächstes",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = sourceLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            entries.forEach { entry ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 44.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = formatExamDateShort(entry.startsAtEpochMillis)
+                                    .substringBefore(' '),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                text = if (entry.isAllDay) "ganztags" else formatTimeRange(
+                                    entry.startsAtEpochMillis,
+                                    entry.endsAtEpochMillis
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = entry.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = entry.kind,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        entry.location?.takeIf { it.isNotBlank() }?.let { location ->
+                            Text(
+                                text = location,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun WorkloadSummary(
     exams: List<Exam>,
     visibleCount: Int
 ) {
@@ -499,7 +669,7 @@ internal fun NoExamResultsCard(
 }
 
 @Composable
-internal fun NextExamHero(
+internal fun CountdownHero(
     exam: Exam,
     presentation: ExamPresentation,
     onPlanStudy: () -> Unit,
