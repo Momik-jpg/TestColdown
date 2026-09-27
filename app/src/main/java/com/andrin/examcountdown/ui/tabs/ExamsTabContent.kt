@@ -99,6 +99,7 @@ fun ExamsTabContent(
     var selectedSubject by rememberSaveable { mutableStateOf(SUBJECT_FILTER_ALL) }
     var selectedWindow by rememberSaveable { mutableStateOf(ExamWindowFilter.ALL) }
     var selectedSortMode by rememberSaveable { mutableStateOf(ExamSortMode.NEXT_FIRST) }
+    var selectedExamForDetails by remember { mutableStateOf<Exam?>(null) }
     val examPresentations = remember(exams) {
         exams.associate { exam -> exam.id to buildExamPresentation(exam) }
     }
@@ -216,6 +217,20 @@ fun ExamsTabContent(
     val onHideSetupGuide = { onEvent(ExamsTabEvent.HideSetupGuide) }
     val onAddClick = { onEvent(ExamsTabEvent.AddExam) }
 
+    selectedExamForDetails?.let { exam ->
+        val presentation = examPresentations[exam.id] ?: buildExamPresentation(exam)
+        ExamDetailsDialog(
+            exam = exam,
+            presentation = presentation,
+            collisions = collisionMap[exam.id].orEmpty(),
+            onDismiss = { selectedExamForDetails = null },
+            onPlanStudy = {
+                selectedExamForDetails = null
+                onEvent(ExamsTabEvent.PlanStudy(exam))
+            }
+        )
+    }
+
     if (exams.isEmpty()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -331,6 +346,7 @@ fun ExamsTabContent(
                 CountdownHero(
                     exam = exam,
                     presentation = info,
+                    onOpenDetails = { selectedExamForDetails = exam },
                     onPlanStudy = { onEvent(ExamsTabEvent.PlanStudy(exam)) },
                     onDelete = { onEvent(ExamsTabEvent.DeleteExam(exam)) }
                 )
@@ -377,6 +393,7 @@ fun ExamsTabContent(
                         exam = exam,
                         presentation = info,
                         collisions = collisionMap[exam.id].orEmpty(),
+                        onOpenDetails = { selectedExamForDetails = exam },
                         onPlanStudy = { onEvent(ExamsTabEvent.PlanStudy(exam)) },
                         onDelete = { onEvent(ExamsTabEvent.DeleteExam(exam)) }
                     )
