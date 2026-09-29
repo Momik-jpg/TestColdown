@@ -51,6 +51,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -134,7 +135,7 @@ internal fun AgendaPreview(
     }
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().testTag("exam-agenda-preview"),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -645,6 +646,9 @@ internal fun NoExamResultsCard(
     onClearFilters: () -> Unit
 ) {
     Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("exam-no-results"),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
@@ -725,7 +729,8 @@ internal fun ExamDetailsDialog(
             Column(
                 modifier = Modifier
                     .heightIn(max = AppDimens.dialogMaxHeightLarge)
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(rememberScrollState())
+                    .testTag("exam-details-dialog"),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Surface(
@@ -862,7 +867,9 @@ internal fun CountdownHero(
     onDelete: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("exam-countdown-hero"),
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
         border = BorderStroke(
@@ -982,6 +989,9 @@ internal fun SyncIssueCard(
     onOpenDiagnostics: () -> Unit
 ) {
     Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("exam-sync-error"),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.72f)

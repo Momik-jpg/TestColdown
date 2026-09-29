@@ -31,7 +31,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: QA checks (compile, tests, lint, debug build)
-        run: ./gradlew :app:compileDebugKotlin :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --no-daemon
+        run: ./gradlew :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --no-daemon
 
       - name: Upload QA reports
         if: always()
