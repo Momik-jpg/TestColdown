@@ -4,6 +4,9 @@ import androidx.compose.ui.unit.dp
 
 object AppDimens {
     val screenHorizontalPadding = 16.dp
+    val dashboardHorizontalPadding = 14.dp
+    val dashboardVerticalPadding = 12.dp
+    val dashboardItemSpacing = 14.dp
     val sectionSpacing = 12.dp
     val itemSpacing = 10.dp
     val dialogMaxHeightLarge = 520.dp

@@ -53,6 +53,7 @@ import com.andrin.examcountdown.ui.buildExamPresentation
 import com.andrin.examcountdown.ui.isIcalLinkRepairRecommended
 import com.andrin.examcountdown.ui.tabs.events.ExamsTabEvent
 import com.andrin.examcountdown.ui.tabs.state.ExamsTabUiState
+import com.andrin.examcountdown.ui.theme.AppDimens
 import com.andrin.examcountdown.util.CollisionSource
 import com.andrin.examcountdown.util.ExamCollision
 import com.andrin.examcountdown.util.CollisionRules
@@ -218,8 +219,11 @@ fun ExamsTabContent(
     if (exams.isEmpty()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(
+                horizontal = AppDimens.dashboardHorizontalPadding,
+                vertical = AppDimens.dashboardVerticalPadding
+            ),
+            verticalArrangement = Arrangement.spacedBy(AppDimens.dashboardItemSpacing)
         ) {
             if (showSetupGuide) {
                 item("setup-guide-empty") {
@@ -259,8 +263,11 @@ fun ExamsTabContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(
+                horizontal = AppDimens.dashboardHorizontalPadding,
+                vertical = AppDimens.dashboardVerticalPadding
+            ),
+        verticalArrangement = Arrangement.spacedBy(AppDimens.dashboardItemSpacing)
     ) {
         if (showSetupGuide) {
             item("setup-guide") {
@@ -305,7 +312,7 @@ fun ExamsTabContent(
         }
         if (!simpleModeEnabled) {
             item {
-                ExamInsightsCard(
+                WorkloadSummary(
                     exams = exams,
                     visibleCount = filteredExams.size
                 )
@@ -321,7 +328,7 @@ fun ExamsTabContent(
         item {
             nextExam?.let { exam ->
                 val info = examPresentations[exam.id] ?: buildExamPresentation(exam)
-                NextExamHero(
+                CountdownHero(
                     exam = exam,
                     presentation = info,
                     onPlanStudy = { onEvent(ExamsTabEvent.PlanStudy(exam)) },
@@ -330,6 +337,14 @@ fun ExamsTabContent(
             }
         }
 
+        if (lessons.isNotEmpty() || events.isNotEmpty()) {
+            item("agenda-preview") {
+                AgendaPreview(
+                    lessons = lessons,
+                    events = events
+                )
+            }
+        }
         if (filteredExams.isEmpty()) {
             item {
                 NoExamResultsCard(
