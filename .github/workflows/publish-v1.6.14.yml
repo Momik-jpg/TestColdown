@@ -1,0 +1,106 @@
+name: Publish Android v1.6.14
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v1.6.14
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout reviewed release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 38305c998f9501d05593db46ee5f1fc1e15514a8
+          persist-credentials: false
+
+      - name: Validate release source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "38305c998f9501d05593db46ee5f1fc1e15514a8"
+          grep -Eq '^[[:space:]]*versionCode = 23$' app/build.gradle.kts
+          grep -Eq '^[[:space:]]*versionName = "1\.6\.14"$' app/build.gradle.kts
+          if gh release view v1.6.14 >/dev/null 2>&1; then
+            echo 'v1.6.14 already exists.'
+            exit 1
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Prepare release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          KEY_PASSWORD_EFFECTIVE="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+          mkdir -p keystore
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > keystore/upload-keystore.jks
+          printf "storeFile=keystore/upload-keystore.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" \
+            "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD_EFFECTIVE" > keystore.properties
+
+      - name: Build signed release APK
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :app:testDebugUnitTest :app:assembleRelease --no-daemon
+
+      - name: Verify APK signature matches v1.6.13
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK_PATH=.build/app/outputs/apk/release/app-release.apk
+          test -s "$APK_PATH"
+          mkdir -p previous-release
+          gh release download v1.6.13 --pattern '*.apk' --dir previous-release
+          OLD_APK=previous-release/ExamCountdown-release-v1.6.13.apk
+          test -s "$OLD_APK" || { echo 'Previous release APK is missing.'; exit 1; }
+          APK_SIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner | sort -V | tail -n 1)"
+          test -n "$APK_SIGNER" || { echo 'Android APK signer is missing.'; exit 1; }
+          "$APK_SIGNER" verify --print-certs "$OLD_APK" > previous-certs.txt
+          "$APK_SIGNER" verify --print-certs "$APK_PATH" > current-certs.txt
+          OLD_CERT="$(sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' previous-certs.txt | head -n 1)"
+          NEW_CERT="$(sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' current-certs.txt | head -n 1)"
+          test -n "$OLD_CERT" || { echo 'Could not read previous certificate:'; cat previous-certs.txt; exit 1; }
+          test -n "$NEW_CERT" || { echo 'Could not read current certificate:'; cat current-certs.txt; exit 1; }
+          echo "Previous certificate SHA-256: $OLD_CERT"
+          echo "Current certificate SHA-256: $NEW_CERT"
+          test "$NEW_CERT" = "$OLD_CERT" || { echo 'Signing certificates differ; APK cannot update v1.6.13.'; exit 1; }
+
+      - name: Publish signed APK with immutable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifacts
+          cp .build/app/outputs/apk/release/app-release.apk release-artifacts/ExamCountdown-release-v1.6.14.apk
+          cat > release-notes.md <<'EOF'
+          ## Neu in v1.6.14
+          - Kompakte Prüfungsaktionen auf normalen Handybreiten und weniger Scrollen.
+          - Erweiterte Filter bleiben verfügbar, ohne den Countdown zu verdrängen.
+          - Vollständiges Zurücksetzen der Suche und Filter; weniger Arbeit beim Öffnen der Prüfungsansicht.
+
+          Das APK ist mit demselben Schlüssel wie v1.6.13 signiert und kann die vorhandene Installation aktualisieren.
+          EOF
+          gh release create v1.6.14 release-artifacts/ExamCountdown-release-v1.6.14.apk \
+            --target "$(git rev-parse HEAD)" \
+            --title 'Exam Countdown v1.6.14' \
+            --notes-file release-notes.md
