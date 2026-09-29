@@ -77,8 +77,8 @@ jobs:
           test -n "$APK_SIGNER" || { echo 'Android APK signer is missing.'; exit 1; }
           "$APK_SIGNER" verify --print-certs "$OLD_APK" > previous-certs.txt
           "$APK_SIGNER" verify --print-certs "$APK_PATH" > current-certs.txt
-          OLD_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' previous-certs.txt | head -n 1)"
-          NEW_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' current-certs.txt | head -n 1)"
+          OLD_CERT="$(sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' previous-certs.txt | head -n 1)"
+          NEW_CERT="$(sed -n 's/^V2 Signer: certificate SHA-256 digest: //p' current-certs.txt | head -n 1)"
           test -n "$OLD_CERT" || { echo 'Could not read previous certificate:'; cat previous-certs.txt; exit 1; }
           test -n "$NEW_CERT" || { echo 'Could not read current certificate:'; cat current-certs.txt; exit 1; }
           echo "Previous certificate SHA-256: $OLD_CERT"
