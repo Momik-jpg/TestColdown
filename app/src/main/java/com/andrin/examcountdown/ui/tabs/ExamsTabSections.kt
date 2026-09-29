@@ -1,6 +1,5 @@
 package com.andrin.examcountdown.ui.tabs
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -75,6 +74,7 @@ import com.andrin.examcountdown.util.formatTimeRange
 import com.andrin.examcountdown.util.formatReminderDateTime
 import com.andrin.examcountdown.util.formatReminderLeadTime
 import com.andrin.examcountdown.ui.theme.AppDimens
+import java.util.PriorityQueue
 
 private data class AgendaPreviewEntry(
     val id: String,
@@ -91,30 +91,45 @@ private fun buildAgendaPreviewEntries(
     events: List<SchoolEvent>,
     nowMillis: Long
 ): List<AgendaPreviewEntry> {
-    return (lessons.map { lesson ->
-        AgendaPreviewEntry(
-            id = "lesson:${lesson.id}",
-            kind = "Stundenplan",
-            title = lesson.title,
-            startsAtEpochMillis = lesson.startsAtEpochMillis,
-            endsAtEpochMillis = lesson.endsAtEpochMillis,
-            location = lesson.location,
-            isAllDay = false
-        )
-    } + events.map { event ->
-        AgendaPreviewEntry(
-            id = "event:${event.id}",
-            kind = "Agenda",
-            title = event.title,
-            startsAtEpochMillis = event.startsAtEpochMillis,
-            endsAtEpochMillis = event.endsAtEpochMillis,
-            location = event.location,
-            isAllDay = event.isAllDay
-        )
-    })
-        .filter { entry -> entry.endsAtEpochMillis >= nowMillis }
-        .sortedBy(AgendaPreviewEntry::startsAtEpochMillis)
-        .take(4)
+    val upcoming = PriorityQueue<AgendaPreviewEntry>(
+        compareByDescending<AgendaPreviewEntry> { it.startsAtEpochMillis }
+            .thenByDescending { it.id }
+    )
+    fun keepNearest(entry: AgendaPreviewEntry) {
+        upcoming.add(entry)
+        if (upcoming.size > 4) upcoming.poll()
+    }
+    lessons.forEach { lesson ->
+        if (lesson.endsAtEpochMillis >= nowMillis) {
+            keepNearest(
+                AgendaPreviewEntry(
+                    id = "lesson:${lesson.id}",
+                    kind = "Stundenplan",
+                    title = lesson.title,
+                    startsAtEpochMillis = lesson.startsAtEpochMillis,
+                    endsAtEpochMillis = lesson.endsAtEpochMillis,
+                    location = lesson.location,
+                    isAllDay = false
+                )
+            )
+        }
+    }
+    events.forEach { event ->
+        if (event.endsAtEpochMillis >= nowMillis) {
+            keepNearest(
+                AgendaPreviewEntry(
+                    id = "event:${event.id}",
+                    kind = "Agenda",
+                    title = event.title,
+                    startsAtEpochMillis = event.startsAtEpochMillis,
+                    endsAtEpochMillis = event.endsAtEpochMillis,
+                    location = event.location,
+                    isAllDay = event.isAllDay
+                )
+            )
+        }
+    }
+    return upcoming.sortedWith(compareBy<AgendaPreviewEntry> { it.startsAtEpochMillis }.thenBy { it.id })
 }
 
 @Composable
@@ -531,12 +546,13 @@ internal fun ExamSearchAndFilterCard(
     onSubjectSelected: (String) -> Unit,
     selectedWindow: ExamWindowFilter,
     onWindowSelected: (ExamWindowFilter) -> Unit,
-    simpleModeEnabled: Boolean,
     showSortOptions: Boolean,
     selectedSortMode: ExamSortMode,
     onSortModeSelected: (ExamSortMode) -> Unit
 ) {
-    var showExtendedFilters by rememberSaveable(simpleModeEnabled) { mutableStateOf(!simpleModeEnabled) }
+    var showExtendedFilters by rememberSaveable { mutableStateOf(false) }
+    val hasAdvancedFilter = selectedSubject != SUBJECT_FILTER_ALL ||
+        selectedSortMode != ExamSortMode.NEXT_FIRST
     val chipColors = FilterChipDefaults.filterChipColors(
         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
         selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -557,9 +573,7 @@ internal fun ExamSearchAndFilterCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            modifier = Modifier
-                .animateContentSize()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OutlinedTextField(
@@ -598,11 +612,21 @@ internal fun ExamSearchAndFilterCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
-                if (simpleModeEnabled) {
+                if (subjects.size > 1 || showSortOptions) {
                     TextButton(onClick = { showExtendedFilters = !showExtendedFilters }) {
                         Text(if (showExtendedFilters) "Weniger Filter" else "Weitere Filter")
                     }
                 }
+            }
+            if (hasAdvancedFilter && !showExtendedFilters) {
+                Text(
+                    text = listOfNotNull(
+                        selectedSubject.takeIf { it != SUBJECT_FILTER_ALL },
+                        selectedSortMode.title.takeIf { selectedSortMode != ExamSortMode.NEXT_FIRST }
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
             Row(
                 modifier = Modifier
@@ -619,7 +643,7 @@ internal fun ExamSearchAndFilterCard(
                     )
                 }
             }
-            val showSubjectFilters = subjects.size > 1 && (!simpleModeEnabled || showExtendedFilters)
+            val showSubjectFilters = subjects.size > 1 && showExtendedFilters
             if (showSubjectFilters) {
                 Text(
                     text = "Fächer",
@@ -642,7 +666,7 @@ internal fun ExamSearchAndFilterCard(
                     }
                 }
             }
-            if (showSortOptions && (!simpleModeEnabled || showExtendedFilters)) {
+            if (showSortOptions && showExtendedFilters) {
                 Text(
                     text = "Sortierung",
                     style = MaterialTheme.typography.labelMedium,
@@ -1196,7 +1220,7 @@ private fun ExamActionButtons(
     onDelete: () -> Unit
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        if (maxWidth < 330.dp || LocalDensity.current.fontScale >= 1.3f) {
+        if (maxWidth < 300.dp || LocalDensity.current.fontScale >= 1.3f) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onOpenDetails, modifier = Modifier.fillMaxWidth()) {
                     Text("Details")
@@ -1213,8 +1237,12 @@ private fun ExamActionButtons(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedButton(onClick = onOpenDetails) { Text("Details") }
-                Button(onClick = onPlanStudy) { Text("Lernen planen") }
+                OutlinedButton(onClick = onOpenDetails, modifier = Modifier.weight(1f)) {
+                    Text("Details", maxLines = 1)
+                }
+                Button(onClick = onPlanStudy, modifier = Modifier.weight(1.5f)) {
+                    Text("Lernen planen", maxLines = 1)
+                }
                 IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
                     Icon(
                         imageVector = Icons.Outlined.Delete,
