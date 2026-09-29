@@ -14,17 +14,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.School
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -49,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -656,10 +660,21 @@ internal fun NoExamResultsCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Icon(
+                imageVector = Icons.Outlined.Search,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
             Text(
                 text = "Keine Prüfungen für diesen Filter.",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "Passe Suche oder Zeitraum an oder setze die Filter zurück.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             OutlinedButton(onClick = onClearFilters) {
                 Text("Filter zurücksetzen")
@@ -668,10 +683,181 @@ internal fun NoExamResultsCard(
     }
 }
 
+
+@Composable
+internal fun ExamDetailsDialog(
+    exam: Exam,
+    presentation: ExamPresentation,
+    collisions: List<ExamCollision>,
+    onDismiss: () -> Unit,
+    onPlanStudy: () -> Unit
+) {
+    val isPast = exam.startsAtEpochMillis < SchoolTime.nowMillis()
+    val statusContainer = if (isPast) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        MaterialTheme.colorScheme.primaryContainer
+    }
+    val statusContent = if (isPast) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Prüfungsdetails",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = presentation.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = AppDimens.dialogMaxHeightLarge)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    color = statusContainer,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        text = if (isPast) "Abgeschlossen" else "Bevorstehend",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = statusContent
+                    )
+                }
+                presentation.subject?.takeIf { it.isNotBlank() }?.let { subject ->
+                    ExamDetailRow(
+                        icon = Icons.Outlined.School,
+                        label = "Fach",
+                        value = subject
+                    )
+                }
+                ExamDetailRow(
+                    icon = Icons.Outlined.CalendarToday,
+                    label = "Termin",
+                    value = formatExamDate(exam.startsAtEpochMillis)
+                )
+                ExamDetailRow(
+                    icon = Icons.Outlined.Schedule,
+                    label = "Countdown",
+                    value = formatCountdown(exam.startsAtEpochMillis)
+                )
+                exam.location?.trim()?.takeIf { it.isNotBlank() }?.let { location ->
+                    ExamDetailRow(
+                        icon = Icons.Outlined.LocationOn,
+                        label = "Ort",
+                        value = location
+                    )
+                }
+                buildExamReminderText(exam)?.let { reminder ->
+                    ExamDetailRow(
+                        icon = Icons.Outlined.NotificationsActive,
+                        label = "Erinnerung",
+                        value = reminder.removePrefix("Erinnerung: ")
+                    )
+                }
+                if (collisions.isNotEmpty()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = if (collisions.size == 1) {
+                                    "Terminüberschneidung"
+                                } else {
+                                    "${collisions.size} Terminüberschneidungen"
+                                },
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            collisions.take(3).forEach { collision ->
+                                Text(
+                                    text = "${collisionSourceLabel(collision.source)}: ${collision.sourceTitle}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onPlanStudy) {
+                Text("Lern-Sessions planen")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Schließen")
+            }
+        }
+    )
+}
+
+@Composable
+private fun ExamDetailRow(
+    icon: ImageVector,
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp)
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
 @Composable
 internal fun CountdownHero(
     exam: Exam,
     presentation: ExamPresentation,
+    onOpenDetails: () -> Unit,
     onPlanStudy: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -709,6 +895,18 @@ internal fun CountdownHero(
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
                         modifier = Modifier.weight(1f)
                     )
+                    FilledTonalIconButton(
+                        onClick = onOpenDetails,
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Info,
+                            contentDescription = "Prüfungsdetails anzeigen"
+                        )
+                    }
                     FilledTonalIconButton(
                         onClick = onPlanStudy,
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
@@ -873,6 +1071,7 @@ internal fun ExamCard(
     exam: Exam,
     presentation: ExamPresentation,
     collisions: List<ExamCollision>,
+    onOpenDetails: () -> Unit,
     onPlanStudy: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -936,6 +1135,18 @@ internal fun ExamCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 FilledTonalIconButton(
+                    onClick = onOpenDetails,
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Info,
+                        contentDescription = "Prüfungsdetails anzeigen"
+                    )
+                }
+                FilledTonalIconButton(
                     onClick = onPlanStudy,
                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
@@ -987,24 +1198,7 @@ internal fun ExamCard(
                 }
             }
 
-            val reminderText = when {
-                exam.reminderAtEpochMillis != null && exam.reminderLeadTimesMinutes.isNotEmpty() -> {
-                    val leads = exam.reminderLeadTimesMinutes
-                        .take(3)
-                        .joinToString(", ") { formatReminderLeadTime(it) }
-                    "Erinnerung: fix ${formatReminderDateTime(exam.reminderAtEpochMillis)} + $leads"
-                }
-                exam.reminderAtEpochMillis != null -> "Erinnerung: ${formatReminderDateTime(exam.reminderAtEpochMillis)}"
-                exam.reminderLeadTimesMinutes.isNotEmpty() -> {
-                    val leads = exam.reminderLeadTimesMinutes
-                        .take(3)
-                        .joinToString(", ") { formatReminderLeadTime(it) }
-                    val suffix = if (exam.reminderLeadTimesMinutes.size > 3) ", ..." else ""
-                    "Erinnerung: $leads$suffix"
-                }
-                exam.reminderMinutesBefore != null -> "Erinnerung: ${formatReminderLeadTime(exam.reminderMinutesBefore)}"
-                else -> null
-            }
+            val reminderText = buildExamReminderText(exam)
 
             reminderText?.let { text ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1032,6 +1226,32 @@ internal fun ExamCard(
     }
 }
 
+
+
+private fun buildExamReminderText(exam: Exam): String? {
+    return when {
+        exam.reminderAtEpochMillis != null && exam.reminderLeadTimesMinutes.isNotEmpty() -> {
+            val leads = exam.reminderLeadTimesMinutes
+                .take(3)
+                .joinToString(", ") { formatReminderLeadTime(it) }
+            "Erinnerung: fix ${formatReminderDateTime(exam.reminderAtEpochMillis)} + $leads"
+        }
+        exam.reminderAtEpochMillis != null -> {
+            "Erinnerung: ${formatReminderDateTime(exam.reminderAtEpochMillis)}"
+        }
+        exam.reminderLeadTimesMinutes.isNotEmpty() -> {
+            val leads = exam.reminderLeadTimesMinutes
+                .take(3)
+                .joinToString(", ") { formatReminderLeadTime(it) }
+            val suffix = if (exam.reminderLeadTimesMinutes.size > 3) ", ..." else ""
+            "Erinnerung: $leads$suffix"
+        }
+        exam.reminderMinutesBefore != null -> {
+            "Erinnerung: ${formatReminderLeadTime(exam.reminderMinutesBefore)}"
+        }
+        else -> null
+    }
+}
 
 private fun collisionSourceLabel(source: CollisionSource): String {
     return when (source) {
