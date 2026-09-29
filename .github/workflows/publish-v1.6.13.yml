@@ -72,13 +72,18 @@ jobs:
           mkdir -p previous-release
           gh release download v1.6.12 --pattern '*.apk' --dir previous-release
           OLD_APK=previous-release/ExamCountdown-release-v1.6.12.apk
-          test -s "$OLD_APK"
-          APK_SIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
-          test -n "$APK_SIGNER"
-          OLD_CERT="$("$APK_SIGNER" verify --print-certs "$OLD_APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
-          NEW_CERT="$("$APK_SIGNER" verify --print-certs "$APK_PATH" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
-          test -n "$OLD_CERT"
-          test "$NEW_CERT" = "$OLD_CERT"
+          test -s "$OLD_APK" || { echo 'Previous release APK is missing.'; exit 1; }
+          APK_SIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner | sort -V | tail -n 1)"
+          test -n "$APK_SIGNER" || { echo 'Android APK signer is missing.'; exit 1; }
+          "$APK_SIGNER" verify --print-certs "$OLD_APK" > previous-certs.txt
+          "$APK_SIGNER" verify --print-certs "$APK_PATH" > current-certs.txt
+          OLD_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' previous-certs.txt | head -n 1)"
+          NEW_CERT="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' current-certs.txt | head -n 1)"
+          test -n "$OLD_CERT" || { echo 'Could not read previous certificate:'; cat previous-certs.txt; exit 1; }
+          test -n "$NEW_CERT" || { echo 'Could not read current certificate:'; cat current-certs.txt; exit 1; }
+          echo "Previous certificate SHA-256: $OLD_CERT"
+          echo "Current certificate SHA-256: $NEW_CERT"
+          test "$NEW_CERT" = "$OLD_CERT" || { echo 'Signing certificates differ; APK cannot update v1.6.12.'; exit 1; }
 
       - name: Publish signed APK with immutable release
         env:
