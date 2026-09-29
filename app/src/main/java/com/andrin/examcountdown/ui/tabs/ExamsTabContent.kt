@@ -279,9 +279,9 @@ fun ExamsTabContent(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-                horizontal = AppDimens.dashboardHorizontalPadding,
-                vertical = AppDimens.dashboardVerticalPadding
-            ),
+            horizontal = AppDimens.dashboardHorizontalPadding,
+            vertical = AppDimens.dashboardVerticalPadding
+        ),
         verticalArrangement = Arrangement.spacedBy(AppDimens.dashboardItemSpacing)
     ) {
         if (showSetupGuide) {
@@ -319,7 +319,6 @@ fun ExamsTabContent(
                 onSubjectSelected = { selectedSubject = it },
                 selectedWindow = selectedWindow,
                 onWindowSelected = { selectedWindow = it },
-                simpleModeEnabled = simpleModeEnabled,
                 showSortOptions = !simpleModeEnabled,
                 selectedSortMode = selectedSortMode,
                 onSortModeSelected = { selectedSortMode = it }
@@ -353,20 +352,14 @@ fun ExamsTabContent(
             }
         }
 
-        if (lessons.isNotEmpty() || events.isNotEmpty()) {
-            item("agenda-preview") {
-                AgendaPreview(
-                    lessons = lessons,
-                    events = events
-                )
-            }
-        }
         if (filteredExams.isEmpty()) {
             item {
                 NoExamResultsCard(
                     onClearFilters = {
                         searchQuery = ""
                         selectedSubject = SUBJECT_FILTER_ALL
+                        selectedWindow = ExamWindowFilter.ALL
+                        selectedSortMode = ExamSortMode.NEXT_FIRST
                     }
                 )
             }
@@ -402,4 +395,3 @@ fun ExamsTabContent(
         }
     }
 }
-
