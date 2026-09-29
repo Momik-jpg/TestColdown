@@ -1,11 +1,15 @@
 package com.andrin.examcountdown.ui.tabs
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Schedule
@@ -33,10 +36,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
@@ -51,6 +52,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -214,7 +216,7 @@ internal fun AgendaPreview(
                             text = entry.title,
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
@@ -227,7 +229,7 @@ internal fun AgendaPreview(
                                 text = location,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
@@ -272,22 +274,25 @@ internal fun WorkloadSummary(
                 fontWeight = FontWeight.SemiBold
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InsightPill(
-                    label = "Sichtbar",
-                    value = visibleCount.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                InsightPill(
-                    label = "7 Tage",
-                    value = examsNext7.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                InsightPill(
-                    label = "30 Tage",
-                    value = examsNext30.toString(),
-                    modifier = Modifier.weight(1f)
-                )
+            val counts = listOf(
+                "Sichtbar" to visibleCount,
+                "7 Tage" to examsNext7,
+                "30 Tage" to examsNext30
+            )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                if (maxWidth < 300.dp || LocalDensity.current.fontScale >= 1.4f) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        counts.forEach { (label, count) ->
+                            InsightPill(label, count.toString(), Modifier.fillMaxWidth())
+                        }
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        counts.forEach { (label, count) ->
+                            InsightPill(label, count.toString(), Modifier.weight(1f))
+                        }
+                    }
+                }
             }
             Text(
                 text = "Fächer mit Prüfungen: $subjectCount",
@@ -298,6 +303,7 @@ internal fun WorkloadSummary(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SetupGuideCard(
     examCount: Int,
@@ -344,11 +350,9 @@ internal fun SetupGuideCard(
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold
             )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 SetupStatusPill(
                     label = if (hasIcalUrl) "Kalender verbunden" else "Kalender fehlt",
@@ -378,18 +382,30 @@ internal fun SetupGuideCard(
                 )
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = if (!hasIcalUrl || shouldSuggestLinkRepair) onOpenIcalImport else onRefreshNow,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(actionText)
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val primaryAction = if (!hasIcalUrl || shouldSuggestLinkRepair) {
+                    onOpenIcalImport
+                } else {
+                    onRefreshNow
                 }
-                OutlinedButton(
-                    onClick = onOpenHelp,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Hilfe")
+                if (maxWidth < 320.dp || LocalDensity.current.fontScale >= 1.3f) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = primaryAction, modifier = Modifier.fillMaxWidth()) {
+                            Text(actionText)
+                        }
+                        OutlinedButton(onClick = onOpenHelp, modifier = Modifier.fillMaxWidth()) {
+                            Text("Hilfe")
+                        }
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = primaryAction, modifier = Modifier.weight(1f)) {
+                            Text(actionText)
+                        }
+                        OutlinedButton(onClick = onOpenHelp, modifier = Modifier.weight(1f)) {
+                            Text("Hilfe")
+                        }
+                    }
                 }
             }
             TextButton(
@@ -541,7 +557,9 @@ internal fun ExamSearchAndFilterCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier
+                .animateContentSize()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OutlinedTextField(
@@ -549,7 +567,7 @@ internal fun ExamSearchAndFilterCard(
                 onValueChange = onQueryChange,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                placeholder = { Text("Suche") },
+                label = { Text("Prüfungen suchen") },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Outlined.Search,
@@ -558,7 +576,10 @@ internal fun ExamSearchAndFilterCard(
                 },
                 trailingIcon = {
                     if (query.isNotBlank()) {
-                        IconButton(onClick = { onQueryChange("") }) {
+                        IconButton(
+                            onClick = { onQueryChange("") },
+                            modifier = Modifier.size(48.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.Outlined.Close,
                                 contentDescription = "Suche löschen"
@@ -579,7 +600,7 @@ internal fun ExamSearchAndFilterCard(
                 )
                 if (simpleModeEnabled) {
                     TextButton(onClick = { showExtendedFilters = !showExtendedFilters }) {
-                        Text(if (showExtendedFilters) "Weniger" else "Mehr")
+                        Text(if (showExtendedFilters) "Weniger Filter" else "Weitere Filter")
                     }
                 }
             }
@@ -896,55 +917,12 @@ internal fun CountdownHero(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Nächste Prüfung",
-                        modifier = Modifier
-                            .weight(1f)
-                            .semantics { heading() },
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
-                    )
-                    FilledTonalIconButton(
-                        onClick = onOpenDetails,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-                            contentColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Info,
-                            contentDescription = "Prüfungsdetails anzeigen"
-                        )
-                    }
-                    FilledTonalIconButton(
-                        onClick = onPlanStudy,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-                            contentColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Schedule,
-                            contentDescription = "Lern-Sessions planen"
-                        )
-                    }
-                    FilledTonalIconButton(
-                        onClick = onDelete,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-                            contentColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Delete,
-                            contentDescription = "Prüfung löschen"
-                        )
-                    }
-                }
+                Text(
+                    text = "Nächste Prüfung",
+                    modifier = Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                )
                 presentation.subject?.takeIf { it.isNotBlank() }?.let { subject ->
                     Surface(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
@@ -961,9 +939,7 @@ internal fun CountdownHero(
                 Text(
                     text = presentation.title,
                     style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
                     text = formatExamDate(exam.startsAtEpochMillis),
@@ -981,6 +957,7 @@ internal fun CountdownHero(
                         style = MaterialTheme.typography.titleSmall
                     )
                 }
+                ExamActionButtons(presentation.title, onOpenDetails, onPlanStudy, onDelete)
             }
         }
     }
@@ -1019,22 +996,29 @@ internal fun SyncIssueCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onTertiaryContainer
             )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(onClick = onRetryNow) {
-                    Text("Erneut versuchen")
-                }
-                if (showRepairAction) {
-                    OutlinedButton(onClick = onRepairLink) {
-                        Text("Link reparieren")
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                if (maxWidth < 420.dp || LocalDensity.current.fontScale >= 1.3f) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = onRetryNow, modifier = Modifier.fillMaxWidth()) {
+                            Text("Erneut versuchen")
+                        }
+                        if (showRepairAction) {
+                            OutlinedButton(onClick = onRepairLink, modifier = Modifier.fillMaxWidth()) {
+                                Text("Link reparieren")
+                            }
+                        }
+                        OutlinedButton(onClick = onOpenDiagnostics, modifier = Modifier.fillMaxWidth()) {
+                            Text("Diagnose öffnen")
+                        }
                     }
-                }
-                OutlinedButton(onClick = onOpenDiagnostics) {
-                    Text("Diagnose öffnen")
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = onRetryNow) { Text("Erneut versuchen") }
+                        if (showRepairAction) {
+                            OutlinedButton(onClick = onRepairLink) { Text("Link reparieren") }
+                        }
+                        OutlinedButton(onClick = onOpenDiagnostics) { Text("Diagnose öffnen") }
+                    }
                 }
             }
         }
@@ -1140,52 +1124,11 @@ internal fun ExamCard(
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = presentation.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                FilledTonalIconButton(
-                    onClick = onOpenDetails,
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                        contentColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Info,
-                        contentDescription = "Prüfungsdetails anzeigen"
-                    )
-                }
-                FilledTonalIconButton(
-                    onClick = onPlanStudy,
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                        contentColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Schedule,
-                        contentDescription = "Lern-Sessions planen"
-                    )
-                }
-                FilledTonalIconButton(
-                    onClick = onDelete,
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f),
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
-                    Icon(imageVector = Icons.Outlined.Delete, contentDescription = "Löschen")
-                }
-            }
+            Text(
+                text = presentation.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
 
             Text(
                 text = formatExamDate(exam.startsAtEpochMillis),
@@ -1240,11 +1183,48 @@ internal fun ExamCard(
                     )
                 }
             }
+            ExamActionButtons(presentation.title, onOpenDetails, onPlanStudy, onDelete)
         }
     }
 }
 
-
+@Composable
+private fun ExamActionButtons(
+    title: String,
+    onOpenDetails: () -> Unit,
+    onPlanStudy: () -> Unit,
+    onDelete: () -> Unit
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        if (maxWidth < 330.dp || LocalDensity.current.fontScale >= 1.3f) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onOpenDetails, modifier = Modifier.fillMaxWidth()) {
+                    Text("Details")
+                }
+                Button(onClick = onPlanStudy, modifier = Modifier.fillMaxWidth()) {
+                    Text("Lernen planen")
+                }
+                TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
+                    Text("Prüfung löschen")
+                }
+            }
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(onClick = onOpenDetails) { Text("Details") }
+                Button(onClick = onPlanStudy) { Text("Lernen planen") }
+                IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        imageVector = Icons.Outlined.Delete,
+                        contentDescription = "Prüfung löschen: $title"
+                    )
+                }
+            }
+        }
+    }
+}
 
 private fun buildExamReminderText(exam: Exam): String? {
     return when {
