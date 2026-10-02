@@ -307,6 +307,9 @@ fun EventsTimelineContent(
         ),
         verticalArrangement = Arrangement.spacedBy(AppDimens.itemSpacing)
     ) {
+        item("study-agenda-heading") {
+            StudyWorldHeader("Alles hat seine Zeit.", "Prüfungen, Lektionen und deine eigenen Termine in einer gemeinsamen Agenda.")
+        }
         item("calendar-controls") {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -1581,6 +1584,9 @@ private fun EventEmptyState(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
+        item("study-agenda-empty-heading") {
+            StudyWorldHeader("Dein Kalender wartet auf dich.", "Verbinde deinen Schulkalender, um hier deine Termine zu sehen.", illustrated = true)
+        }
         item("events-empty") {
             Card(
                 modifier = Modifier.fillMaxWidth(),

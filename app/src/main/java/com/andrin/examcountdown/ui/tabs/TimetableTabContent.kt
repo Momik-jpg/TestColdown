@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.andrin.examcountdown.ui.StudyWorldHeader
 import com.andrin.examcountdown.model.TimetableChangeEntry
 import com.andrin.examcountdown.model.TimetableChangeType
 import com.andrin.examcountdown.model.TimetableLesson
@@ -109,7 +110,7 @@ fun TimetableTabContent(
         if (changes.isNotEmpty()) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 item("today-changes-feed-empty") {
@@ -186,9 +187,12 @@ fun TimetableTabContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        item("study-timetable-heading") {
+            StudyWorldHeader("Ein klarer Plan für deinen Tag.", "Lektionen, Räume und Änderungen auf einen Blick.")
+        }
         if (todayChanges.isNotEmpty()) {
             item(key = "today-changes-feed") {
                 TimetableChangesCard(

@@ -62,6 +62,7 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 4. Ergebnis: `dist/ExamCountdown-release.aab`
 
 ## Dokumentation
+- Lernwelt-Design, Bedienung und Prüfungen: `docs/study-world-overhaul.md`
 - Schüler-Kurzanleitung: `docs/kurzanleitung-schueler.md`
 - iCal-Link-Anleitung mit Bild: `docs/ical-link-anleitung-mit-bild.md`
 - Troubleshooting: `docs/troubleshooting.md`

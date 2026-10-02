@@ -37,8 +37,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,7 +50,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.domain.usecase.DetectScheduleCollisionsUseCase
+import com.andrin.examcountdown.ui.StudyWorldHeader
 import com.andrin.examcountdown.ui.ExamPresentation
+import kotlinx.coroutines.delay
 import com.andrin.examcountdown.ui.buildExamPresentation
 import com.andrin.examcountdown.ui.isIcalLinkRepairRecommended
 import com.andrin.examcountdown.ui.tabs.events.ExamsTabEvent
@@ -62,21 +66,11 @@ import com.andrin.examcountdown.util.formatExamDate
 import com.andrin.examcountdown.util.formatReminderDateTime
 import com.andrin.examcountdown.util.formatReminderLeadTime
 
-internal const val SUBJECT_FILTER_ALL = "Alle Fächer"
+private val ExamFiltersSaver = listSaver<ExamFilters, String>(
+    save = { listOf(it.query, it.subject, it.window.name, it.sort.name) },
+    restore = { ExamFilters(it[0], it[1], ExamWindowFilter.valueOf(it[2]), ExamSortMode.valueOf(it[3])) }
+)
 
-internal enum class ExamWindowFilter(val title: String, val maxDaysAhead: Int?) {
-    ALL("Alle", null),
-    NEXT_7("7 Tage", 7),
-    NEXT_30("30 Tage", 30),
-    NEXT_90("90 Tage", 90)
-}
-
-internal enum class ExamSortMode(val title: String) {
-    NEXT_FIRST("Nächste"),
-    LATEST_FIRST("Späteste"),
-    SUBJECT_AZ("Fach A-Z"),
-    TITLE_AZ("Titel A-Z")
-}
 @Composable
 fun ExamsTabContent(
     state: ExamsTabUiState,
@@ -94,10 +88,14 @@ fun ExamsTabContent(
     val showSetupGuideCard = state.showSetupGuideCard
     val detectScheduleCollisions = remember { DetectScheduleCollisionsUseCase() }
 
-    var searchQuery by rememberSaveable { mutableStateOf("") }
-    var selectedSubject by rememberSaveable { mutableStateOf(SUBJECT_FILTER_ALL) }
-    var selectedWindow by rememberSaveable { mutableStateOf(ExamWindowFilter.ALL) }
-    var selectedSortMode by rememberSaveable { mutableStateOf(ExamSortMode.NEXT_FIRST) }
+    var filters by rememberSaveable(stateSaver = ExamFiltersSaver) { mutableStateOf(ExamFilters()) }
+    var now by remember { mutableLongStateOf(SchoolTime.nowMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = SchoolTime.nowMillis()
+            delay(30_000)
+        }
+    }
     val examPresentations = remember(exams) {
         exams.associate { exam -> exam.id to buildExamPresentation(exam) }
     }
@@ -110,64 +108,18 @@ fun ExamsTabContent(
         listOf(SUBJECT_FILTER_ALL) + subjects
     }
     LaunchedEffect(subjectOptions) {
-        if (selectedSubject !in subjectOptions) {
-            selectedSubject = SUBJECT_FILTER_ALL
+        if (filters.subject !in subjectOptions) {
+            filters = filters.copy(subject = SUBJECT_FILTER_ALL)
         }
     }
 
-    val filteredExams = remember(
-        exams,
-        examPresentations,
-        searchQuery,
-        selectedSubject,
-        selectedWindow,
-        selectedSortMode
-    ) {
-        val query = searchQuery.trim().lowercase()
-        val now = SchoolTime.nowMillis()
-        val windowEnd = selectedWindow.maxDaysAhead?.let { days ->
-            now + days * 24L * 60L * 60L * 1000L
-        }
-
-        val filtered = exams.filter { exam ->
-            val info = examPresentations[exam.id] ?: buildExamPresentation(exam)
-            val matchesSubject = selectedSubject == SUBJECT_FILTER_ALL ||
-                info.subject?.equals(selectedSubject, ignoreCase = true) == true
-            val matchesQuery = query.isBlank() || listOf(
-                info.subject.orEmpty(),
-                info.title,
-                exam.location.orEmpty()
-            )
-                .joinToString(" ")
-                .lowercase()
-                .contains(query)
-            val matchesWindow = windowEnd == null || exam.startsAtEpochMillis in now..windowEnd
-            matchesSubject && matchesQuery && matchesWindow
-        }
-
-        when (selectedSortMode) {
-            ExamSortMode.NEXT_FIRST -> filtered.sortedBy { it.startsAtEpochMillis }
-            ExamSortMode.LATEST_FIRST -> filtered.sortedByDescending { it.startsAtEpochMillis }
-            ExamSortMode.SUBJECT_AZ -> filtered.sortedWith(
-                compareBy<Exam>(
-                    { examPresentations[it.id]?.subject.orEmpty().lowercase() },
-                    { examPresentations[it.id]?.title.orEmpty().lowercase() },
-                    { it.startsAtEpochMillis }
-                )
-            )
-            ExamSortMode.TITLE_AZ -> filtered.sortedWith(
-                compareBy<Exam>(
-                    { examPresentations[it.id]?.title.orEmpty().lowercase() },
-                    { examPresentations[it.id]?.subject.orEmpty().lowercase() },
-                    { it.startsAtEpochMillis }
-                )
-            )
-        }
+    val searchDetails = remember(examPresentations) {
+        examPresentations.mapValues { (_, info) -> ExamSearchDetails(info.title, info.subject) }
     }
-    val nextExam = remember(filteredExams) {
-        val now = SchoolTime.nowMillis()
-        filteredExams.firstOrNull { it.startsAtEpochMillis >= now } ?: filteredExams.firstOrNull()
+    val filteredExams = remember(exams, searchDetails, filters, now) {
+        filterExams(exams, searchDetails, filters, now)
     }
+    val nextExam = remember(filteredExams, now) { nextUpcomingExam(filteredExams, now) }
     val listExams = remember(filteredExams, nextExam) {
         val heroId = nextExam?.id ?: return@remember filteredExams
         filteredExams.filterNot { it.id == heroId }
@@ -218,9 +170,12 @@ fun ExamsTabContent(
     if (exams.isEmpty()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item("study-world-empty") {
+                StudyWorldHeader("Platz für deine nächsten Ziele", "Importiere deinen Schulkalender oder lege eine Prüfung an.", illustrated = true)
+            }
             if (showSetupGuide) {
                 item("setup-guide-empty") {
                     SetupGuideCard(
@@ -259,9 +214,23 @@ fun ExamsTabContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 96.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        item("study-world") {
+            StudyWorldHeader("Schritt für Schritt bereit.", "Deine Prüfungen, dein Lernplan und Raum zum Durchatmen.", illustrated = true)
+        }
+        nextExam?.let { exam ->
+            item("next-exam-${exam.id}") {
+                NextExamHero(
+                    exam = exam,
+                    presentation = examPresentations[exam.id] ?: buildExamPresentation(exam),
+                    now = now,
+                    onPlanStudy = { onEvent(ExamsTabEvent.PlanStudy(exam)) },
+                    onDelete = { onEvent(ExamsTabEvent.DeleteExam(exam)) }
+                )
+            }
+        }
         if (showSetupGuide) {
             item("setup-guide") {
                 SetupGuideCard(
@@ -290,24 +259,26 @@ fun ExamsTabContent(
         }
         item {
             ExamSearchAndFilterCard(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                selectedSubject = selectedSubject,
+                query = filters.query,
+                onQueryChange = { filters = filters.copy(query = it) },
+                selectedSubject = filters.subject,
                 subjects = subjectOptions,
-                onSubjectSelected = { selectedSubject = it },
-                selectedWindow = selectedWindow,
-                onWindowSelected = { selectedWindow = it },
+                onSubjectSelected = { filters = filters.copy(subject = it) },
+                selectedWindow = filters.window,
+                onWindowSelected = { filters = filters.copy(window = it) },
                 simpleModeEnabled = simpleModeEnabled,
                 showSortOptions = !simpleModeEnabled,
-                selectedSortMode = selectedSortMode,
-                onSortModeSelected = { selectedSortMode = it }
+                selectedSortMode = filters.sort,
+                onSortModeSelected = { filters = filters.copy(sort = it) },
+                onReset = { filters = ExamFilters() }
             )
         }
         if (!simpleModeEnabled) {
             item {
                 ExamInsightsCard(
                     exams = exams,
-                    visibleCount = filteredExams.size
+                    visibleCount = filteredExams.size,
+                    now = now
                 )
             }
             if (collisionCount > 0) {
@@ -318,25 +289,10 @@ fun ExamsTabContent(
                 }
             }
         }
-        item {
-            nextExam?.let { exam ->
-                val info = examPresentations[exam.id] ?: buildExamPresentation(exam)
-                NextExamHero(
-                    exam = exam,
-                    presentation = info,
-                    onPlanStudy = { onEvent(ExamsTabEvent.PlanStudy(exam)) },
-                    onDelete = { onEvent(ExamsTabEvent.DeleteExam(exam)) }
-                )
-            }
-        }
-
         if (filteredExams.isEmpty()) {
             item {
                 NoExamResultsCard(
-                    onClearFilters = {
-                        searchQuery = ""
-                        selectedSubject = SUBJECT_FILTER_ALL
-                    }
+                    onClearFilters = { filters = ExamFilters() }
                 )
             }
         } else {
@@ -361,6 +317,7 @@ fun ExamsTabContent(
                     ExamCard(
                         exam = exam,
                         presentation = info,
+                        now = now,
                         collisions = collisionMap[exam.id].orEmpty(),
                         onPlanStudy = { onEvent(ExamsTabEvent.PlanStudy(exam)) },
                         onDelete = { onEvent(ExamsTabEvent.DeleteExam(exam)) }
@@ -370,4 +327,3 @@ fun ExamsTabContent(
         }
     }
 }
-

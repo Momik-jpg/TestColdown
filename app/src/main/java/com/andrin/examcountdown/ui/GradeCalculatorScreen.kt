@@ -1,5 +1,7 @@
 package com.andrin.examcountdown.ui
 
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -32,6 +34,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,28 +53,33 @@ private data class GradeRow(
     val category: String
 )
 
+private val GradeRowsSaver = listSaver<SnapshotStateList<GradeRow>, String>(
+    save = { rows -> rows.flatMap { listOf(it.id.toString(), it.grade, it.weight, it.category) } },
+    restore = { saved -> saved.chunked(4).map { GradeRow(it[0].toInt(), it[1], it[2], it[3]) }.toMutableStateList() }
+)
+
 @Composable
 fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
     val isDark = isSystemInDarkTheme()
     val fieldColors = calculatorTextFieldColors()
-    val rows = remember {
+    val rows = rememberSaveable(saver = GradeRowsSaver) {
         mutableStateListOf(
             GradeRow(id = 1, grade = "", weight = "1", category = "Prüfungen"),
             GradeRow(id = 2, grade = "", weight = "1", category = "Tests")
         )
     }
-    var nextId by remember { mutableIntStateOf(3) }
-    var targetAverageText by remember { mutableStateOf("4.0") }
-    var nextWeightText by remember { mutableStateOf("1") }
-    var achievedPointsText by remember { mutableStateOf("") }
-    var maxPointsText by remember { mutableStateOf("100") }
-    var minGradeText by remember { mutableStateOf("1.0") }
-    var maxGradeText by remember { mutableStateOf("6.0") }
-    var targetGradeByPointsText by remember { mutableStateOf("4.0") }
+    var nextId by rememberSaveable { mutableIntStateOf(3) }
+    var targetAverageText by rememberSaveable { mutableStateOf("4.0") }
+    var nextWeightText by rememberSaveable { mutableStateOf("1") }
+    var achievedPointsText by rememberSaveable { mutableStateOf("") }
+    var maxPointsText by rememberSaveable { mutableStateOf("100") }
+    var minGradeText by rememberSaveable { mutableStateOf("1.0") }
+    var maxGradeText by rememberSaveable { mutableStateOf("6.0") }
+    var targetGradeByPointsText by rememberSaveable { mutableStateOf("4.0") }
 
     val parsedRows = rows.mapNotNull { row ->
-        val grade = parseNumber(row.grade)
-        val weight = parseNumber(row.weight)
+        val grade = parseGradeNumber(row.grade)
+        val weight = parseGradeNumber(row.weight)
         val category = row.category.trim().ifBlank { "Allgemein" }
         if (grade == null || weight == null || weight <= 0.0) {
             null
@@ -89,8 +100,8 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
         }
         .toSortedMap()
 
-    val targetAverage = parseNumber(targetAverageText)
-    val nextWeight = parseNumber(nextWeightText)
+    val targetAverage = parseGradeNumber(targetAverageText)
+    val nextWeight = parseGradeNumber(nextWeightText)
     val requiredNextGrade = if (
         targetAverage != null &&
         nextWeight != null &&
@@ -102,11 +113,11 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
         null
     }
 
-    val achievedPoints = parseNumber(achievedPointsText)
-    val maxPoints = parseNumber(maxPointsText)
-    val minGrade = parseNumber(minGradeText)
-    val maxGrade = parseNumber(maxGradeText)
-    val targetGradeByPoints = parseNumber(targetGradeByPointsText)
+    val achievedPoints = parseGradeNumber(achievedPointsText)
+    val maxPoints = parseGradeNumber(maxPointsText)
+    val minGrade = parseGradeNumber(minGradeText)
+    val maxGrade = parseGradeNumber(maxGradeText)
+    val targetGradeByPoints = parseGradeNumber(targetGradeByPointsText)
 
     val validScale = minGrade != null && maxGrade != null && maxGrade > minGrade
     val validPointsRange = maxPoints != null && maxPoints > 0.0
@@ -142,6 +153,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        StudyWorldHeader("Deine Ziele in Zahlen.", "Gewichte deine Noten und finde heraus, was du für dein nächstes Ziel brauchst.")
         CalculatorCard {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -238,6 +250,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                     onValueChange = { targetAverageText = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     label = { Text("Gewünschter Schnitt") },
                     placeholder = { Text("z. B. 4.5") },
                     colors = fieldColors
@@ -248,6 +261,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                     onValueChange = { nextWeightText = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     label = { Text("Gewicht nächste Note") },
                     placeholder = { Text("z. B. 1") },
                     colors = fieldColors
@@ -289,6 +303,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                     onValueChange = { achievedPointsText = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     label = { Text("Erreichte Punkte") },
                     placeholder = { Text("z. B. 42") },
                     colors = fieldColors
@@ -299,6 +314,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                     onValueChange = { maxPointsText = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     label = { Text("Maximale Punkte") },
                     placeholder = { Text("z. B. 60") },
                     colors = fieldColors
@@ -313,6 +329,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                         onValueChange = { minGradeText = it },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         label = { Text("Note min") },
                         placeholder = { Text("1.0") },
                         colors = fieldColors
@@ -323,6 +340,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                         onValueChange = { maxGradeText = it },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         label = { Text("Note max") },
                         placeholder = { Text("6.0") },
                         colors = fieldColors
@@ -347,6 +365,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                     onValueChange = { targetGradeByPointsText = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     label = { Text("Zielnote") },
                     placeholder = { Text("z. B. 5.0") },
                     colors = fieldColors
@@ -443,6 +462,7 @@ private fun GradeRowEditor(
                     onValueChange = onGradeChange,
                     modifier = Modifier.weight(1f),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     label = { Text("Note") },
                     placeholder = { Text("z. B. 5.25") },
                     colors = fieldColors
@@ -453,6 +473,7 @@ private fun GradeRowEditor(
                     onValueChange = onWeightChange,
                     modifier = Modifier.weight(0.7f),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     label = { Text("Gewicht") },
                     placeholder = { Text("1") },
                     colors = fieldColors
@@ -545,12 +566,6 @@ private fun calculatorTextFieldColors(): androidx.compose.material3.TextFieldCol
         focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (isDark) 0.52f else 0.72f),
         unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (isDark) 0.44f else 0.62f)
     )
-}
-
-private fun parseNumber(raw: String): Double? {
-    return raw.trim()
-        .replace(',', '.')
-        .toDoubleOrNull()
 }
 
 private fun formatNumber(value: Double): String {

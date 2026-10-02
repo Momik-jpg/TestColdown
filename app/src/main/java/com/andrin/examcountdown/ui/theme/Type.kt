@@ -7,7 +7,7 @@ import androidx.compose.ui.unit.sp
 
 val AppTypography = Typography(
     displayLarge = TextStyle(
-        fontWeight = FontWeight.ExtraBold,
+        fontWeight = FontWeight.Bold,
         fontSize = 46.sp,
         lineHeight = 54.sp
     ),

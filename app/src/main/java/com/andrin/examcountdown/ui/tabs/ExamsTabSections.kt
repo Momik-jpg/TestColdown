@@ -1,6 +1,7 @@
 package com.andrin.examcountdown.ui.tabs
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
@@ -47,10 +49,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.R
 import com.andrin.examcountdown.ui.ExamPresentation
 import com.andrin.examcountdown.util.CollisionSource
 import com.andrin.examcountdown.util.ExamCollision
@@ -63,9 +68,9 @@ import com.andrin.examcountdown.util.formatReminderLeadTime
 @Composable
 internal fun ExamInsightsCard(
     exams: List<Exam>,
-    visibleCount: Int
+    visibleCount: Int,
+    now: Long
 ) {
-    val now = SchoolTime.nowMillis()
     val in7Days = now + 7L * 24L * 60L * 60L * 1000L
     val in30Days = now + 30L * 24L * 60L * 60L * 1000L
     val examsNext7 = exams.count { it.startsAtEpochMillis in now..in7Days }
@@ -337,9 +342,10 @@ internal fun ExamSearchAndFilterCard(
     simpleModeEnabled: Boolean,
     showSortOptions: Boolean,
     selectedSortMode: ExamSortMode,
-    onSortModeSelected: (ExamSortMode) -> Unit
+    onSortModeSelected: (ExamSortMode) -> Unit,
+    onReset: () -> Unit
 ) {
-    var showExtendedFilters by rememberSaveable(simpleModeEnabled) { mutableStateOf(!simpleModeEnabled) }
+    var showExtendedFilters by rememberSaveable(simpleModeEnabled) { mutableStateOf(false) }
     val chipColors = FilterChipDefaults.filterChipColors(
         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
         selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -368,7 +374,9 @@ internal fun ExamSearchAndFilterCard(
                 onValueChange = onQueryChange,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                placeholder = { Text("Suche") },
+                label = { Text("Prüfungen durchsuchen") },
+                placeholder = { Text("Fach, Titel oder Raum") },
+                shape = MaterialTheme.shapes.medium,
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Outlined.Search,
@@ -396,10 +404,8 @@ internal fun ExamSearchAndFilterCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
-                if (simpleModeEnabled) {
-                    TextButton(onClick = { showExtendedFilters = !showExtendedFilters }) {
-                        Text(if (showExtendedFilters) "Weniger" else "Mehr")
-                    }
+                TextButton(onClick = { showExtendedFilters = !showExtendedFilters }) {
+                    Text(if (showExtendedFilters) "Weniger Filter" else if (showSortOptions) "Fächer & Sortierung" else "Fächer")
                 }
             }
             Row(
@@ -417,7 +423,7 @@ internal fun ExamSearchAndFilterCard(
                     )
                 }
             }
-            val showSubjectFilters = subjects.size > 1 && (!simpleModeEnabled || showExtendedFilters)
+            val showSubjectFilters = subjects.size > 1 && showExtendedFilters
             if (showSubjectFilters) {
                 Text(
                     text = "Fächer",
@@ -440,7 +446,7 @@ internal fun ExamSearchAndFilterCard(
                     }
                 }
             }
-            if (showSortOptions && (!simpleModeEnabled || showExtendedFilters)) {
+            if (showSortOptions && showExtendedFilters) {
                 Text(
                     text = "Sortierung",
                     style = MaterialTheme.typography.labelMedium,
@@ -460,6 +466,12 @@ internal fun ExamSearchAndFilterCard(
                             colors = chipColors
                         )
                     }
+                }
+            }
+            if (query.isNotBlank() || selectedSubject != SUBJECT_FILTER_ALL ||
+                selectedWindow != ExamWindowFilter.ALL || selectedSortMode != ExamSortMode.NEXT_FIRST) {
+                TextButton(onClick = onReset, modifier = Modifier.align(Alignment.End)) {
+                    Text("Alle Filter zurücksetzen")
                 }
             }
         }
@@ -502,6 +514,7 @@ internal fun NoExamResultsCard(
 internal fun NextExamHero(
     exam: Exam,
     presentation: ExamPresentation,
+    now: Long,
     onPlanStudy: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -516,17 +529,10 @@ internal fun NextExamHero(
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Box(
-            modifier = Modifier.background(
-                Brush.linearGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.98f),
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)
-                    )
-                )
-            )
+            modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer)
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                modifier = Modifier.padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
@@ -539,18 +545,6 @@ internal fun NextExamHero(
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
                         modifier = Modifier.weight(1f)
                     )
-                    FilledTonalIconButton(
-                        onClick = onPlanStudy,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-                            contentColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Schedule,
-                            contentDescription = "Lern-Sessions planen"
-                        )
-                    }
                     FilledTonalIconButton(
                         onClick = onDelete,
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
@@ -594,11 +588,15 @@ internal fun NextExamHero(
                     shape = MaterialTheme.shapes.small
                 ) {
                     Text(
-                        text = formatCountdown(exam.startsAtEpochMillis),
+                        text = formatCountdown(exam.startsAtEpochMillis, now),
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         color = MaterialTheme.colorScheme.onPrimary,
                         style = MaterialTheme.typography.titleSmall
                     )
+                }
+                Button(onClick = onPlanStudy, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("Lernen planen", modifier = Modifier.padding(start = 8.dp))
                 }
             }
         }
@@ -675,11 +673,11 @@ internal fun EmptyState(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.School,
+                Image(
+                    painter = painterResource(R.drawable.study_empty),
                     contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                    tint = MaterialTheme.colorScheme.primary
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth().height(144.dp)
                 )
                 Text(
                     text = "Noch keine Prüfungen geplant",
@@ -690,7 +688,7 @@ internal fun EmptyState(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedButton(onClick = onAddClick) {
+                Button(onClick = onAddClick, modifier = Modifier.fillMaxWidth()) {
                     Text("Prüfung hinzufügen")
                 }
             }
@@ -702,6 +700,7 @@ internal fun EmptyState(
 internal fun ExamCard(
     exam: Exam,
     presentation: ExamPresentation,
+    now: Long,
     collisions: List<ExamCollision>,
     onPlanStudy: () -> Unit,
     onDelete: () -> Unit
@@ -798,7 +797,7 @@ internal fun ExamCard(
                 shape = MaterialTheme.shapes.small
             ) {
                 Text(
-                    text = formatCountdown(exam.startsAtEpochMillis),
+                    text = formatCountdown(exam.startsAtEpochMillis, now),
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer

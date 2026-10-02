@@ -69,12 +69,15 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -97,6 +100,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -174,7 +178,7 @@ enum class HomeTab(
     val route: String,
     val icon: ImageVector
 ) {
-    EXAMS("Prüfungen", "Prüf.", "exams", Icons.Outlined.School),
+    EXAMS("Prüfungen", "Prüfungen", "exams", Icons.Outlined.School),
     TIMETABLE("Stundenplan", "Plan", "timetable", Icons.Outlined.Schedule),
     EVENTS("Agenda", "Agenda", "events", Icons.Outlined.CalendarToday),
     GRADES("Notenrechner", "Noten", "grades", Icons.Outlined.Calculate);
@@ -187,71 +191,23 @@ enum class HomeTab(
 }
 
 @Composable
-private fun HomeTabPillRow(
+internal fun HomeNavigationBar(
     visibleTabs: List<HomeTab>,
     selectedTab: HomeTab,
     onTabSelected: (HomeTab) -> Unit
 ) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-        border = BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f)
-        ),
-        tonalElevation = 1.dp
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            visibleTabs.forEach { tab ->
-                val selected = selectedTab == tab
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(MaterialTheme.shapes.medium)
-                        .background(
-                            if (selected) {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f)
-                            } else {
-                                Color.Transparent
-                            }
-                        )
-                        .clickable { onTabSelected(tab) }
-                        .padding(horizontal = 4.dp, vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = tab.icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = if (selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
-                    Text(
-                        text = tab.shortTitle,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
+        visibleTabs.forEach { tab ->
+            NavigationBarItem(
+                selected = selectedTab == tab,
+                onClick = { onTabSelected(tab) },
+                icon = { Icon(tab.icon, contentDescription = null) },
+                label = { Text(tab.shortTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                alwaysShowLabel = true
+            )
         }
     }
 }
@@ -1162,51 +1118,13 @@ fun ExamCountdownScreen(
         )
     }
 
+    val tabStateHolder = rememberSaveableStateHolder()
     val scheme = MaterialTheme.colorScheme
-    val backgroundBrush = remember(
-        isDarkMode,
-        scheme.background,
-        scheme.surface,
-        scheme.surfaceVariant,
-        scheme.primaryContainer
-    ) {
-        val colors = if (isDarkMode) {
-            listOf(
-                scheme.background,
-                scheme.surfaceVariant.copy(alpha = 0.92f),
-                scheme.surface,
-                scheme.background
-            )
-        } else {
-            listOf(
-                scheme.primaryContainer.copy(alpha = 0.45f),
-                scheme.background,
-                scheme.surface,
-                scheme.surfaceVariant.copy(alpha = 0.78f)
-            )
-        }
-        Brush.verticalGradient(colors)
+    val backgroundBrush = remember(scheme.background) {
+        Brush.verticalGradient(listOf(scheme.background, scheme.background))
     }
-    val headerBrush = remember(
-        isDarkMode,
-        scheme.primaryContainer,
-        scheme.surface,
-        scheme.background
-    ) {
-        val colors = if (isDarkMode) {
-            listOf(
-                scheme.primaryContainer.copy(alpha = 0.72f),
-                scheme.surface.copy(alpha = 0.98f),
-                scheme.background.copy(alpha = 0.94f)
-            )
-        } else {
-            listOf(
-                scheme.primaryContainer.copy(alpha = 0.98f),
-                scheme.surface.copy(alpha = 0.96f),
-                scheme.background.copy(alpha = 0.94f)
-            )
-        }
-        Brush.verticalGradient(colors)
+    val headerBrush = remember(scheme.surface) {
+        Brush.verticalGradient(listOf(scheme.surface, scheme.surface))
     }
 
     Scaffold(
@@ -1219,8 +1137,8 @@ fun ExamCountdownScreen(
                         bottomStart = 24.dp,
                         bottomEnd = 24.dp
                     ),
-                    tonalElevation = if (isDarkMode) 2.dp else 4.dp,
-                    shadowElevation = if (isDarkMode) 0.dp else 8.dp
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp
                 ) {
                     Box(
                         modifier = Modifier
@@ -1232,12 +1150,12 @@ fun ExamCountdownScreen(
                                 title = {
                                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Text(
-                                            text = "Prüfungs-Planer",
+                                            text = selectedTab.title,
                                             style = MaterialTheme.typography.headlineSmall,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Text(
-                                            text = "Alles an einem Ort",
+                                            text = "Dein Tag. Dein Tempo.",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -1267,22 +1185,22 @@ fun ExamCountdownScreen(
                                                 )
                                             }
                                         }
-                                        FilledTonalIconButton(
-                                            onClick = {
-                                                showQuickActionsDialog = true
-                                            },
-                                            colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
-                                                containerColor = MaterialTheme.colorScheme.surface.copy(
-                                                    alpha = if (isDarkMode) 0.32f else 0.84f
-                                                ),
-                                                contentColor = MaterialTheme.colorScheme.onSurface
-                                            )
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.MoreVert,
-                                                contentDescription = "Mehr Aktionen"
-                                            )
-                                        }
+                                    }
+                                    FilledTonalIconButton(
+                                        onClick = {
+                                            showQuickActionsDialog = true
+                                        },
+                                        colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
+                                            containerColor = MaterialTheme.colorScheme.surface.copy(
+                                                alpha = if (isDarkMode) 0.32f else 0.84f
+                                            ),
+                                            contentColor = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.MoreVert,
+                                            contentDescription = "Mehr Aktionen"
+                                        )
                                     }
                                 },
                                 colors = TopAppBarDefaults.topAppBarColors(
@@ -1290,11 +1208,7 @@ fun ExamCountdownScreen(
                                     scrolledContainerColor = Color.Transparent
                                 )
                             )
-                            HomeTabPillRow(
-                                visibleTabs = visibleTabs,
-                                selectedTab = selectedTab,
-                                onTabSelected = { selectedTab = it }
-                            )
+
                         }
                     }
                 }
@@ -1311,16 +1225,23 @@ fun ExamCountdownScreen(
                 }
             }
         },
+        bottomBar = {
+            HomeNavigationBar(
+                visibleTabs = visibleTabs,
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it }
+            )
+        },
         floatingActionButton = {
             if (selectedTab == HomeTab.EXAMS) {
-                FloatingActionButton(
+                ExtendedFloatingActionButton(
+                    text = { Text("Neue Prüfung") },
+                    icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
                     onClick = { showAddDialog = true },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                     shape = MaterialTheme.shapes.large
-                ) {
-                    Icon(imageVector = Icons.Outlined.Add, contentDescription = "Prüfung hinzufügen")
-                }
+                )
             }
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -1331,117 +1252,119 @@ fun ExamCountdownScreen(
                 .background(backgroundBrush)
                 .padding(paddingValues)
         ) {
-            when (selectedTab) {
-                HomeTab.EXAMS -> ExamsTabContent(
-                    state = examsTabUiState,
-                    onEvent = { event ->
-                        when (event) {
-                            ExamsTabEvent.OpenIcalImport -> {
-                                iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
-                                iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
-                                importEventsToggle = importEventsEnabled
-                                showIcalDialog = true
-                            }
-                            ExamsTabEvent.RefreshNow -> triggerManualRefresh()
-                            ExamsTabEvent.OpenHelp -> {
-                                showHelpDialog = true
-                            }
-                            ExamsTabEvent.OpenSyncDiagnostics -> {
-                                showSyncDiagnosticsDialog = true
-                            }
-                            ExamsTabEvent.AddExam -> {
-                                showAddDialog = true
-                            }
-                            ExamsTabEvent.HideSetupGuide -> {
-                                viewModel.onExamsEvent(event)
-                            }
-                            is ExamsTabEvent.PlanStudy -> {
-                                studyPlanExam = event.exam
-                                studyPlanExamPresentation = buildExamPresentation(event.exam)
-                            }
-                            is ExamsTabEvent.DeleteExam -> {
-                                val exam = event.exam
-                                viewModel.onExamsEvent(event)
-                                val deletedTitle = buildExamPresentation(exam).title
-                                scope.launch {
-                                    val result = snackbarHostState.showSnackbar(
-                                        message = "\"$deletedTitle\" gelöscht",
-                                        actionLabel = "Rückgängig",
-                                        duration = SnackbarDuration.Long
-                                    )
-                                    if (result == SnackbarResult.ActionPerformed) {
-                                        viewModel.restoreExam(exam)
-                                        snackbarHostState.showSnackbar("Prüfung wiederhergestellt.")
-                                    }
+            tabStateHolder.SaveableStateProvider(selectedTab.route) {
+                when (selectedTab) {
+                    HomeTab.EXAMS -> ExamsTabContent(
+                        state = examsTabUiState,
+                        onEvent = { event ->
+                            when (event) {
+                                ExamsTabEvent.OpenIcalImport -> {
+                                    iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                                    iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
+                                    importEventsToggle = importEventsEnabled
+                                    showIcalDialog = true
                                 }
-                            }
-                        }
-                    }
-                )
-
-                HomeTab.TIMETABLE -> TimetableTabContent(
-                    state = timetableTabUiState,
-                    onEvent = { event ->
-                        when (event) {
-                            TimetableTabEvent.OpenIcalImport -> {
-                                iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
-                                iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
-                                importEventsToggle = importEventsEnabled
-                                showIcalDialog = true
-                            }
-                            TimetableTabEvent.ClearChanges -> viewModel.onTimetableEvent(event)
-                        }
-                    }
-                )
-
-                HomeTab.EVENTS -> AgendaTabContent(
-                    state = agendaTabUiState,
-                    onEvent = { event ->
-                        when (event) {
-                            AgendaTabEvent.OpenIcalImport -> {
-                                iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
-                                iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
-                                importEventsToggle = importEventsEnabled
-                                showIcalDialog = true
-                            }
-                            AgendaTabEvent.EnableEventsImportAndSync -> {
-                                isSyncingIcal = true
-                                viewModel.enableEventsImportAndRefresh { message ->
-                                    isSyncingIcal = false
+                                ExamsTabEvent.RefreshNow -> triggerManualRefresh()
+                                ExamsTabEvent.OpenHelp -> {
+                                    showHelpDialog = true
+                                }
+                                ExamsTabEvent.OpenSyncDiagnostics -> {
+                                    showSyncDiagnosticsDialog = true
+                                }
+                                ExamsTabEvent.AddExam -> {
+                                    showAddDialog = true
+                                }
+                                ExamsTabEvent.HideSetupGuide -> {
+                                    viewModel.onExamsEvent(event)
+                                }
+                                is ExamsTabEvent.PlanStudy -> {
+                                    studyPlanExam = event.exam
+                                    studyPlanExamPresentation = buildExamPresentation(event.exam)
+                                }
+                                is ExamsTabEvent.DeleteExam -> {
+                                    val exam = event.exam
+                                    viewModel.onExamsEvent(event)
+                                    val deletedTitle = buildExamPresentation(exam).title
                                     scope.launch {
-                                        snackbarHostState.showSnackbar(message)
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "\"$deletedTitle\" gelöscht",
+                                            actionLabel = "Rückgängig",
+                                            duration = SnackbarDuration.Long
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            viewModel.restoreExam(exam)
+                                            snackbarHostState.showSnackbar("Prüfung wiederhergestellt.")
+                                        }
                                     }
                                 }
                             }
-                            is AgendaTabEvent.AddCustomEvents -> {
-                                viewModel.onAgendaEvent(event)
-                                scope.launch {
-                                    val label = if (event.events.size == 1) "Event gespeichert." else "${event.events.size} Events gespeichert."
-                                    snackbarHostState.showSnackbar(label)
+                        }
+                    )
+
+                    HomeTab.TIMETABLE -> TimetableTabContent(
+                        state = timetableTabUiState,
+                        onEvent = { event ->
+                            when (event) {
+                                TimetableTabEvent.OpenIcalImport -> {
+                                    iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                                    iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
+                                    importEventsToggle = importEventsEnabled
+                                    showIcalDialog = true
                                 }
+                                TimetableTabEvent.ClearChanges -> viewModel.onTimetableEvent(event)
                             }
-                            is AgendaTabEvent.DeleteCustomEvent -> {
-                                viewModel.onAgendaEvent(event)
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Event gelöscht.")
+                        }
+                    )
+
+                    HomeTab.EVENTS -> AgendaTabContent(
+                        state = agendaTabUiState,
+                        onEvent = { event ->
+                            when (event) {
+                                AgendaTabEvent.OpenIcalImport -> {
+                                    iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                                    iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
+                                    importEventsToggle = importEventsEnabled
+                                    showIcalDialog = true
                                 }
-                            }
-                            is AgendaTabEvent.UpdateCustomEvent -> {
-                                viewModel.onAgendaEvent(event)
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Event aktualisiert.")
+                                AgendaTabEvent.EnableEventsImportAndSync -> {
+                                    isSyncingIcal = true
+                                    viewModel.enableEventsImportAndRefresh { message ->
+                                        isSyncingIcal = false
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(message)
+                                        }
+                                    }
+                                }
+                                is AgendaTabEvent.AddCustomEvents -> {
+                                    viewModel.onAgendaEvent(event)
+                                    scope.launch {
+                                        val label = if (event.events.size == 1) "Event gespeichert." else "${event.events.size} Events gespeichert."
+                                        snackbarHostState.showSnackbar(label)
+                                    }
+                                }
+                                is AgendaTabEvent.DeleteCustomEvent -> {
+                                    viewModel.onAgendaEvent(event)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Event gelöscht.")
+                                    }
+                                }
+                                is AgendaTabEvent.UpdateCustomEvent -> {
+                                    viewModel.onAgendaEvent(event)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Event aktualisiert.")
+                                    }
                                 }
                             }
                         }
-                    }
-                )
+                    )
 
-                HomeTab.GRADES -> GradesTabContent(
-                    state = gradesTabUiState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                )
+                    HomeTab.GRADES -> GradesTabContent(
+                        state = gradesTabUiState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp, vertical = 16.dp)
+                    )
+                }
             }
         }
     }
