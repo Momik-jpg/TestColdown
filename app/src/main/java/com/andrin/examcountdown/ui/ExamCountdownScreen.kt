@@ -75,7 +75,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -1154,11 +1153,6 @@ fun ExamCountdownScreen(
                                             style = MaterialTheme.typography.headlineSmall,
                                             fontWeight = FontWeight.Bold
                                         )
-                                        Text(
-                                            text = "Dein Tag. Dein Tempo.",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
                                     }
                                 },
                                 actions = {
@@ -1362,7 +1356,7 @@ fun ExamCountdownScreen(
                         state = gradesTabUiState,
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 20.dp, vertical = 16.dp)
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
                     )
                 }
             }
@@ -1426,7 +1420,7 @@ private fun AppLockSettingsDialog(
                         onCheckedChange = { enableBiometricOnSetup = it }
                     )
                 }
-                OutlinedTextField(
+                AppTextField(
                     value = pin,
                     onValueChange = { value ->
                         pin = value.filter { it.isDigit() }.take(APP_LOCK_MAX_PIN_DIGITS)
@@ -1490,7 +1484,7 @@ private fun AppUnlockDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = pin,
                     onValueChange = { value ->
                         pin = value.filter { it.isDigit() }.take(APP_LOCK_MAX_PIN_DIGITS)
@@ -1631,7 +1625,7 @@ private fun PlanExamStudySessionsDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                OutlinedTextField(
+                AppTextField(
                     value = studyStartWeeksBeforeRaw,
                     onValueChange = {
                         studyStartWeeksBeforeRaw = it.filter(Char::isDigit).take(2)
@@ -1642,7 +1636,7 @@ private fun PlanExamStudySessionsDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
 
-                OutlinedTextField(
+                AppTextField(
                     value = studyDurationMinutesRaw,
                     onValueChange = {
                         studyDurationMinutesRaw = it.filter(Char::isDigit).take(3)
@@ -1653,7 +1647,7 @@ private fun PlanExamStudySessionsDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
 
-                OutlinedTextField(
+                AppTextField(
                     value = studySessionCountRaw,
                     onValueChange = {
                         studySessionCountRaw = it.filter(Char::isDigit).take(3)
@@ -1911,7 +1905,7 @@ private fun AddExamDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutlinedTextField(
+                AppTextField(
                     value = subject,
                     onValueChange = { subject = it },
                     label = { Text("Fach (optional)") },
@@ -1919,7 +1913,7 @@ private fun AddExamDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
+                AppTextField(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("Titel / Prüfung") },
@@ -1927,7 +1921,7 @@ private fun AddExamDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
+                AppTextField(
                     value = location,
                     onValueChange = { location = it },
                     label = { Text("Ort (optional)") },
@@ -2097,7 +2091,7 @@ private fun AddExamDialog(
                         }
 
                         if (studyPlanEnabled) {
-                            OutlinedTextField(
+                            AppTextField(
                                 value = studyStartWeeksBeforeRaw,
                                 onValueChange = {
                                     studyStartWeeksBeforeRaw = it.filter(Char::isDigit).take(2)
@@ -2108,7 +2102,7 @@ private fun AddExamDialog(
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                             )
 
-                            OutlinedTextField(
+                            AppTextField(
                                 value = studyDurationMinutesRaw,
                                 onValueChange = {
                                     studyDurationMinutesRaw = it.filter(Char::isDigit).take(3)
@@ -2119,7 +2113,7 @@ private fun AddExamDialog(
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                             )
 
-                            OutlinedTextField(
+                            AppTextField(
                                 value = studySessionCountRaw,
                                 onValueChange = {
                                     studySessionCountRaw = it.filter(Char::isDigit).take(3)
@@ -2328,24 +2322,27 @@ private fun DurationPartsInputRow(
     onMinutesChange: (String) -> Unit
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
+        AppTextField(
             value = daysRaw,
             onValueChange = { onDaysChange(it.filter(Char::isDigit).take(2)) },
             label = { Text("Tage") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             modifier = Modifier.weight(1f)
         )
-        OutlinedTextField(
+        AppTextField(
             value = hoursRaw,
             onValueChange = { onHoursChange(it.filter(Char::isDigit).take(2)) },
             label = { Text("Std") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             modifier = Modifier.weight(1f)
         )
-        OutlinedTextField(
+        AppTextField(
             value = minutesRaw,
             onValueChange = { onMinutesChange(it.filter(Char::isDigit).take(2)) },
             label = { Text("Min") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             modifier = Modifier.weight(1f)
         )
@@ -2456,5 +2453,4 @@ private fun getOrCreateBiometricSecretKey(): SecretKey {
     keyGenerator.init(builder.build())
     return keyGenerator.generateKey()
 }
-
 

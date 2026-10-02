@@ -44,7 +44,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -294,7 +293,12 @@ fun EventsTimelineContent(
             hasIcalUrl = hasIcalUrl,
             importEventsEnabled = importEventsEnabled,
             onOpenIcalImport = onOpenIcalImport,
-            onEnableEventsImportAndSync = onEnableEventsImportAndSync
+            onEnableEventsImportAndSync = onEnableEventsImportAndSync,
+            onAddEvent = {
+                eventDialogInitialStartsAtMillis = null
+                editingEventId = null
+                showAddCustomEventDialog = true
+            }
         )
         return
     }
@@ -308,7 +312,7 @@ fun EventsTimelineContent(
         verticalArrangement = Arrangement.spacedBy(AppDimens.itemSpacing)
     ) {
         item("study-agenda-heading") {
-            StudyWorldHeader("Alles hat seine Zeit.", "Prüfungen, Lektionen und deine eigenen Termine in einer gemeinsamen Agenda.")
+            StudyWorldHeader("Agenda", "Prüfungen, Unterricht & Termine")
         }
         item("calendar-controls") {
             Card(
@@ -327,16 +331,20 @@ fun EventsTimelineContent(
                     modifier = Modifier.padding(AppDimens.cardInnerPadding),
                     verticalArrangement = Arrangement.spacedBy(AppDimens.itemSpacing)
                 ) {
-                    OutlinedTextField(
+                    AppTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         label = { Text("Suche") },
+                        placeholder = { Text("Titel, Fach oder Ort") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Search
+                        ),
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Outlined.Search,
-                                contentDescription = "Suche"
+                                contentDescription = null
                             )
                         },
                         trailingIcon = {
@@ -351,12 +359,12 @@ fun EventsTimelineContent(
                         }
                     )
 
-                    EventControlsSectionLabel("Ansicht")
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         AgendaLayoutMode.entries.forEach { mode ->
                             EventChoiceChip(
@@ -365,13 +373,9 @@ fun EventsTimelineContent(
                                 onClick = { layoutMode = mode }
                             )
                         }
-                    }
-
-                    TextButton(
-                        onClick = { showAdvancedFilters = !showAdvancedFilters },
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text(if (showAdvancedFilters) "Weniger Optionen" else "Mehr Optionen")
+                        TextButton(onClick = { showAdvancedFilters = !showAdvancedFilters }) {
+                            Text(if (showAdvancedFilters) "Schließen" else "Filter")
+                        }
                     }
 
                     if (showAdvancedFilters) {
@@ -405,7 +409,7 @@ fun EventsTimelineContent(
                             contentDescription = null,
                             modifier = Modifier.padding(end = 6.dp)
                         )
-                        Text("Termin hinzufügen")
+                        Text("Neuer Termin")
                     }
 
                     if (showAdvancedFilters) {
@@ -1059,7 +1063,7 @@ private fun AgendaDayTimelineContent(
                         contentDescription = null,
                         modifier = Modifier.padding(end = 6.dp)
                     )
-                    Text("Termin hinzufügen")
+                    Text("Neuer Termin")
                 }
             }
         }
@@ -1288,17 +1292,17 @@ private fun AddCustomEventDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (editingEvent != null) "Event bearbeiten" else "Eigenes Event hinzufügen") },
+        title = { Text(if (editingEvent != null) "Termin bearbeiten" else "Neuer Termin") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                AppTextField(
                     value = title,
                     onValueChange = { title = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     label = { Text("Titel") }
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = location,
                     onValueChange = { location = it },
                     modifier = Modifier.fillMaxWidth(),
@@ -1357,7 +1361,7 @@ private fun AddCustomEventDialog(
                     }
                 }
 
-                OutlinedTextField(
+                AppTextField(
                     value = durationMinutesRaw,
                     onValueChange = { durationMinutesRaw = it.filter { ch -> ch.isDigit() }.take(4) },
                     modifier = Modifier.fillMaxWidth(),
@@ -1578,14 +1582,15 @@ private fun EventEmptyState(
     hasIcalUrl: Boolean,
     importEventsEnabled: Boolean,
     onOpenIcalImport: () -> Unit,
-    onEnableEventsImportAndSync: () -> Unit
+    onEnableEventsImportAndSync: () -> Unit,
+    onAddEvent: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
         item("study-agenda-empty-heading") {
-            StudyWorldHeader("Dein Kalender wartet auf dich.", "Verbinde deinen Schulkalender, um hier deine Termine zu sehen.", illustrated = true)
+            StudyWorldHeader("Agenda", "Deine Termine auf einen Blick", illustrated = true)
         }
         item("events-empty") {
             Card(
@@ -1594,8 +1599,8 @@ private fun EventEmptyState(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(
@@ -1604,19 +1609,23 @@ private fun EventEmptyState(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Keine Kalender-Einträge verfügbar",
+                        text = "Dein Kalender ist leer",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         text = if (hasIcalUrl) {
-                            "Tippe oben rechts auf Aktualisieren. Optional kannst du Event-Import aktivieren."
+                            "Kalender aktualisieren oder Termin anlegen."
                         } else {
-                            "Füge zuerst deinen iCal-Link hinzu."
+                            "Termin anlegen oder Schulkalender importieren."
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    OutlinedButton(onClick = onAddEvent, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Outlined.Add, contentDescription = null)
+                        Text("Neuer Termin", modifier = Modifier.padding(start = 6.dp))
+                    }
                     OutlinedButton(onClick = onOpenIcalImport) {
                         Text(if (hasIcalUrl) "iCal aktualisieren" else "iCal hinzufügen")
                     }

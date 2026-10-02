@@ -36,7 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -82,7 +81,7 @@ internal fun IcalImportDialog(
         title = { Text("iCal-Kalender verbinden") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
+                AppTextField(
                     value = primaryUrl,
                     onValueChange = onPrimaryUrlChange,
                     label = { Text("iCal-URL 1") },
@@ -111,7 +110,7 @@ internal fun IcalImportDialog(
                         }
                     }
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = secondaryUrl,
                     onValueChange = onSecondaryUrlChange,
                     label = { Text("iCal-URL 2 (optional)") },
@@ -346,7 +345,7 @@ internal fun QuickActionsDialog(
                     onClick = { showAdvanced = !showAdvanced },
                     modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text(if (showAdvanced) "Weniger Optionen" else "Weitere Optionen")
+                    Text(if (showAdvanced) "Schließen" else "Weitere Optionen")
                 }
 
                 if (showAdvanced) {
@@ -514,7 +513,7 @@ internal fun OnboardingDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    OutlinedTextField(
+                    AppTextField(
                         value = primaryUrl,
                         onValueChange = onPrimaryUrlChange,
                         label = { Text("iCal-URL 1") },
@@ -543,7 +542,7 @@ internal fun OnboardingDialog(
                             }
                         }
                     )
-                    OutlinedTextField(
+                    AppTextField(
                         value = secondaryUrl,
                         onValueChange = onSecondaryUrlChange,
                         label = { Text("iCal-URL 2 (optional)") },
@@ -832,7 +831,7 @@ internal fun BackupExportDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = password,
                     onValueChange = onPasswordChange,
                     modifier = Modifier.fillMaxWidth(),
@@ -925,7 +924,7 @@ internal fun BackupPasswordDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = password,
                     onValueChange = onPasswordChange,
                     modifier = Modifier.fillMaxWidth(),
@@ -1426,10 +1425,13 @@ internal fun SyncSettingsDialog(
         title = { Text("Auto-Synchronisierung") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
+                AppTextField(
                     value = intervalRaw,
                     onValueChange = { intervalRaw = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Intervall in Minuten") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    ),
                     placeholder = { Text("z. B. 60") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -1483,4 +1485,3 @@ internal fun SyncSettingsDialog(
         }
     )
 }
-

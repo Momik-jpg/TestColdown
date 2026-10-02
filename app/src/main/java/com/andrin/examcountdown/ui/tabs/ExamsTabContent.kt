@@ -29,7 +29,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -170,11 +169,11 @@ fun ExamsTabContent(
     if (exams.isEmpty()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item("study-world-empty") {
-                StudyWorldHeader("Platz für deine nächsten Ziele", "Importiere deinen Schulkalender oder lege eine Prüfung an.", illustrated = true)
+                StudyWorldHeader("Bereit für deine erste Prüfung?", "Kalender importieren oder Prüfung anlegen.", illustrated = true)
             }
             if (showSetupGuide) {
                 item("setup-guide-empty") {
@@ -214,11 +213,11 @@ fun ExamsTabContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 96.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item("study-world") {
-            StudyWorldHeader("Schritt für Schritt bereit.", "Deine Prüfungen, dein Lernplan und Raum zum Durchatmen.", illustrated = true)
+            StudyWorldHeader("Deine Prüfungen", "Nächste Prüfung & Lernplan", illustrated = true)
         }
         nextExam?.let { exam ->
             item("next-exam-${exam.id}") {

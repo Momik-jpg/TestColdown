@@ -42,6 +42,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +51,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -182,8 +184,16 @@ internal fun TimetableWeekGrid(
     val weekdays = remember(weekStart) {
         (0..4).map { index -> weekStart.plusDays(index.toLong()) }
     }
+    val weekScroll = rememberScrollState()
+    val density = LocalDensity.current
+    LaunchedEffect(weekStart, density) {
+        val dayIndex = if (weekOffset == 0) {
+            (LocalDate.now(schoolZone).dayOfWeek.value - 1).coerceIn(0, 4)
+        } else 0
+        weekScroll.scrollTo(with(density) { (dayIndex * 184).dp.roundToPx() })
+    }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -218,13 +228,13 @@ internal fun TimetableWeekGrid(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .horizontalScroll(weekScroll),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             weekdays.forEach { day ->
                 val dayLessons = groupedLessons[day].orEmpty()
                 Card(
-                    modifier = Modifier.width(240.dp),
+                    modifier = Modifier.width(176.dp),
                     shape = MaterialTheme.shapes.large,
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
@@ -311,17 +321,17 @@ internal fun TimetableNowNextCard(
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = "Jetzt & Nächste Lektion",
+                text = "Jetzt & danach",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
 
             if (activeLesson == null && upcomingLesson == null) {
                 Text(
-                    text = "Keine kommende Lektion gefunden.",
+                    text = "Keine weitere Lektion.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -369,80 +379,30 @@ private fun TimetableNowNextLessonTile(
         tonalElevation = 1.dp
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 9.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Surface(
-                color = accentColor.copy(alpha = 0.16f),
-                shape = MaterialTheme.shapes.small
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = label,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = accentColor,
+                    text = formatLessonDisplayTitle(lesson.title),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
+                Text(label, style = MaterialTheme.typography.labelMedium, color = accentColor)
             }
             Text(
-                text = formatLessonDisplayTitle(lesson.title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
+                text = listOfNotNull(
+                    formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
+                    room.takeIf { it.isNotBlank() }?.let { "Raum $it" },
+                    dateHint
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Schedule,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            dateHint?.let { day ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.CalendarToday,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = day,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            if (room.isNotBlank()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.LocationOn,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Raum $room",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
         }
     }
+
 }
 
 @Composable
@@ -467,6 +427,22 @@ internal fun WeekGridLessonRow(lesson: TimetableLessonBlock) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textDecoration = if (lesson.isCancelledSlot) TextDecoration.LineThrough else TextDecoration.None
         )
+        val room = lesson.location?.trim().orEmpty()
+        val oldRoom = lesson.originalLocation?.trim().orEmpty()
+        val roomText = if (lesson.isLocationChanged && oldRoom.isNotBlank()) {
+            "Raum $oldRoom → ${room.ifBlank { "?" }}"
+        } else room.takeIf { it.isNotBlank() }?.let { "Raum $it" }
+        val detail = listOfNotNull(
+            roomText,
+            when {
+                lesson.isCancelledSlot -> "Entfällt"
+                lesson.isMoved -> "Verschoben"
+                else -> null
+            }
+        ).joinToString(" · ")
+        if (detail.isNotBlank()) {
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = titleColor)
+        }
     }
 }
 
@@ -495,8 +471,8 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -516,6 +492,13 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                     }
                 )
 
+                Text(
+                    text = formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 8.dp),
+                    textDecoration = if (isCancelled) TextDecoration.LineThrough else TextDecoration.None
+                )
                 if (isCurrent) {
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
@@ -532,88 +515,68 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                 }
             }
 
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                if (!isCancelled && lesson.lessonCount > 1) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        val lessonLabel = if (lesson.lessonCount == 1) "Lektion" else "Lektionen"
-                        Text(
-                            text = "${lesson.lessonCount} $lessonLabel",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-
-                if (isCancelled) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = "Ausfall (verschoben)",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                } else if (lesson.isMoved) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = "Verschoben",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-
-                if (!isCancelled && lesson.isLocationChanged) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = "Raum geändert",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.86f),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+            if (isCancelled || lesson.lessonCount > 1 || lesson.isMoved || lesson.isLocationChanged) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Schedule,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        text = formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        style = MaterialTheme.typography.labelLarge,
-                        textDecoration = if (isCancelled) TextDecoration.LineThrough else TextDecoration.None
-                    )
+                    if (!isCancelled && lesson.lessonCount > 1) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            val lessonLabel = if (lesson.lessonCount == 1) "Lektion" else "Lektionen"
+                            Text(
+                                text = "${lesson.lessonCount} $lessonLabel",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    if (isCancelled) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                text = "Entfällt · verschoben",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    } else if (lesson.isMoved) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f),
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                text = "Verschoben",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    if (!isCancelled && lesson.isLocationChanged) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                text = "Raum geändert",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
+
             }
 
             val currentLocation = lesson.location?.trim().orEmpty()
@@ -635,7 +598,7 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                             textDecoration = TextDecoration.LineThrough
                         )
                         Text(
-                            text = "  ->  ",
+                            text = " → ",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -779,7 +742,7 @@ internal fun TimetableEmptyState(
     modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = modifier.padding(24.dp),
+        modifier = modifier.padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
         Card(
@@ -795,8 +758,8 @@ internal fun TimetableEmptyState(
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Icon(
@@ -806,14 +769,14 @@ internal fun TimetableEmptyState(
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "Noch kein Stundenplan verfügbar",
+                    text = "Noch kein Stundenplan",
                     style = MaterialTheme.typography.titleLarge
                 )
                 Text(
                     text = if (hasIcalUrl) {
-                        "Tippe oben rechts auf den Pfeil zum Aktualisieren."
+                        "Aktualisiere deinen Schulkalender."
                     } else {
-                        "Gib deinen iCal-Link einmal ein, er bleibt gespeichert."
+                        "Importiere deinen Schulkalender per iCal."
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

@@ -35,7 +35,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -55,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.ui.AppTextField
 import com.andrin.examcountdown.R
 import com.andrin.examcountdown.ui.ExamPresentation
 import com.andrin.examcountdown.util.CollisionSource
@@ -369,13 +369,16 @@ internal fun ExamSearchAndFilterCard(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            OutlinedTextField(
+            AppTextField(
                 value = query,
                 onValueChange = onQueryChange,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text("Prüfungen durchsuchen") },
+                label = { Text("Suchen") },
                 placeholder = { Text("Fach, Titel oder Raum") },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Search
+                ),
                 shape = MaterialTheme.shapes.medium,
                 leadingIcon = {
                     Icon(
@@ -405,7 +408,7 @@ internal fun ExamSearchAndFilterCard(
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(onClick = { showExtendedFilters = !showExtendedFilters }) {
-                    Text(if (showExtendedFilters) "Weniger Filter" else if (showSortOptions) "Fächer & Sortierung" else "Fächer")
+                    Text(if (showExtendedFilters) "Schließen" else if (showSortOptions) "Filter" else "Filter")
                 }
             }
             Row(
@@ -471,7 +474,7 @@ internal fun ExamSearchAndFilterCard(
             if (query.isNotBlank() || selectedSubject != SUBJECT_FILTER_ALL ||
                 selectedWindow != ExamWindowFilter.ALL || selectedSortMode != ExamSortMode.NEXT_FIRST) {
                 TextButton(onClick = onReset, modifier = Modifier.align(Alignment.End)) {
-                    Text("Alle Filter zurücksetzen")
+                    Text("Zurücksetzen")
                 }
             }
         }
@@ -532,7 +535,7 @@ internal fun NextExamHero(
             modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer)
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
@@ -660,7 +663,7 @@ internal fun EmptyState(
     modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = modifier.padding(24.dp),
+        modifier = modifier.padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
         Card(
@@ -669,7 +672,7 @@ internal fun EmptyState(
             shape = MaterialTheme.shapes.extraLarge
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -677,7 +680,7 @@ internal fun EmptyState(
                     painter = painterResource(R.drawable.study_empty),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxWidth().height(144.dp)
+                    modifier = Modifier.fillMaxWidth().height(100.dp)
                 )
                 Text(
                     text = "Noch keine Prüfungen geplant",

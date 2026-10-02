@@ -77,9 +77,9 @@ internal enum class TimetableViewMode(val title: String) {
 
 internal enum class TimetableFilter(val title: String) {
     ALL("Alle"),
-    ONLY_TODAY("Nur heute"),
+    ONLY_TODAY("Heute"),
     ONLY_MOVED("Verschoben"),
-    ONLY_ROOM_CHANGED("Nur Raum")
+    ONLY_ROOM_CHANGED("Raumwechsel")
 }
 
 internal data class TimetableLessonBlock(
@@ -110,8 +110,8 @@ fun TimetableTabContent(
         if (changes.isNotEmpty()) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 item("today-changes-feed-empty") {
                     TimetableChangesCard(
@@ -137,6 +137,7 @@ fun TimetableTabContent(
         return
     }
 
+    var showFilters by rememberSaveable { mutableStateOf(false) }
     var selectedFilter by rememberSaveable { mutableStateOf(TimetableFilter.ALL) }
     var viewMode by rememberSaveable { mutableStateOf(TimetableViewMode.LIST) }
     var weekOffset by rememberSaveable { mutableIntStateOf(0) }
@@ -187,11 +188,11 @@ fun TimetableTabContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item("study-timetable-heading") {
-            StudyWorldHeader("Ein klarer Plan für deinen Tag.", "Lektionen, Räume und Änderungen auf einen Blick.")
+            StudyWorldHeader("Stundenplan", "Zeiten, Räume & Änderungen")
         }
         if (todayChanges.isNotEmpty()) {
             item(key = "today-changes-feed") {
@@ -217,19 +218,12 @@ fun TimetableTabContent(
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "Ansicht & Filter",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    TimetableSectionLabel("Ansicht")
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         TimetableViewMode.entries.forEach { mode ->
                             TimetableChoiceChip(
@@ -238,27 +232,28 @@ fun TimetableTabContent(
                                 onClick = { viewMode = mode }
                             )
                         }
+                        androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { showFilters = !showFilters }) {
+                            Text(if (showFilters) "Schließen" else if (selectedFilter != TimetableFilter.ALL) selectedFilter.title else "Filter")
+                        }
                     }
 
-                    TimetableSectionLabel("Filter")
-                    FlowRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TimetableFilter.entries.forEach { filter ->
-                            TimetableChoiceChip(
-                                text = filter.title,
-                                selected = selectedFilter == filter,
-                                onClick = { selectedFilter = filter }
-                            )
+                    if (showFilters) {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TimetableFilter.entries.forEach { filter ->
+                                TimetableChoiceChip(
+                                    text = filter.title,
+                                    selected = selectedFilter == filter,
+                                    onClick = { selectedFilter = filter }
+                                )
+                            }
                         }
                     }
 
                     if (
-                        viewMode != TimetableViewMode.LIST ||
                         selectedFilter != TimetableFilter.ALL ||
                         weekOffset != 0
                     ) {
@@ -322,4 +317,3 @@ fun TimetableTabContent(
         }
     }
 }
-

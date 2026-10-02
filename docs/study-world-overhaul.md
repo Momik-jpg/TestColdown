@@ -22,6 +22,21 @@ barrierearmen Farbpaletten bleiben erhalten.
 - Zahlenfelder verwenden eine Dezimaltastatur. Komma und Punkt sind zulässig,
   nicht endliche Zahlen werden abgewiesen.
 
+## Kompakte Überarbeitung
+
+- Weniger Einleitungstext, kleinere Überschriften und Abstände. Die dekorative
+  Landschaft ist 76 statt 116 dp hoch; Material-Eingabe- und Touchgrößen bleiben erhalten.
+- Alle Eingaben nutzen einheitliche Konturen, Rundungen und Theme-Farben. Die
+  Tastatur bietet „Weiter“, „Fertig“ oder „Suchen“; Zahlenfelder passende Zahlentastaturen.
+- Stundenplan: Fach und Zeit in einer Zeile, Raum direkt darunter. Raumwechsel,
+  Verschiebungen und Ausfälle bleiben beschriftet. Die Filter lassen sich einklappen.
+- Die Wochenkarten sind schmaler, enthalten Räume und Änderungen und öffnen die
+  aktuelle Woche beim heutigen Wochentag. Andere Wochen beginnen links am Montag.
+- Agenda: kurze Überschriften und eine kompakte Ansichts-/Filterzeile. Ein erster
+  eigener Termin ist jetzt auch ohne vorhandene Kalenderdaten oder iCal-Link möglich.
+- Notenrechner: Ziel/Schnitt und Punktewerte nebeneinander; Kategorie-Eingaben
+  öffnen bei Bedarf. Ungültige Noten und Zeilengewichte werden direkt erklärt.
+
 ## Illustrationen
 
 `study_landscape.png` und `study_empty.png` wurden am 02.10.2026 mit ChatGPTs
@@ -41,7 +56,9 @@ auf eigenen undurchsichtigen Theme-Flächen, nicht über den Bildern.
 unterschiedlichen Sortierungen. `GradeNumberPolicyTest` prüft Zahleneingaben.
 `StudyWorldUiTest` rendert echte Compose-Controls mit synthetischen Daten und
 prüft Hauptaktionen, Hell/Dunkel, erhöhten Kontrast sowie wiederhergestellte
-Noten-Eingaben. Die PNGs landen unter `STUDY_UI_ARTIFACTS` beziehungsweise
+Noten-Eingaben, Stundenplan-Filter, Raumwechsel, optionale Kategorien und
+Tastaturaktionen. Beim Termindialog wird das Öffnen des echten Android-Dialogs
+überprüft. Die PNGs landen unter `STUDY_UI_ARTIFACTS` beziehungsweise
 `build/study-ui`. Android-QA lädt sie mit den Testberichten hoch.
 
 Eine Geräteabnahme von Live-Sync, Benachrichtigungen, Widgets und Backup bleibt
@@ -50,10 +67,11 @@ zusätzlich nötig; synthetische Oberflächentests beweisen keine externe Anbind
 ### Tatsächlich ausgeführt am 02.10.2026
 
 In Codex Cloud mit JDK 17, Android SDK 34 und Gradle 8.2:
-**73 Tests bestanden, keine Fehler oder Skips**. Kotlin-Kompilierung,
+**79 Tests bestanden, keine Fehler oder Skips**. Kotlin-Kompilierung,
 Android-Lint und Debug-APK-Build erfolgreich; `git diff --check` bestanden.
-Die neue Abdeckung umfasst sieben Filter-/Zahleneingabe-Regressionen und sechs
-Compose-Tests. Die übrigen 60 vorhandenen Tests bestanden ebenfalls.
+Die neue Abdeckung umfasst sieben Filter-/Zahleneingabe-Regressionen und zwölf
+Compose-Tests. Die kompakte Revision ergänzt sechs Compose-Tests für Stundenplan,
+Agenda, Tastaturwechsel, Fehlermeldungen und Kategorien. Die übrigen 60 vorhandenen Tests bestanden ebenfalls.
 
 Maven Central lieferte in dieser Umgebung HTTP 429. Für diese lokale Prüfung
 wurde ausschließlich über ein temporäres Gradle-Init-Skript Googles
@@ -61,9 +79,18 @@ Maven-Central-Spiegel verwendet. Repository-Repositories und Versionsvorgaben
 wurden dadurch nicht geändert. Proxy-CA und beschreibbare Cache-/SDK-Pfade
 wurden nur in der isolierten Buildumgebung unter `/tmp` eingerichtet.
 
-Die folgenden Aufnahmen zeigen echte native Compose-Komponenten mit
+Zusätzlich wurde versucht, im Robolectric-Termindialog Titel/Ort einzugeben und
+zu speichern. Auf API 28 und 33 blieb dessen Compose-Root beim Fenster-Anhängen
+stehen (`AppNotIdleException`; Diagnose: `pending setContent`). Dieser zusätzliche
+Ablauf ist **nicht bestanden bzw. nicht nachgewiesen**. Die zwölf bestandenen
+Compose-Tests enthalten deshalb eine ausdrücklich begrenzte Prüfung des
+Dialog-Öffnens, keine Speichern-Abnahme. Die Rohdaten des letzten Zusatzversuchs
+liegen lokal unter `artifacts/dialog-render-attempt/`; diese Grenze wird nicht als
+bestätigter Produktfehler oder bestandene Live-Anbindung ausgegeben.
+
+Die folgenden neun Aufnahmen zeigen echte native Compose-Komponenten mit
 synthetischen Daten, keine auf einem Telefon gestartete vollständige Sitzung.
-Hell/Dunkel, Leerzustand und Notenrechner wurden visuell kontrolliert.
+Hell/Dunkel, Leerzustände, Stundenplan, Agenda und Notenrechner wurden visuell kontrolliert.
 
 | Prüfungen hell | Prüfungen dunkel |
 | --- | --- |
@@ -72,6 +99,14 @@ Hell/Dunkel, Leerzustand und Notenrechner wurden visuell kontrolliert.
 | Leerzustand | Notenrechner nach Wiederherstellung |
 | --- | --- |
 | ![Leerzustand](screenshots/exams-empty.png) | ![Notenrechner](screenshots/grades-light.png) |
+
+| Stundenplan | Wochenansicht |
+| --- | --- |
+| ![Stundenplan](screenshots/timetable-light.png) | ![Wochenansicht](screenshots/timetable-week.png) |
+
+| Agenda | Leere Agenda |
+| --- | --- |
+| ![Agenda](screenshots/agenda-light.png) | ![Leere Agenda](screenshots/agenda-empty.png) |
 
 ## gg-Arbeitsweise
 
