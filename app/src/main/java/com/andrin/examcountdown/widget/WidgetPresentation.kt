@@ -83,13 +83,37 @@ internal fun useTallNextWidget(options: Bundle, config: WidgetConfig, fontScale:
     !config.compact && options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 320) >= 260 &&
         widgetHeight(options, 240) >= 360 * fontScale.coerceAtLeast(1f)
 
-/** Leave room for two title lines, date/time/room, countdown, controls and footer. */
+/** Keep the next entry prominent; following rows only use space beyond the focus panel. */
 internal fun nextWidgetRowLimit(options: Bundle, config: WidgetConfig, fontScale: Float): Int =
     if (!useTallNextWidget(options, config, fontScale)) 0 else
-        ((widgetHeight(options, 240) - (220 * fontScale.coerceAtLeast(1f)).toInt() - 110) /
+        ((widgetHeight(options, 240) - (360 * fontScale.coerceAtLeast(1f)).toInt() - 200) /
             widgetRowHeight(false, fontScale)).coerceIn(0, 5)
 
+internal fun nextWidgetOrientations(options: Bundle): Pair<Bundle, Bundle> {
+    val minHeight = widgetHeight(options, 240)
+    val maxHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, minHeight).coerceAtLeast(minHeight)
+    val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 320).takeIf { it > 0 } ?: 320
+    val maxWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, minWidth).coerceAtLeast(minWidth)
+    val landscape = Bundle(options).apply {
+        putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, minHeight)
+        putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, maxWidth)
+    }
+    val portrait = Bundle(options).apply {
+        putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, maxHeight)
+        putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, minWidth)
+    }
+    return landscape to portrait
+}
+
 internal object WidgetPresentation {
+    fun nextForLauncher(context: Context, id: Int, config: WidgetConfig, items: List<WidgetTimelineItem>, options: Bundle, now: Long): RemoteViews {
+        val (landscape, portrait) = nextWidgetOrientations(options)
+        return RemoteViews(
+            next(context, id, config, items.firstOrNull(), landscape, now, items.drop(1)),
+            next(context, id, config, items.firstOrNull(), portrait, now, items.drop(1))
+        )
+    }
+
     fun next(context: Context, id: Int, config: WidgetConfig, item: WidgetTimelineItem?, options: Bundle, now: Long,
              following: List<WidgetTimelineItem> = emptyList()): RemoteViews {
         val height = widgetHeight(options, 240)
@@ -109,11 +133,15 @@ internal object WidgetPresentation {
             if (tall) {
                 val date = DateTimeFormatter.ofPattern("EEE, d. MMM", Locale.GERMANY)
                     .format(Instant.ofEpochMilli(it.startsAtEpochMillis).atZone(widgetZone))
-                listOfNotNull(date, widgetTimeDetails(it, config.copy(showLocation = false)),
-                    it.location?.trim()?.takeIf { location -> config.showLocation && location.isNotEmpty() }).joinToString("\n")
+                listOf(date, widgetTimeDetails(it, config.copy(showLocation = false))).joinToString("\n")
             } else widgetDetails(it, config)
         } ?: "App öffnen · Zeitraum oder Kalender prüfen")
         views.setInt(R.id.nextExamTime, "setMaxLines", if (tall) { if (fontScale > 1.2f) 4 else 3 } else if (compact) 1 else 2)
+        if (tall) {
+            val location = item?.location?.trim()?.takeIf { config.showLocation && it.isNotEmpty() }
+            views.setTextViewText(R.id.nextExamLocation, location ?: "")
+            views.setViewVisibility(R.id.nextLocationSection, if (location != null) View.VISIBLE else View.GONE)
+        }
         val showCountdown = item != null && config.showCountdown && height >= 180 * fontScale
         views.setTextViewText(R.id.nextExamCountdown, item?.let { if (compact) widgetStatus(it, now) else widgetCountdown(it, now).value } ?: "")
         views.setViewVisibility(R.id.nextExamCountdown, if (showCountdown) View.VISIBLE else View.GONE)
@@ -121,8 +149,11 @@ internal object WidgetPresentation {
             views.setTextViewText(R.id.nextCountdownUnit, item?.let { widgetCountdown(it, now).unit } ?: "")
             views.setViewVisibility(R.id.nextCountdownBox, if (showCountdown) View.VISIBLE else View.GONE)
             views.setContentDescription(R.id.nextCountdownBox, item?.let { widgetStatus(it, now) })
+            val numberSize = if (tall) {
+                ((height - 160 - 150 * fontScale) / (1.5f * fontScale)).coerceIn(28f, 96f)
+            } else 40f
             views.setTextViewTextSize(R.id.nextExamCountdown, android.util.TypedValue.COMPLEX_UNIT_SP,
-                if (item != null && widgetCountdown(item, now).value.length > 2) 25f else if (tall && fontScale <= 1.2f) 48f else 40f)
+                if (item != null && widgetCountdown(item, now).value.length > 2) { if (tall) minOf(numberSize, 40f) else 25f } else numberSize)
         }
         if (tall) {
             val limit = nextWidgetRowLimit(options, config, fontScale)
@@ -134,6 +165,7 @@ internal object WidgetPresentation {
             views.setViewVisibility(R.id.nextUpcomingHeader, if (limit > 0) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.nextUpcomingEmpty,
                 if (limit > 0 && following.none { it.id != item?.id }) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.nextUpcomingArea, if (limit > 0) View.VISIBLE else View.GONE)
         }
         views.setViewVisibility(R.id.nextWidgetOpenTimetable, if (height >= 240 * fontScale && !config.compact) View.VISIBLE else View.GONE)
         bindActions(context, views, id, config, false)

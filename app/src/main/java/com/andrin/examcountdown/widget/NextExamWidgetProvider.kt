@@ -34,10 +34,11 @@ class NextExamWidgetProvider : AppWidgetProvider() {
             appWidgetIds.forEach { id ->
                 val config = WidgetPreferences.readConfig(context, id)
                 val options = appWidgetManager.getAppWidgetOptions(id)
-                val limit = nextWidgetRowLimit(options, config, context.resources.configuration.fontScale)
+                val (landscape, portrait) = nextWidgetOrientations(options)
+                val scale = context.resources.configuration.fontScale
+                val limit = maxOf(nextWidgetRowLimit(landscape, config, scale), nextWidgetRowLimit(portrait, config, scale))
                 val items = WidgetContentLoader.loadUpcomingItems(context, id, 1 + limit, nextOnly = true)
-                val views = WidgetPresentation.next(context, id, config, items.firstOrNull(), options,
-                    System.currentTimeMillis(), items.drop(1))
+                val views = WidgetPresentation.nextForLauncher(context, id, config, items, options, System.currentTimeMillis())
                 appWidgetManager.updateAppWidget(id, views)
             }
         }

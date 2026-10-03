@@ -2,9 +2,9 @@
         android:id="@+id/widgetRoot"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/widget_focus_background"
-        android:clipToOutline="true">
+        android:background="@drawable/widget_focus_background">
     <LinearLayout
+        android:id="@+id/nextFocusPoster"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
@@ -42,12 +42,7 @@
         android:src="@drawable/widget_refresh_focus"
         android:contentDescription="@string/widget_refresh" />
         </LinearLayout>
-        <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:id="@+id/nextFocusGroup">
-            <TextView
+        <TextView
         android:id="@+id/nextExamTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -58,62 +53,119 @@
         android:ellipsize="end"
         android:textColor="@color/widget_focus_text"
         android:layout_marginTop="12dp" />
+        <FrameLayout
+        android:id="@+id/nextCountdownBox"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+            <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_margin="12dp"
+        android:src="@drawable/widget_focus_ring"
+        android:scaleType="fitCenter"
+        android:importantForAccessibility="no"
+        android:contentDescription="@null" />
             <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-                <TextView
-        android:id="@+id/nextExamTime"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="@string/widget_preview_next_time"
-        android:textSize="14sp"
-        android:maxLines="3"
-        android:ellipsize="end"
-        android:textColor="@color/widget_focus_muted"
-        android:layout_weight="1" />
-                <LinearLayout
-        android:id="@+id/nextCountdownBox"
-        android:layout_width="104dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:background="@drawable/widget_focus_badge"
+        android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center"
-        android:minHeight="104dp"
         android:paddingTop="8dp"
         android:paddingBottom="8dp">
-                    <TextView
+                <TextView
         android:id="@+id/nextExamCountdown"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/widget_preview_number"
-        android:textSize="48sp"
+        android:textSize="96sp"
         android:textStyle="bold"
         android:gravity="center"
         android:includeFontPadding="false"
+        android:maxLines="1"
+        android:ellipsize="end"
         android:textColor="@color/widget_focus_text" />
-                    <TextView
+                <TextView
         android:id="@+id/nextCountdownUnit"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:text="@string/widget_preview_unit"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.16"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textColor="@color/widget_focus_muted" />
+            </LinearLayout>
+        </FrameLayout>
+        <LinearLayout
+        android:id="@+id/nextDetailsPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="68dp"
+        android:orientation="horizontal"
+        android:baselineAligned="false"
+        android:gravity="center_vertical"
+        android:background="@drawable/widget_focus_details"
+        android:padding="12dp">
+            <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.4"
+        android:orientation="vertical">
+                <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/widget_when"
         android:textSize="11sp"
         android:textStyle="bold"
-        android:letterSpacing="0.08"
-        android:gravity="center"
+        android:letterSpacing="0.1"
         android:textColor="@color/widget_focus_muted" />
-                </LinearLayout>
+                <TextView
+        android:id="@+id/nextExamTime"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/widget_preview_next_time"
+        android:textSize="13sp"
+        android:maxLines="3"
+        android:ellipsize="end"
+        android:textColor="@color/widget_focus_text" />
+            </LinearLayout>
+            <LinearLayout
+        android:id="@+id/nextLocationSection"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="16dp"
+        android:orientation="vertical">
+                <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/widget_where"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.1"
+        android:textColor="@color/widget_focus_muted" />
+                <TextView
+        android:id="@+id/nextExamLocation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/widget_preview_location"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:maxLines="3"
+        android:ellipsize="end"
+        android:textColor="@color/widget_focus_text" />
             </LinearLayout>
         </LinearLayout>
         <LinearLayout
         android:id="@+id/nextUpcomingArea"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="wrap_content"
         android:orientation="vertical"
         android:paddingTop="16dp">
             <TextView

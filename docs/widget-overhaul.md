@@ -22,9 +22,14 @@ Speichern und Abbrechen stehen am unteren Rand. Auswahl und ausgeblendete
 Vorschau überstehen die Android-Wiederherstellung. Die Verwaltung zeigt echte
 Vorschauen beider Widgets und bearbeitet jede installierte Instanz separat.
 
-Hohe Fokus-Widgets ordnen Titel, Datum, Uhrzeit/Raum und Countdown oben an.
-Darunter stehen passende weitere Einträge unter „Danach“. Anzahl und Anordnung
-berücksichtigen die kleinste Launcher-Größe und die Systemschrift. Kleine,
+Die gezeigte Ansicht „Nächster Termin“ verwendet jetzt einen großen, mittigen
+Countdown mit dekorativem Ring. Der Titel steht darüber; darunter werden Datum
+und Uhrzeit sowie der Ort getrennt dargestellt. Bei sehr großer Höhe bleiben
+weitere Einträge unter „Danach“ erhalten. Hoch- und Querformat verwenden ihre
+jeweiligen Launcher-Maße: MIN_WIDTH/MAX_HEIGHT im Hochformat und
+MAX_WIDTH/MIN_HEIGHT im Querformat. Die kleinste Höhe einer anderen Orientierung
+verhindert die große Ansicht dadurch nicht mehr. Anzahl und Anordnung
+berücksichtigen die Größe und Systemschrift. Kleine,
 schmale und ausdrücklich kompakte Widgets behalten ihre kompakte Ansicht.
 
 Die App-Einstellungen verwenden jetzt neutrale weiße beziehungsweise dunkle
@@ -37,12 +42,12 @@ alle Einstellungsaktionen und der ganze Zeilen-Schalter bleiben funktional gepr�
 
 ## Bestandene Prüfungen
 
-**117 Tests bestanden**, keine Fehler oder Skips; Kotlin-Kompilierung und
-Preview-APK-Build erfolgreich. Debug- und Preview-Lint: je 0 Fehler, 33 Warnungen.
+**118 Tests bestanden**, keine Fehler oder Skips; Kotlin-Kompilierung und
+Preview-APK-Build erfolgreich. Debug- und Preview-Lint: je 0 Fehler, 32 Warnungen.
 Die APK-Signatur und Paket-/Versionsmetadaten stehen im beiliegenden Prüfbericht.
 
-26 Widget-Prüfungen: 8 Regeln für Auswahl, Status, Größenberechnung, Countdown-
-Einheiten und Zeitspannen; 12 native RemoteViews-/Preferences-/PendingIntent-/
+27 Widget-Prüfungen: 8 Regeln für Auswahl, Status, Größenberechnung, Countdown-
+Einheiten und Zeitspannen; 13 native RemoteViews-/Preferences-/PendingIntent-/
 Konfigurationsprüfungen; 5 native Compose-Tests für Konfiguration, Verwaltung und
 Vorschau; 1 Integrationstest vom echten lokalen DataStore bis zu beiden Providern.
 Der neue Vorschau-Test verändert Inhalt und Anzeige, prüft die tatsächlichen
@@ -51,18 +56,30 @@ Tests scrollen auch zu Elementen, die zunächst außerhalb des sichtbaren Bereic
 Vier neue Regressionen gegenüber beta.3 prüfen schmale Einstellungen bei großer
 Schrift, hohe Widgets in Hell/Dunkel, Größen/Schriften/lange Titel und
 Leerzustände beziehungsweise ausgeblendete Details. Der lokale Integrationstest
-prüft zusätzlich die echte Datenauswahl der hohen Ansicht. Die bisherigen App-
-und Einstellungsregressionen bleiben bestanden.
+prüft zusätzlich die echte Datenauswahl der hohen Ansicht. Ein weiterer Regressionstest gegenüber beta.4 prüft die echte Android-Auswahl
+der Hoch-/Querformat-RemoteViews, Countdown-Einheit und Konfiguration bei
+MIN_HEIGHT 240 und MAX_HEIGHT 600. Die bestehenden Größenprüfungen kontrollieren
+zusätzlich den großen Countdown, getrennte Zeit-/Ortsfelder und nicht überlappende
+Elemente. Die bisherigen App- und Einstellungsregressionen bleiben bestanden.
 
 Die Aufnahmen zeigen echte native Android-Ansichten mit **synthetischen Daten**.
 Die vom Nutzer bereitgestellten Handy-Screenshots belegen das Rendering der
 bisherigen App-Einstellungen und eines installierten Launcher-Widgets. Sie wurden
-nicht ins Repository aufgenommen. Die neue beta.4 ist noch nicht auf einem echten
+nicht ins Repository aufgenommen. Die neue beta.5 ist noch nicht auf einem echten
 Handy abgenommen; Benachrichtigungen und externer Kalender-Sync sind hier nicht
 live nachgewiesen. Der GitHub-Release bleibt wegen fehlenden
 Schreibzugriffs blockiert; es gab keinen Merge.
 
 ## Fertige Ansichten
+
+### Gezielte Änderung beta.5: Nächster Termin
+
+![Fertige Countdown-Ansicht im Hochformat](screenshots/widget-next-launcher-portrait.png)
+
+[Querformat](screenshots/widget-next-launcher-landscape.png) ·
+[Sehr hohe Fläche](screenshots/widget-next-extra-tall-light.png) ·
+[Große Schrift](screenshots/widget-next-tall-font-1-6.png)
+
 
 | Hoher Countdown | Neutrale helle Einstellungen |
 | --- | --- |

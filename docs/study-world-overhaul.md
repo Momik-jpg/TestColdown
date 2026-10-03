@@ -88,11 +88,11 @@ zusätzlich nötig; synthetische Oberflächentests beweisen keine externe Anbind
 ### Tatsächlich ausgeführt am 03.10.2026
 
 In Codex Cloud mit JDK 17, Android SDK 34 und Gradle 8.2:
-**117 Tests bestanden, keine Fehler oder Skips**. Kotlin-Kompilierung,
+**118 Tests bestanden, keine Fehler oder Skips**. Kotlin-Kompilierung,
 Android-Lint und Preview-APK-Build erfolgreich; `git diff --check` bestanden.
 Die Abdeckung umfasst die 60 ursprünglichen Tests, sieben Filter-/Zahleneingabe-
-Regressionen, 19 Compose-Tests, fünf Stundenplan-/Agenda-Regressionen sowie 26 Widget-Regressionen.
-Debug- und Preview-Lint: je 33 Warnungen, keine Fehler. APK-Build und Signaturprüfung bestanden.
+Regressionen, 19 Compose-Tests, fünf Stundenplan-/Agenda-Regressionen sowie 27 Widget-Regressionen.
+Debug- und Preview-Lint: je 32 Warnungen, keine Fehler. APK-Build und Signaturprüfung bestanden.
 Die Widget-Ansichten, Konfiguration und der lokale Kalenderpfad wurden ebenfalls geprüft;
 [Widget-Überarbeitung](widget-overhaul.md) beschreibt die Abnahme und ihre Grenzen.
 

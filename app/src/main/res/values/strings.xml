@@ -1,4 +1,7 @@
 <resources>
+    <string name="widget_when">TERMIN</string>
+    <string name="widget_where">ORT</string>
+    <string name="widget_preview_location">Raum 204</string>
     <string name="widget_upcoming">Danach</string>
     <string name="widget_no_more_entries">Keine weiteren Einträge im Zeitraum</string>
     <string name="app_name">Prüfungs-Countdown</string>

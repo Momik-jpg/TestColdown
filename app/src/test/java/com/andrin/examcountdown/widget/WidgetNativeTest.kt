@@ -52,6 +52,10 @@ class WidgetNativeTest {
         val views = if (list) WidgetPresentation.list(context, 42, config, content, options(height, width), now)
         else WidgetPresentation.next(context, 42, config, content.firstOrNull(), options(height, width), now, content.drop(1))
         val view = views.apply(context, FrameLayout(context))
+        return measure(view, height, width)
+    }
+
+    private fun measure(view: View, height: Int, width: Int): View {
         val density = context.resources.displayMetrics.density
         view.measure(View.MeasureSpec.makeMeasureSpec((width * density).toInt(), View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec((height * density).toInt(), View.MeasureSpec.EXACTLY))
@@ -189,21 +193,37 @@ class WidgetNativeTest {
         root.offsetDescendantRectToMyCoords(child, it)
     }
 
-    @Test fun tallNextWidgetPlacesFocusAtTopAndShowsRealFollowingEntriesInBothThemes() {
+    @Test fun tallNextWidgetShowsLargeCountdownAndSeparatesTimeAndLocationInBothThemes() {
         for (dark in listOf(false, true)) {
             RuntimeEnvironment.setQualifiers("w411dp-h891dp" + (if (dark) "-night" else "-notnight") + "-mdpi")
             val view = render(false, 600, 343) as ViewGroup
             val title = view.findViewById<TextView>(R.id.nextExamTitle)
             assertTrue("Focus still floats in the middle", bounds(view, title).top < 150)
             val rows = view.findViewById<ViewGroup>(R.id.nextUpcomingRows)
-            assertEquals(3, rows.childCount)
-            assertEquals("Englisch", rows.getChildAt(0).findViewById<TextView>(R.id.widgetRowTitle).text.toString())
-            assertEquals("Projektabgabe", rows.getChildAt(1).findViewById<TextView>(R.id.widgetRowTitle).text.toString())
-            assertEquals("Geschichte · Europa", rows.getChildAt(2).findViewById<TextView>(R.id.widgetRowTitle).text.toString())
-            assertTrue(bounds(view, rows.getChildAt(2)).bottom <= bounds(view, view.findViewById(R.id.nextWidgetOpenTimetable)).top)
-            rows.getChildAt(0).performClick()
-            assertEquals("timetable", shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity.getStringExtra(MainActivity.EXTRA_OPEN_TAB))
+            assertEquals(0, rows.childCount)
+            assertEquals(View.GONE, view.findViewById<View>(R.id.nextUpcomingArea).visibility)
+            val countdown = view.findViewById<TextView>(R.id.nextExamCountdown)
+            assertTrue("Countdown is still a small badge", countdown.textSize >= 80 * context.resources.displayMetrics.density)
+            assertTrue("Countdown clipped", countdown.layout.height <= countdown.height)
+            val unit = view.findViewById<TextView>(R.id.nextCountdownUnit)
+            assertEquals("TAG", unit.text.toString())
+            assertTrue("Countdown unit has no drawable height: ${unit.height}/${unit.layout?.height}, ${bounds(view, unit)}", unit.height > 0 && unit.height >= unit.layout.height)
+            assertTrue(bounds(view, unit).top >= bounds(view, countdown).bottom)
+            assertTrue(bounds(view, unit).bottom <= bounds(view, view.findViewById(R.id.nextCountdownBox)).bottom)
+            assertTrue(bounds(view, countdown).bottom <= bounds(view, view.findViewById(R.id.nextDetailsPanel)).top)
+            assertEquals("Raum 204", view.findViewById<TextView>(R.id.nextExamLocation).text.toString())
+            assertFalse(view.findViewById<TextView>(R.id.nextExamTime).text.contains("204"))
             screenshot(view, "widget-next-tall-${if (dark) "dark" else "light"}")
+            val extraTall = render(false, 800, 343) as ViewGroup
+            val extraRows = extraTall.findViewById<ViewGroup>(R.id.nextUpcomingRows)
+            assertEquals(3, extraRows.childCount)
+            assertEquals("Englisch", extraRows.getChildAt(0).findViewById<TextView>(R.id.widgetRowTitle).text.toString())
+            assertEquals("Projektabgabe", extraRows.getChildAt(1).findViewById<TextView>(R.id.widgetRowTitle).text.toString())
+            assertEquals("Geschichte · Europa", extraRows.getChildAt(2).findViewById<TextView>(R.id.widgetRowTitle).text.toString())
+            assertTrue(bounds(extraTall, extraRows.getChildAt(2)).bottom <= bounds(extraTall, extraTall.findViewById(R.id.nextWidgetOpenTimetable)).top)
+            extraRows.getChildAt(0).performClick()
+            assertEquals("timetable", shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity.getStringExtra(MainActivity.EXTRA_OPEN_TAB))
+            screenshot(extraTall, "widget-next-extra-tall-${if (dark) "dark" else "light"}")
         }
     }
 
@@ -228,7 +248,7 @@ class WidgetNativeTest {
             }
             screenshot(render(false, 640, 343, data = longItems), "widget-next-tall-font-${scale.toString().replace('.', '-')}")
         }
-        val room = render(false, 640, 343, data = longItems).findViewById<TextView>(R.id.nextExamTime)
+        val room = render(false, 640, 343, data = longItems).findViewById<TextView>(R.id.nextExamLocation)
         assertEquals("The large-font room text is truncated", 0, room.layout.getEllipsisCount(room.layout.lineCount - 1))
         assertTrue(room.text.contains("Raum 204"))
         assertNull(render(false, 600, 220).findViewById<View>(R.id.nextUpcomingRows))
@@ -243,14 +263,44 @@ class WidgetNativeTest {
         empty.performClick()
         assertEquals("events", shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity.getStringExtra(MainActivity.EXTRA_OPEN_TAB))
         screenshot(empty, "widget-next-tall-empty")
-        val single = render(false, 600, data = items.take(1))
+        val single = render(false, 800, data = items.take(1))
         assertEquals(View.VISIBLE, single.findViewById<View>(R.id.nextUpcomingEmpty).visibility)
         screenshot(single, "widget-next-tall-single")
         val hidden = render(false, 600, config = WidgetConfig(WidgetMode.AGENDA, showLocation = false, showCountdown = false))
         assertFalse(hidden.findViewById<TextView>(R.id.nextExamTime).text.contains("204"))
+        assertEquals(View.GONE, hidden.findViewById<View>(R.id.nextLocationSection).visibility)
         assertEquals(View.GONE, hidden.findViewById<View>(R.id.nextCountdownBox).visibility)
-        val rows = hidden.findViewById<ViewGroup>(R.id.nextUpcomingRows)
+        val extraTallHidden = render(false, 800, config = WidgetConfig(WidgetMode.AGENDA, showLocation = false, showCountdown = false))
+        val rows = extraTallHidden.findViewById<ViewGroup>(R.id.nextUpcomingRows)
         assertFalse(rows.getChildAt(0).findViewById<TextView>(R.id.widgetRowDetails).text.contains("102"))
         assertFalse(rows.getChildAt(0).findViewById<TextView>(R.id.widgetRowKind).text.contains("in "))
+    }
+
+    @Test fun launcherUsesActualPortraitHeightWhenMinimumHeightBelongsToLandscape() {
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 240)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 600)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 343)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 600)
+        }
+        val example = items.first().copy(startsAtEpochMillis = now + 8 * 86_400_000L, endsAtEpochMillis = now + 8 * 86_400_000L)
+        val views = WidgetPresentation.nextForLauncher(context, 42, WidgetConfig(WidgetMode.AGENDA), listOf(example), options, now)
+        for (portrait in listOf(true, false)) {
+            val configuration = android.content.res.Configuration(context.resources.configuration).apply {
+                orientation = if (portrait) android.content.res.Configuration.ORIENTATION_PORTRAIT else android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            }
+            val oriented = context.createConfigurationContext(configuration)
+            val view = measure(views.apply(oriented, FrameLayout(oriented)), if (portrait) 600 else 240, if (portrait) 343 else 600) as ViewGroup
+            assertEquals("Mathematik · Funktionen", view.findViewById<TextView>(R.id.nextExamTitle).text.toString())
+            assertEquals(portrait, view.findViewById<View>(R.id.nextFocusPoster) != null)
+            val counter = view.findViewById<TextView>(R.id.nextExamCountdown)
+            assertEquals("8", counter.text.toString())
+            assertEquals("TAGE", view.findViewById<TextView>(R.id.nextCountdownUnit).text.toString())
+            assertTrue(bounds(view, counter).bottom <= bounds(view, view.findViewById(R.id.nextWidgetOpenTimetable)).top)
+            assertTrue("Counter clipped after orientation change", counter.layout.height <= counter.height)
+            screenshot(view, "widget-next-launcher-${if (portrait) "portrait" else "landscape"}")
+            view.findViewById<View>(R.id.nextWidgetConfigure).performClick()
+            assertEquals(42, shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
+        }
     }
 }

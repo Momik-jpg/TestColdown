@@ -47,8 +47,10 @@ class WidgetProviderIntegrationTest {
             assertEquals("204", loaded.first().location)
             assertTrue(loaded.last().isAllDay)
             val tallOptions = Bundle().apply {
-                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 600)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 240)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 800)
                 putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 343)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 600)
             }
             manager.updateAppWidgetOptions(nextId, tallOptions)
             NextExamWidgetProvider().onAppWidgetOptionsChanged(context, manager, nextId, tallOptions)
