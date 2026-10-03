@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material3.HorizontalDivider
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,7 +34,8 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Widgets
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -119,25 +123,29 @@ internal fun SettingsContent(
         }
         if (!searching && expandedSection == null) {
             item("settings-shortcuts") {
-                Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(Icons.Outlined.Tune, null, Modifier.size(30.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Icon(Icons.Outlined.Tune, null, Modifier.size(26.dp), tint = MaterialTheme.colorScheme.primary)
                             Column {
                                 Text("Dein Setup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    color = MaterialTheme.colorScheme.onSurface)
                                 Text("Alles für deinen Schulalltag", style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilledTonalButton(onClick = { onAction(SettingsAction.CALENDAR) }, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Outlined.CalendarToday, null, Modifier.size(18.dp))
-                                Text("Verbinden", modifier = Modifier.padding(start = 6.dp))
-                            }
-                            FilledTonalButton(onClick = { onAction(SettingsAction.SYNC_NOW) }, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Outlined.Refresh, null, Modifier.size(18.dp))
-                                Text("Aktualisieren", modifier = Modifier.padding(start = 6.dp))
+                        BoxWithConstraints(Modifier.fillMaxWidth()) {
+                            if (maxWidth / LocalDensity.current.fontScale < 320.dp) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    SetupButton(false, Modifier.fillMaxWidth(), onAction)
+                                    SetupButton(true, Modifier.fillMaxWidth(), onAction)
+                                }
+                            } else {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    SetupButton(false, Modifier.weight(1f), onAction)
+                                    SetupButton(true, Modifier.weight(1f), onAction)
+                                }
                             }
                         }
                     }
@@ -164,8 +172,7 @@ internal fun SettingsContent(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Surface(shape = RoundedCornerShape(12.dp), color = if (expanded) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)) {
+                            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)) {
                                 Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
                                     Icon(section.icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
                                 }
@@ -200,6 +207,18 @@ internal fun SettingsContent(
                 modifier = Modifier.padding(12.dp))
         }
     }
+}
+
+@Composable
+private fun SetupButton(update: Boolean, modifier: Modifier, onAction: (SettingsAction) -> Unit) {
+    val content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
+        Icon(if (update) Icons.Outlined.Refresh else Icons.Outlined.CalendarToday, null, Modifier.size(18.dp))
+        Text(if (update) "Aktualisieren" else "Verbinden", Modifier.padding(start = 6.dp))
+    }
+    val click = { onAction(if (update) SettingsAction.SYNC_NOW else SettingsAction.CALENDAR) }
+    val buttonModifier = modifier.heightIn(min = 48.dp)
+    if (update) Button(click, buttonModifier, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), content = content)
+    else OutlinedButton(click, buttonModifier, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), content = content)
 }
 
 @Composable

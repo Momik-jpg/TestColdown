@@ -79,18 +79,41 @@ internal fun widgetRowLimit(height: Int, compact: Boolean, fontScale: Float = 1f
 internal fun widgetRowHeight(compact: Boolean, fontScale: Float): Int =
     (if (compact) 64 else 80) + (36 * (fontScale.coerceAtLeast(1f) - 1f)).toInt()
 
+internal fun useTallNextWidget(options: Bundle, config: WidgetConfig, fontScale: Float): Boolean =
+    !config.compact && options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 320) >= 260 &&
+        widgetHeight(options, 240) >= 360 * fontScale.coerceAtLeast(1f)
+
+/** Leave room for two title lines, date/time/room, countdown, controls and footer. */
+internal fun nextWidgetRowLimit(options: Bundle, config: WidgetConfig, fontScale: Float): Int =
+    if (!useTallNextWidget(options, config, fontScale)) 0 else
+        ((widgetHeight(options, 240) - (220 * fontScale.coerceAtLeast(1f)).toInt() - 110) /
+            widgetRowHeight(false, fontScale)).coerceIn(0, 5)
+
 internal object WidgetPresentation {
-    fun next(context: Context, id: Int, config: WidgetConfig, item: WidgetTimelineItem?, options: Bundle, now: Long): RemoteViews {
+    fun next(context: Context, id: Int, config: WidgetConfig, item: WidgetTimelineItem?, options: Bundle, now: Long,
+             following: List<WidgetTimelineItem> = emptyList()): RemoteViews {
         val height = widgetHeight(options, 240)
         val fontScale = context.resources.configuration.fontScale.coerceAtLeast(1f)
         val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 320)
-        val compact = config.compact || height < 220 * fontScale || width < 260 || fontScale > 1.2f
-        val views = RemoteViews(context.packageName, if (compact) R.layout.widget_next_exam_compact else R.layout.widget_next_exam)
+        val tall = useTallNextWidget(options, config, fontScale)
+        val compact = !tall && (config.compact || height < 220 * fontScale || width < 260 || fontScale > 1.2f)
+        val views = RemoteViews(context.packageName, when {
+            tall -> R.layout.widget_next_exam_tall
+            compact -> R.layout.widget_next_exam_compact
+            else -> R.layout.widget_next_exam
+        })
         views.setTextViewText(R.id.nextWidgetHeader, if (config.mode == WidgetMode.EXAMS) "Nächste Prüfung" else "Nächster Termin")
         views.setTextViewText(R.id.nextExamTitle, item?.title ?: "Keine Einträge")
         views.setInt(R.id.nextExamTitle, "setMaxLines", if (compact && height < 220 * fontScale) 1 else 2)
-        views.setTextViewText(R.id.nextExamTime, item?.let { widgetDetails(it, config) } ?: "App öffnen · Zeitraum oder Kalender prüfen")
-        views.setInt(R.id.nextExamTime, "setMaxLines", if (compact) 1 else 2)
+        views.setTextViewText(R.id.nextExamTime, item?.let {
+            if (tall) {
+                val date = DateTimeFormatter.ofPattern("EEE, d. MMM", Locale.GERMANY)
+                    .format(Instant.ofEpochMilli(it.startsAtEpochMillis).atZone(widgetZone))
+                listOfNotNull(date, widgetTimeDetails(it, config.copy(showLocation = false)),
+                    it.location?.trim()?.takeIf { location -> config.showLocation && location.isNotEmpty() }).joinToString("\n")
+            } else widgetDetails(it, config)
+        } ?: "App öffnen · Zeitraum oder Kalender prüfen")
+        views.setInt(R.id.nextExamTime, "setMaxLines", if (tall) { if (fontScale > 1.2f) 4 else 3 } else if (compact) 1 else 2)
         val showCountdown = item != null && config.showCountdown && height >= 180 * fontScale
         views.setTextViewText(R.id.nextExamCountdown, item?.let { if (compact) widgetStatus(it, now) else widgetCountdown(it, now).value } ?: "")
         views.setViewVisibility(R.id.nextExamCountdown, if (showCountdown) View.VISIBLE else View.GONE)
@@ -99,7 +122,18 @@ internal object WidgetPresentation {
             views.setViewVisibility(R.id.nextCountdownBox, if (showCountdown) View.VISIBLE else View.GONE)
             views.setContentDescription(R.id.nextCountdownBox, item?.let { widgetStatus(it, now) })
             views.setTextViewTextSize(R.id.nextExamCountdown, android.util.TypedValue.COMPLEX_UNIT_SP,
-                if (item != null && widgetCountdown(item, now).value.length > 2) 25f else 40f)
+                if (item != null && widgetCountdown(item, now).value.length > 2) 25f else if (tall && fontScale <= 1.2f) 48f else 40f)
+        }
+        if (tall) {
+            val limit = nextWidgetRowLimit(options, config, fontScale)
+            views.removeAllViews(R.id.nextUpcomingRows)
+            following.filter { it.id != item?.id }.take(limit).forEach {
+                views.addView(R.id.nextUpcomingRows, timelineRow(context, id, config, it, now))
+            }
+            views.setTextViewText(R.id.nextUpcomingHeader, "Danach · " + widgetHeaderLabel(config).substringAfter(" · "))
+            views.setViewVisibility(R.id.nextUpcomingHeader, if (limit > 0) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.nextUpcomingEmpty,
+                if (limit > 0 && following.none { it.id != item?.id }) View.VISIBLE else View.GONE)
         }
         views.setViewVisibility(R.id.nextWidgetOpenTimetable, if (height >= 240 * fontScale && !config.compact) View.VISIBLE else View.GONE)
         bindActions(context, views, id, config, false)
@@ -116,28 +150,32 @@ internal object WidgetPresentation {
             if (config.sortMode == WidgetSortMode.TYPE_THEN_TIME) " · Nach Typ" else " · Nach Zeit")
         views.removeAllViews(R.id.listRows)
         items.take(limit).forEach { item ->
-            val row = RemoteViews(context.packageName, R.layout.widget_exam_list_row)
-            val start = Instant.ofEpochMilli(item.startsAtEpochMillis).atZone(widgetZone)
-            row.setTextViewText(R.id.widgetRowDay, start.dayOfMonth.toString().padStart(2, '0'))
-            row.setTextViewText(R.id.widgetRowMonth, widgetMonth.format(start).replace(".", "").uppercase(Locale.GERMANY))
-            row.setTextViewText(R.id.widgetRowTitle, item.title)
-            val status = if (item.isCancelled || config.showCountdown) widgetStatus(item, now) else null
-            val kind = when (item.kind) { WidgetItemKind.EXAM -> "Prüfung"; WidgetItemKind.LESSON -> "Unterricht"; WidgetItemKind.EVENT -> "Termin" }
-            row.setTextViewText(R.id.widgetRowKind, listOfNotNull(kind, status).joinToString(" · "))
-            row.setViewVisibility(R.id.widgetRowKind, if (config.compact) View.GONE else View.VISIBLE)
-            val details = widgetTimeDetails(item, config)
-            row.setTextViewText(R.id.widgetRowDetails, if (config.compact && status != null) "$status · $details" else details)
-            row.setContentDescription(R.id.widgetRowRoot, listOfNotNull(item.title, widgetDetails(item, config), status).joinToString(" · "))
-            row.setInt(R.id.widgetRowRoot, "setMinimumHeight", ((widgetRowHeight(config.compact, scale) - 6) * context.resources.displayMetrics.density).toInt())
-            val route = when (item.kind) { WidgetItemKind.EXAM -> "exams"; WidgetItemKind.LESSON -> "timetable"; WidgetItemKind.EVENT -> "events" }
-            row.setOnClickPendingIntent(R.id.widgetRowRoot, WidgetIntents.open(context, id, "row-${item.id}", route))
-            views.addView(R.id.listRows, row)
+            views.addView(R.id.listRows, timelineRow(context, id, config, item, now))
         }
         views.setViewVisibility(R.id.listEmptyState, if (items.isEmpty() || limit == 0) View.VISIBLE else View.GONE)
         views.setTextViewText(R.id.listEmptyState, if (limit == 0) "Widget vergrößern" else "Keine Einträge im Zeitraum\nApp öffnen · Kalender prüfen")
         views.setViewVisibility(R.id.listWidgetOpenTimetable, if (height >= 320) View.VISIBLE else View.GONE)
         bindActions(context, views, id, config, true)
         return views
+    }
+
+    private fun timelineRow(context: Context, id: Int, config: WidgetConfig, item: WidgetTimelineItem, now: Long): RemoteViews {
+        val row = RemoteViews(context.packageName, R.layout.widget_exam_list_row)
+        val start = Instant.ofEpochMilli(item.startsAtEpochMillis).atZone(widgetZone)
+        row.setTextViewText(R.id.widgetRowDay, start.dayOfMonth.toString().padStart(2, '0'))
+        row.setTextViewText(R.id.widgetRowMonth, widgetMonth.format(start).replace(".", "").uppercase(Locale.GERMANY))
+        row.setTextViewText(R.id.widgetRowTitle, item.title)
+        val status = if (item.isCancelled || config.showCountdown) widgetStatus(item, now) else null
+        val kind = when (item.kind) { WidgetItemKind.EXAM -> "Prüfung"; WidgetItemKind.LESSON -> "Unterricht"; WidgetItemKind.EVENT -> "Termin" }
+        row.setTextViewText(R.id.widgetRowKind, listOfNotNull(kind, status).joinToString(" · "))
+        row.setViewVisibility(R.id.widgetRowKind, if (config.compact) View.GONE else View.VISIBLE)
+        val details = widgetTimeDetails(item, config)
+        row.setTextViewText(R.id.widgetRowDetails, if (config.compact && status != null) "$status · $details" else details)
+        row.setContentDescription(R.id.widgetRowRoot, listOfNotNull(item.title, widgetDetails(item, config), status).joinToString(" · "))
+        row.setInt(R.id.widgetRowRoot, "setMinimumHeight", ((widgetRowHeight(config.compact, context.resources.configuration.fontScale) - 6) * context.resources.displayMetrics.density).toInt())
+        val route = when (item.kind) { WidgetItemKind.EXAM -> "exams"; WidgetItemKind.LESSON -> "timetable"; WidgetItemKind.EVENT -> "events" }
+        row.setOnClickPendingIntent(R.id.widgetRowRoot, WidgetIntents.open(context, id, "row-${item.id}", route))
+        return row
     }
 
     private fun bindActions(context: Context, views: RemoteViews, id: Int, config: WidgetConfig, list: Boolean) {

@@ -91,6 +91,9 @@ internal fun WidgetSettingsScreen(widgets: List<InstalledWidget>, canPin: Boolea
                 OutlinedButton(onClick = onBack) { Text("Zurück") }
             }
             Text("Dein Tag. Direkt auf dem Startbildschirm.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Zum Vergrößern das Widget lange drücken und die Ränder ziehen. Hohe Widgets zeigen weitere Einträge.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp))
         }
         WidgetKind.entries.forEach { kind -> item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

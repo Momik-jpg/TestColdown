@@ -22,31 +22,61 @@ Speichern und Abbrechen stehen am unteren Rand. Auswahl und ausgeblendete
 Vorschau überstehen die Android-Wiederherstellung. Die Verwaltung zeigt echte
 Vorschauen beider Widgets und bearbeitet jede installierte Instanz separat.
 
-Die App-Einstellungen erhalten „Dein Setup“ für Verbinden/Aktualisieren, eigene
-Icon-Flächen je Kategorie und klare Aktionszeilen mit Trennlinien. Suche, Filter,
+Hohe Fokus-Widgets ordnen Titel, Datum, Uhrzeit/Raum und Countdown oben an.
+Darunter stehen passende weitere Einträge unter „Danach“. Anzahl und Anordnung
+berücksichtigen die kleinste Launcher-Größe und die Systemschrift. Kleine,
+schmale und ausdrücklich kompakte Widgets behalten ihre kompakte Ansicht.
+
+Die App-Einstellungen verwenden jetzt neutrale weiße beziehungsweise dunkle
+Flächen mit dunkler beziehungsweise heller Schrift. „Dein Setup“ setzt Blau nur
+als Akzent ein. Verbinden ist umrandet, Aktualisieren besitzt eine klare
+Kontrastfläche. Bei wenig Breite oder großer Schrift stehen die Knöpfe
+untereinander; die Beschriftung wird nicht mitten im Wort umgebrochen. Eigene
+Icon-Flächen je Kategorie und klare Aktionszeilen mit Trennlinien bleiben erhalten. Suche, Filter,
 alle Einstellungsaktionen und der ganze Zeilen-Schalter bleiben funktional geprüft.
 
 ## Bestandene Prüfungen
 
-**113 Tests bestanden**, keine Fehler oder Skips; Kotlin-Kompilierung und
-Preview-APK-Build erfolgreich. Debug- und Preview-Lint: je 0 Fehler, 32 Warnungen.
+**117 Tests bestanden**, keine Fehler oder Skips; Kotlin-Kompilierung und
+Preview-APK-Build erfolgreich. Debug- und Preview-Lint: je 0 Fehler, 33 Warnungen.
 Die APK-Signatur und Paket-/Versionsmetadaten stehen im beiliegenden Prüfbericht.
 
-23 Widget-Prüfungen: 8 Regeln für Auswahl, Status, Größenberechnung, Countdown-
-Einheiten und Zeitspannen; 9 native RemoteViews-/Preferences-/PendingIntent-/
+26 Widget-Prüfungen: 8 Regeln für Auswahl, Status, Größenberechnung, Countdown-
+Einheiten und Zeitspannen; 12 native RemoteViews-/Preferences-/PendingIntent-/
 Konfigurationsprüfungen; 5 native Compose-Tests für Konfiguration, Verwaltung und
 Vorschau; 1 Integrationstest vom echten lokalen DataStore bis zu beiden Providern.
 Der neue Vorschau-Test verändert Inhalt und Anzeige, prüft die tatsächlichen
 Android-TextViews und verhindert das Starten von Beispielaktionen. Lazy-Listen-
 Tests scrollen auch zu Elementen, die zunächst außerhalb des sichtbaren Bereichs liegen.
-Die bisherigen App- und Einstellungsregressionen bleiben bestanden.
+Vier neue Regressionen gegenüber beta.3 prüfen schmale Einstellungen bei großer
+Schrift, hohe Widgets in Hell/Dunkel, Größen/Schriften/lange Titel und
+Leerzustände beziehungsweise ausgeblendete Details. Der lokale Integrationstest
+prüft zusätzlich die echte Datenauswahl der hohen Ansicht. Die bisherigen App-
+und Einstellungsregressionen bleiben bestanden.
 
 Die Aufnahmen zeigen echte native Android-Ansichten mit **synthetischen Daten**.
-Handy-Launcher-Bestätigung, Benachrichtigungen und externer Kalender-Sync sind
-weiterhin nicht live nachgewiesen. Der GitHub-Release bleibt wegen fehlenden
+Die vom Nutzer bereitgestellten Handy-Screenshots belegen das Rendering der
+bisherigen App-Einstellungen und eines installierten Launcher-Widgets. Sie wurden
+nicht ins Repository aufgenommen. Die neue beta.4 ist noch nicht auf einem echten
+Handy abgenommen; Benachrichtigungen und externer Kalender-Sync sind hier nicht
+live nachgewiesen. Der GitHub-Release bleibt wegen fehlenden
 Schreibzugriffs blockiert; es gab keinen Merge.
 
 ## Fertige Ansichten
+
+| Hoher Countdown | Neutrale helle Einstellungen |
+| --- | --- |
+| ![Hoher Countdown](screenshots/widget-next-tall-light.png) | ![Helle Einstellungen](screenshots/settings-light.png) |
+
+| Hoher Countdown im Dunkelmodus | Neutrale dunkle Einstellungen |
+| --- | --- |
+| ![Dunkles hohes Widget](screenshots/widget-next-tall-dark.png) | ![Dunkle Übersicht](screenshots/settings-dark-overview.png) |
+
+[Schmale Einstellungen mit großer Schrift](screenshots/settings-narrow-large-text.png) ·
+[Widget mit großer Schrift](screenshots/widget-next-tall-font-1-3.png) ·
+[Einzelner Termin](screenshots/widget-next-tall-single.png) ·
+[Leeres hohes Widget](screenshots/widget-next-tall-empty.png)
+
 
 | Fokuskarte | Terminliste |
 | --- | --- |

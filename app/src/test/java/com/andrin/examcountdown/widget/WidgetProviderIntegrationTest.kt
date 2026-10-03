@@ -46,6 +46,18 @@ class WidgetProviderIntegrationTest {
             assertEquals("Mathematik", loaded.first().title)
             assertEquals("204", loaded.first().location)
             assertTrue(loaded.last().isAllDay)
+            val tallOptions = Bundle().apply {
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 600)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 343)
+            }
+            manager.updateAppWidgetOptions(nextId, tallOptions)
+            NextExamWidgetProvider().onAppWidgetOptionsChanged(context, manager, nextId, tallOptions)
+            val nextView = shadowManager.getViewFor(nextId)
+            assertEquals("Englisch", nextView.findViewById<TextView>(R.id.nextExamTitle).text.toString())
+            val following = nextView.findViewById<ViewGroup>(R.id.nextUpcomingRows)
+            assertEquals(2, following.childCount)
+            assertEquals("Mathematik", following.getChildAt(0).findViewById<TextView>(R.id.widgetRowTitle).text.toString())
+            assertEquals("Projekttag", following.getChildAt(1).findViewById<TextView>(R.id.widgetRowTitle).text.toString())
             val options = Bundle().apply {
                 putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 220)
                 putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 800)

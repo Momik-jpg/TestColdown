@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Rect
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
@@ -45,9 +46,11 @@ class WidgetNativeTest {
         putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, width)
     }
 
-    private fun render(list: Boolean, height: Int, width: Int = 320, config: WidgetConfig = WidgetConfig(WidgetMode.AGENDA), empty: Boolean = false): View {
-        val views = if (list) WidgetPresentation.list(context, 42, config, if (empty) emptyList() else items, options(height, width), now)
-        else WidgetPresentation.next(context, 42, config, if (empty) null else items.first(), options(height, width), now)
+    private fun render(list: Boolean, height: Int, width: Int = 320, config: WidgetConfig = WidgetConfig(WidgetMode.AGENDA),
+                       empty: Boolean = false, data: List<WidgetTimelineItem> = items): View {
+        val content = if (empty) emptyList() else data
+        val views = if (list) WidgetPresentation.list(context, 42, config, content, options(height, width), now)
+        else WidgetPresentation.next(context, 42, config, content.firstOrNull(), options(height, width), now, content.drop(1))
         val view = views.apply(context, FrameLayout(context))
         val density = context.resources.displayMetrics.density
         view.measure(View.MeasureSpec.makeMeasureSpec((width * density).toInt(), View.MeasureSpec.EXACTLY),
@@ -179,5 +182,75 @@ class WidgetNativeTest {
         val compact = render(true, 320, config = WidgetConfig(WidgetMode.AGENDA, compact = true))
         val rows = compact.findViewById<ViewGroup>(R.id.listRows)
         assertTrue(rows.getChildAt(rows.childCount - 1).bottom <= rows.height)
+    }
+
+    private fun bounds(root: ViewGroup, child: View): Rect = Rect().also {
+        child.getDrawingRect(it)
+        root.offsetDescendantRectToMyCoords(child, it)
+    }
+
+    @Test fun tallNextWidgetPlacesFocusAtTopAndShowsRealFollowingEntriesInBothThemes() {
+        for (dark in listOf(false, true)) {
+            RuntimeEnvironment.setQualifiers("w411dp-h891dp" + (if (dark) "-night" else "-notnight") + "-mdpi")
+            val view = render(false, 600, 343) as ViewGroup
+            val title = view.findViewById<TextView>(R.id.nextExamTitle)
+            assertTrue("Focus still floats in the middle", bounds(view, title).top < 150)
+            val rows = view.findViewById<ViewGroup>(R.id.nextUpcomingRows)
+            assertEquals(3, rows.childCount)
+            assertEquals("Englisch", rows.getChildAt(0).findViewById<TextView>(R.id.widgetRowTitle).text.toString())
+            assertEquals("Projektabgabe", rows.getChildAt(1).findViewById<TextView>(R.id.widgetRowTitle).text.toString())
+            assertEquals("Geschichte · Europa", rows.getChildAt(2).findViewById<TextView>(R.id.widgetRowTitle).text.toString())
+            assertTrue(bounds(view, rows.getChildAt(2)).bottom <= bounds(view, view.findViewById(R.id.nextWidgetOpenTimetable)).top)
+            rows.getChildAt(0).performClick()
+            assertEquals("timetable", shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity.getStringExtra(MainActivity.EXTRA_OPEN_TAB))
+            screenshot(view, "widget-next-tall-${if (dark) "dark" else "light"}")
+        }
+    }
+
+    @Test fun tallNextWidgetAdaptsToResizeAndLargeFontsWithoutOverlappingControls() {
+        val resources = context.resources
+        val longItems = items.toMutableList().apply {
+            this[0] = first().copy(title = "Mathematik · Vorbereitung auf die Abschlussprüfung", location = "Gebäude B · Raum 204")
+        }
+        for (scale in listOf(1f, 1.3f, 1.6f)) {
+            val configuration = android.content.res.Configuration(resources.configuration).apply { fontScale = scale }
+            @Suppress("DEPRECATION") resources.updateConfiguration(configuration, resources.displayMetrics)
+            for (height in listOf(480, 600, 640, 800)) {
+                val view = render(false, height, 320, data = longItems) as ViewGroup
+                val rows = view.findViewById<ViewGroup>(R.id.nextUpcomingRows) ?: continue
+                val footer = view.findViewById<View>(R.id.nextWidgetOpenTimetable)
+                assertTrue("Focus/footer overlap at $height/$scale", bounds(view, view.findViewById(R.id.nextCountdownBox)).bottom <= bounds(view, footer).top)
+                for (index in 0 until rows.childCount) {
+                    assertTrue("Row clipped at $height/$scale", bounds(view, rows.getChildAt(index)).bottom <= bounds(view, footer).top)
+                }
+                val countdown = view.findViewById<TextView>(R.id.nextExamCountdown)
+                assertTrue("Countdown clipped", countdown.layout.height <= countdown.height - countdown.paddingTop - countdown.paddingBottom)
+            }
+            screenshot(render(false, 640, 343, data = longItems), "widget-next-tall-font-${scale.toString().replace('.', '-')}")
+        }
+        val room = render(false, 640, 343, data = longItems).findViewById<TextView>(R.id.nextExamTime)
+        assertEquals("The large-font room text is truncated", 0, room.layout.getEllipsisCount(room.layout.lineCount - 1))
+        assertTrue(room.text.contains("Raum 204"))
+        assertNull(render(false, 600, 220).findViewById<View>(R.id.nextUpcomingRows))
+        assertNull(render(false, 600, config = WidgetConfig(compact = true)).findViewById<View>(R.id.nextUpcomingRows))
+    }
+
+    @Test fun tallNextWidgetHandlesEmptyOrSingleEntryAndRespectsHiddenDetails() {
+        val empty = render(false, 600, empty = true)
+        assertEquals("Keine Einträge", empty.findViewById<TextView>(R.id.nextExamTitle).text.toString())
+        assertEquals(View.GONE, empty.findViewById<View>(R.id.nextCountdownBox).visibility)
+        assertEquals(0, empty.findViewById<ViewGroup>(R.id.nextUpcomingRows).childCount)
+        empty.performClick()
+        assertEquals("events", shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity.getStringExtra(MainActivity.EXTRA_OPEN_TAB))
+        screenshot(empty, "widget-next-tall-empty")
+        val single = render(false, 600, data = items.take(1))
+        assertEquals(View.VISIBLE, single.findViewById<View>(R.id.nextUpcomingEmpty).visibility)
+        screenshot(single, "widget-next-tall-single")
+        val hidden = render(false, 600, config = WidgetConfig(WidgetMode.AGENDA, showLocation = false, showCountdown = false))
+        assertFalse(hidden.findViewById<TextView>(R.id.nextExamTime).text.contains("204"))
+        assertEquals(View.GONE, hidden.findViewById<View>(R.id.nextCountdownBox).visibility)
+        val rows = hidden.findViewById<ViewGroup>(R.id.nextUpcomingRows)
+        assertFalse(rows.getChildAt(0).findViewById<TextView>(R.id.widgetRowDetails).text.contains("102"))
+        assertFalse(rows.getChildAt(0).findViewById<TextView>(R.id.widgetRowKind).text.contains("in "))
     }
 }

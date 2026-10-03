@@ -34,8 +34,10 @@ class NextExamWidgetProvider : AppWidgetProvider() {
             appWidgetIds.forEach { id ->
                 val config = WidgetPreferences.readConfig(context, id)
                 val options = appWidgetManager.getAppWidgetOptions(id)
-                val item = WidgetContentLoader.loadUpcomingItems(context, id, 1, nextOnly = true).firstOrNull()
-                val views = WidgetPresentation.next(context, id, config, item, options, System.currentTimeMillis())
+                val limit = nextWidgetRowLimit(options, config, context.resources.configuration.fontScale)
+                val items = WidgetContentLoader.loadUpcomingItems(context, id, 1 + limit, nextOnly = true)
+                val views = WidgetPresentation.next(context, id, config, items.firstOrNull(), options,
+                    System.currentTimeMillis(), items.drop(1))
                 appWidgetManager.updateAppWidget(id, views)
             }
         }

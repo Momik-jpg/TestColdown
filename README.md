@@ -28,7 +28,7 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 
 Die Preview-APK liegt unter `.build/app/outputs/apk/preview/app-preview.apk`.
 Sie heißt „Prüfungs-Countdown Test“, verwendet `com.andrin.examcountdown.preview`
-und die Version `1.6.15-beta.3` (Code 26). Android 8 oder neuer ist erforderlich.
+und die Version `1.6.15-beta.4` (Code 27). Android 8 oder neuer ist erforderlich.
 Die eigene Paketkennung ermöglicht eine Installation neben der bisherigen App;
 Kalender, PIN und Daten sind getrennt. Die Testversion ist mit dem Android-Testschlüssel
 signiert und ersetzt keine mit dem Produktionsschlüssel signierte Installation.
@@ -37,9 +37,9 @@ APK auf dem Handy herunterladen und öffnen. Falls Android danach fragt, für de
 verwendeten Browser die Installation aus dieser Quelle erlauben. In der Test-App
 anschließend den Kalender verbinden oder über `Optionen -> Daten` eine bestehende
 App-Sicherung importieren. Bestehende App-Daten werden nicht automatisch übernommen. Diese APK kann die vorherige
-Test-APKs 1.6.15-beta.1/2 mit demselben Testschlüssel aktualisieren; die Test-App-Daten bleiben erhalten.
+Test-APKs 1.6.15-beta.1/2/3 mit demselben Testschlüssel aktualisieren; die Test-App-Daten bleiben erhalten.
 
-[Widget-Vorschauen und Prüfumfang](docs/widget-overhaul.md) · [Testversion 1.6.15-beta.3](docs/releases/1.6.15-beta.3.md)
+[Widget-Vorschauen und Prüfumfang](docs/widget-overhaul.md) · [Testversion 1.6.15-beta.4](docs/releases/1.6.15-beta.4.md)
 
 ## Ersteinrichtung
 1. App starten.
