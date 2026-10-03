@@ -73,8 +73,8 @@ prüft Hauptaktionen, Hell/Dunkel, erhöhten Kontrast sowie wiederhergestellte
 Noten-Eingaben, Stundenplan-Filter, Raumwechsel, optionale Kategorien und
 Tastaturaktionen. Beim Termindialog wird das Öffnen des echten Android-Dialogs
 überprüft. `BlueNavigationUiTest` prüft individuelle Filterentfernung, Wiederherstellung,
-Ansichtserhalt beim Reset, Import-Aktion, Einstellungs-Suche, alle 13 bestehenden
-Aktions-Callbacks sowie den Schalter. `TimetableFilterPolicyTest` und
+Ansichtserhalt beim Reset, Import-Aktion, Einstellungs-Suche, alle Aktions-Callbacks
+(einschließlich Widgets) sowie den Schalter. `TimetableFilterPolicyTest` und
 `AgendaTimeLabelTest` prüfen Wochenend-Unterricht, kombinierte Suche/Status und
 kompakte Zeitangaben einschließlich Mitternacht und exklusivem Ganztagesende.
 Die PNGs landen unter `STUDY_UI_ARTIFACTS` beziehungsweise
@@ -86,11 +86,13 @@ zusätzlich nötig; synthetische Oberflächentests beweisen keine externe Anbind
 ### Tatsächlich ausgeführt am 03.10.2026
 
 In Codex Cloud mit JDK 17, Android SDK 34 und Gradle 8.2:
-**90 Tests bestanden, keine Fehler oder Skips**. Kotlin-Kompilierung,
+**109 Tests bestanden, keine Fehler oder Skips**. Kotlin-Kompilierung,
 Android-Lint und Debug-APK-Build erfolgreich; `git diff --check` bestanden.
 Die Abdeckung umfasst die 60 ursprünglichen Tests, sieben Filter-/Zahleneingabe-
-Regressionen, 18 Compose-Tests und fünf neue Stundenplan-/Agenda-Regressionen.
-Android-Lint: 44 Warnungen, keine Fehler.
+Regressionen, 18 Compose-Tests, fünf Stundenplan-/Agenda-Regressionen sowie 19 Widget-Regressionen.
+Debug- und Preview-Lint: je 25 Warnungen, keine Fehler. APK-Build und Signaturprüfung bestanden.
+Die Widget-Ansichten, Konfiguration und der lokale Kalenderpfad wurden ebenfalls geprüft;
+[Widget-Überarbeitung](widget-overhaul.md) beschreibt die Abnahme und ihre Grenzen.
 
 Maven Central lieferte in dieser Umgebung HTTP 429. Für diese lokale Prüfung
 wurde ausschließlich über ein temporäres Gradle-Init-Skript Googles

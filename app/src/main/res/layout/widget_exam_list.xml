@@ -1,198 +1,77 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/listWidgetRoot"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/widget_card_background"
-    android:orientation="vertical"
-    android:padding="14dp">
-
+        android:id="@+id/listWidgetRoot"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_card_background"
+        android:orientation="vertical"
+        android:padding="12dp">
     <LinearLayout
         android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+        <TextView
+        android:id="@+id/listWidgetHeader"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:id="@+id/listWidgetHeader"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Kommende Prüfungen"
-            android:textColor="@color/widget_muted"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/listWidgetOpenTimetable"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:background="@drawable/widget_chip_background"
-            android:paddingStart="10dp"
-            android:paddingTop="4dp"
-            android:paddingEnd="10dp"
-            android:paddingBottom="4dp"
-            android:text="Zum Plan"
-            android:textColor="@color/widget_chip_text"
-            android:textSize="10sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/listWidgetRefresh"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:background="@drawable/widget_chip_background"
-            android:gravity="center"
-            android:text="⟳"
-            android:textColor="@color/widget_on_surface"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+        android:layout_weight="1"
+        android:text="@string/widget_exams_title"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:textColor="@color/widget_on_surface" />
+        <ImageButton
+        android:id="@+id/listWidgetConfigure"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:padding="13dp"
+        android:background="@android:color/transparent"
+        android:src="@drawable/widget_settings"
+        android:contentDescription="@string/widget_configure" />
+        <ImageButton
+        android:id="@+id/listWidgetRefresh"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:padding="13dp"
+        android:background="@android:color/transparent"
+        android:src="@drawable/widget_refresh"
+        android:contentDescription="@string/widget_refresh" />
     </LinearLayout>
-
+    <TextView
+        android:id="@+id/listWidgetSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/widget_default_window"
+        android:textSize="12sp"
+        android:textColor="@color/widget_muted"
+        android:singleLine="true"
+        android:ellipsize="end" />
     <TextView
         android:id="@+id/listEmptyState"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:background="@drawable/widget_row_background"
-        android:padding="10dp"
-        android:text="Keine Einträge in diesem Zeitraum"
-        android:textColor="@color/widget_on_surface"
-        android:textSize="14sp"
-        android:visibility="gone" />
-
-    <TextView
-        android:id="@+id/row1"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:background="@drawable/widget_row_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:padding="9dp"
-        android:text="27.02. 08:00  •  Deutsch"
-        android:textColor="@color/widget_on_surface"
-        android:textSize="13sp" />
-
-    <TextView
-        android:id="@+id/row2"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/widget_row_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:padding="9dp"
-        android:text="03.03. 10:15  •  Mathematik"
-        android:textColor="@color/widget_on_surface"
-        android:textSize="13sp" />
-
-    <TextView
-        android:id="@+id/row3"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/widget_row_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:padding="9dp"
-        android:text="07.03. 09:00  •  Geschichte"
-        android:textColor="@color/widget_on_surface"
-        android:textSize="13sp" />
-
-    <TextView
-        android:id="@+id/row4"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/widget_row_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:padding="9dp"
-        android:text="12.03. 13:30  •  Englisch"
-        android:textColor="@color/widget_on_surface"
-        android:textSize="13sp" />
-
-    <TextView
-        android:id="@+id/row5"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/widget_row_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:padding="9dp"
-        android:text="15.03. 08:00  •  Chemie"
-        android:textColor="@color/widget_on_surface"
-        android:textSize="13sp" />
-
-    <TextView
-        android:id="@+id/row6"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/widget_row_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:padding="9dp"
-        android:text="18.03. 09:45  •  Biologie"
-        android:textColor="@color/widget_on_surface"
+        android:padding="12dp"
+        android:text="@string/widget_empty"
         android:textSize="13sp"
+        android:textColor="@color/widget_muted"
         android:visibility="gone" />
-
-    <TextView
-        android:id="@+id/row7"
+    <LinearLayout
+        android:id="@+id/listRows"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/widget_row_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:padding="9dp"
-        android:text="21.03. 08:30  •  Informatik"
-        android:textColor="@color/widget_on_surface"
-        android:textSize="13sp"
-        android:visibility="gone" />
-
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="6dp"
+        android:orientation="vertical" />
     <TextView
-        android:id="@+id/row8"
+        android:id="@+id/listWidgetOpenTimetable"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/widget_row_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:padding="9dp"
-        android:text="24.03. 10:00  •  Wirtschaft"
-        android:textColor="@color/widget_on_surface"
-        android:textSize="13sp"
-        android:visibility="gone" />
-
-    <TextView
-        android:id="@+id/row9"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/widget_row_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:padding="9dp"
-        android:text="27.03. 13:15  •  Geografie"
-        android:textColor="@color/widget_on_surface"
-        android:textSize="13sp"
-        android:visibility="gone" />
-
-    <TextView
-        android:id="@+id/row10"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/widget_row_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:padding="9dp"
-        android:text="31.03. 11:30  •  Musik"
-        android:textColor="@color/widget_on_surface"
-        android:textSize="13sp"
-        android:visibility="gone" />
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:text="@string/widget_open_timetable"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="@color/widget_accent"
+        android:singleLine="true"
+        android:ellipsize="end" />
 </LinearLayout>

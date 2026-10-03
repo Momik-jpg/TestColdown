@@ -766,6 +766,9 @@ fun ExamCountdownScreen(
             SettingsAction.PERSONALIZE -> {
                 showPersonalizationDialog = true
             }
+            SettingsAction.WIDGETS -> {
+                context.startActivity(Intent(context, com.andrin.examcountdown.widget.WidgetSettingsActivity::class.java))
+            }
             SettingsAction.APP_LOCK -> {
                 showAppLockDialog = true
             }

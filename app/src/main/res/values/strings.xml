@@ -2,4 +2,18 @@
     <string name="app_name">Prüfungs-Countdown</string>
     <string name="widget_next_exam_name">Nächste Prüfung</string>
     <string name="widget_exam_list_name">Prüfungsliste</string>
+    <string name="widget_exams_title">Prüfungen</string>
+    <string name="widget_configure">Widget einstellen</string>
+    <string name="widget_refresh">Kalender aktualisieren</string>
+    <string name="widget_default_window">30 Tage · Nach Zeit</string>
+    <string name="widget_empty">Keine Einträge im Zeitraum</string>
+    <string name="widget_open_timetable">Stundenplan öffnen  ›</string>
+    <string name="widget_preview_window">Beispiel · 30 Tage</string>
+    <string name="widget_preview_kind">Prüfung · in 2 Tagen</string>
+    <string name="widget_preview_exam">Mathematik · Funktionen</string>
+    <string name="widget_preview_time">Mo · 08:00 · Raum 204</string>
+    <string name="widget_next_title">Nächste Prüfung</string>
+    <string name="widget_preview_next">Lineare Funktionen</string>
+    <string name="widget_preview_next_time">Mo 05.10. · 08:00 · Raum 204</string>
+    <string name="widget_preview_countdown">in 2 Tagen</string>
 </resources>

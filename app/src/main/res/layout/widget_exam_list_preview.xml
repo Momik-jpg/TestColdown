@@ -1,5 +1,5 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-        android:id="@+id/widgetRoot"
+        android:id="@+id/listWidgetRoot"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/widget_card_background"
@@ -11,18 +11,18 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
         <TextView
-        android:id="@+id/nextWidgetHeader"
+        android:id="@+id/listWidgetHeader"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:text="@string/widget_next_title"
+        android:text="@string/widget_exams_title"
         android:textSize="14sp"
         android:textStyle="bold"
         android:maxLines="2"
         android:ellipsize="end"
         android:textColor="@color/widget_on_surface" />
         <ImageButton
-        android:id="@+id/nextWidgetConfigure"
+        android:id="@+id/listWidgetConfigure"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:padding="13dp"
@@ -30,7 +30,7 @@
         android:src="@drawable/widget_settings"
         android:contentDescription="@string/widget_configure" />
         <ImageButton
-        android:id="@+id/nextWidgetRefresh"
+        android:id="@+id/listWidgetRefresh"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:padding="13dp"
@@ -39,48 +39,34 @@
         android:contentDescription="@string/widget_refresh" />
     </LinearLayout>
     <TextView
-        android:id="@+id/nextExamTitle"
+        android:id="@+id/listWidgetSubtitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="@string/widget_preview_next"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:maxLines="2"
-        android:ellipsize="end"
-        android:textColor="@color/widget_on_surface" />
-    <TextView
-        android:id="@+id/nextExamTime"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="@string/widget_preview_next_time"
+        android:text="@string/widget_preview_window"
         android:textSize="12sp"
-        android:maxLines="2"
-        android:ellipsize="end"
-        android:textColor="@color/widget_muted" />
-    <TextView
-        android:id="@+id/nextExamCountdown"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/widget_countdown_badge_background"
-        android:paddingStart="10dp"
-        android:paddingEnd="10dp"
-        android:paddingTop="5dp"
-        android:paddingBottom="5dp"
-        android:text="@string/widget_preview_countdown"
-        android:textSize="13sp"
-        android:textStyle="bold"
+        android:textColor="@color/widget_muted"
         android:singleLine="true"
-        android:ellipsize="end"
-        android:textColor="@color/widget_badge_text" />
+        android:ellipsize="end" />
     <TextView
-        android:layout_width="1dp"
+        android:id="@+id/listEmptyState"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp"
+        android:text="@string/widget_empty"
+        android:textSize="13sp"
+        android:textColor="@color/widget_muted"
+        android:visibility="gone" />
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1"
+        android:layout_marginTop="6dp"
+        android:orientation="vertical">
+        <include layout="@layout/widget_exam_list_row" />
+        <include layout="@layout/widget_exam_list_row" />
+    </LinearLayout>
     <TextView
-        android:id="@+id/nextWidgetOpenTimetable"
+        android:id="@+id/listWidgetOpenTimetable"
         android:layout_width="match_parent"
         android:layout_height="48dp"
         android:gravity="center_vertical"

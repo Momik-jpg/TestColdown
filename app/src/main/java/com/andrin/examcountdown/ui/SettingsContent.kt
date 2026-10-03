@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,6 +65,7 @@ internal enum class SettingsAction(val section: SettingsSection, val title: Stri
     SYNC_OPTIONS(SettingsSection.CALENDAR, "Automatische Aktualisierung", "Intervall festlegen", Icons.Outlined.Sync),
     DIAGNOSTICS(SettingsSection.CALENDAR, "Sync-Diagnose", "Fehler & letzte Aktualisierung", Icons.Outlined.Settings),
     PERSONALIZE(SettingsSection.DISPLAY, "Ansicht & Bedienung", "Tabs, Lesbarkeit & Prüfungskonflikte", Icons.Outlined.Tune),
+    WIDGETS(SettingsSection.DISPLAY, "Widgets", "Startbildschirm, Countdown & Terminliste", Icons.Outlined.Widgets),
     SYNC_STATUS(SettingsSection.DISPLAY, "Sync-Status anzeigen", "Aktualisierung oben im Blick", Icons.Outlined.Sync),
     APP_LOCK(SettingsSection.SECURITY, "App-Schutz", "PIN & optionale Biometrie", Icons.Outlined.Lock),
     PRIVACY(SettingsSection.SECURITY, "Datenschutz", "Speicherung & Datenverarbeitung", Icons.Outlined.Lock),

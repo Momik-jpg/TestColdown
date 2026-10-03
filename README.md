@@ -9,7 +9,7 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 - `Notenrechner`: Durchschnitt, Zielnote und Noten-Punkte-Rechner.
 - `Sync-Diagnose`: Status, Dauer, HTTP-Code, Delta-Status und Import-Zahlen.
 - `Delta-Sync`: `ETag` und `Last-Modified` zur Reduktion von Datenverkehr.
-- `Widgets`: Nächste Prüfung und Liste, pro Instanz konfigurierbar.
+- `Widgets`: Nächster Eintrag und Terminliste, mit Hell/Dunkel, Raum, Countdown und kompakter Ansicht. Unter `Optionen → Darstellung → Widgets` hinzufügen oder je Instanz einstellen.
 - `Export`: CSV/PDF für Prüfungen und Stundenplan.
 - `Backup`: Export/Import der App-Daten.
 
@@ -28,7 +28,7 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 
 Die Preview-APK liegt unter `.build/app/outputs/apk/preview/app-preview.apk`.
 Sie heißt „Prüfungs-Countdown Test“, verwendet `com.andrin.examcountdown.preview`
-und die Version `1.6.15-beta.1` (Code 24). Android 8 oder neuer ist erforderlich.
+und die Version `1.6.15-beta.2` (Code 25). Android 8 oder neuer ist erforderlich.
 Die eigene Paketkennung ermöglicht eine Installation neben der bisherigen App;
 Kalender, PIN und Daten sind getrennt. Die Testversion ist mit dem Android-Testschlüssel
 signiert und ersetzt keine mit dem Produktionsschlüssel signierte Installation.
@@ -36,7 +36,10 @@ signiert und ersetzt keine mit dem Produktionsschlüssel signierte Installation.
 APK auf dem Handy herunterladen und öffnen. Falls Android danach fragt, für den
 verwendeten Browser die Installation aus dieser Quelle erlauben. In der Test-App
 anschließend den Kalender verbinden oder über `Optionen -> Daten` eine bestehende
-App-Sicherung importieren. Bestehende App-Daten werden nicht automatisch übernommen.
+App-Sicherung importieren. Bestehende App-Daten werden nicht automatisch übernommen. Diese APK kann die vorherige
+Test-APK 1.6.15-beta.1 mit demselben Testschlüssel aktualisieren; die Test-App-Daten bleiben erhalten.
+
+[Widget-Vorschauen und Prüfumfang](docs/widget-overhaul.md) · [Testversion 1.6.15-beta.2](docs/releases/1.6.15-beta.2.md)
 
 ## Ersteinrichtung
 1. App starten.
