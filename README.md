@@ -20,6 +20,24 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 4. APK installieren.
 5. Falls nötig: Berechtigung für "Unbekannte Apps installieren" aktivieren.
 
+## Testversion parallel installieren
+
+```bash
+./gradlew :app:testDebugUnitTest :app:lintPreview :app:assemblePreview --no-daemon
+```
+
+Die Preview-APK liegt unter `.build/app/outputs/apk/preview/app-preview.apk`.
+Sie heißt „Prüfungs-Countdown Test“, verwendet `com.andrin.examcountdown.preview`
+und die Version `1.6.15-beta.1` (Code 24). Android 8 oder neuer ist erforderlich.
+Die eigene Paketkennung ermöglicht eine Installation neben der bisherigen App;
+Kalender, PIN und Daten sind getrennt. Die Testversion ist mit dem Android-Testschlüssel
+signiert und ersetzt keine mit dem Produktionsschlüssel signierte Installation.
+
+APK auf dem Handy herunterladen und öffnen. Falls Android danach fragt, für den
+verwendeten Browser die Installation aus dieser Quelle erlauben. In der Test-App
+anschließend den Kalender verbinden oder über `Optionen -> Daten` eine bestehende
+App-Sicherung importieren. Bestehende App-Daten werden nicht automatisch übernommen.
+
 ## Ersteinrichtung
 1. App starten.
 2. Beim Erststart iCal-Link einfügen (z. B. schulNetz).
