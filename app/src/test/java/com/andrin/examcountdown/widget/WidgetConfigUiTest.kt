@@ -4,6 +4,7 @@ import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.View
+import android.widget.TextView
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,9 +16,15 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.andrin.examcountdown.ui.theme.ExamCountdownTheme
+import com.andrin.examcountdown.R
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -44,6 +51,16 @@ class WidgetConfigUiTest {
         }
     }
 
+    private fun configNode(text: String): SemanticsNodeInteraction {
+        compose.onNodeWithTag("widget-config-list").performScrollToNode(hasText(text))
+        return compose.onNodeWithText(text).performScrollTo()
+    }
+
+    private fun managementNode(text: String, substring: Boolean = false): SemanticsNodeInteraction {
+        compose.onNodeWithTag("widget-settings-list").performScrollToNode(hasText(text, substring = substring))
+        return compose.onNodeWithText(text, substring = substring).performScrollTo()
+    }
+
     @Test fun configurationRestoresFiltersAndAppearanceAndSaveStaysVisibleOnNarrowPhone() {
         var saved: WidgetConfig? = null
         val restoration = StateRestorationTester(compose)
@@ -54,14 +71,14 @@ class WidgetConfigUiTest {
             }
         }
         screenshot("widget-config-light")
-        compose.onNodeWithText("Agenda").performClick()
-        compose.onNodeWithText("90 Tage").performScrollTo().performClick()
-        compose.onNodeWithText("Nach Typ").performScrollTo().performClick()
-        compose.onNodeWithText("Kompakte Ansicht").performScrollTo().performClick()
-        compose.onNodeWithText("Raum anzeigen").performScrollTo().performClick()
-        compose.onNodeWithText("Countdown anzeigen").performScrollTo().performClick()
+        configNode("Agenda").performClick()
+        configNode("90 Tage").performClick()
+        configNode("Nach Typ").performClick()
+        configNode("Kompakte Ansicht").performClick()
+        configNode("Raum anzeigen").performClick()
+        configNode("Countdown anzeigen").performClick()
         restoration.emulateSavedInstanceStateRestore()
-        compose.onNodeWithText("Kompakte Ansicht").performScrollTo().assertIsOn()
+        configNode("Kompakte Ansicht").assertIsOn()
         compose.onNodeWithText("Raum anzeigen").assertIsOff()
         compose.onNodeWithText("Speichern").assertIsDisplayed().performClick()
         assertEquals(WidgetConfig(WidgetMode.AGENDA, 90, WidgetSortMode.TYPE_THEN_TIME, true, false, false), saved)
@@ -78,7 +95,7 @@ class WidgetConfigUiTest {
                     { saved = true }, { cancelled = true })
             }
         }
-        compose.onNodeWithText("14 Tage").performScrollTo().assertIsSelected()
+        configNode("14 Tage").assertIsSelected()
         compose.onNodeWithText("Nach Typ").assertDoesNotExist()
         screenshot("widget-config-dark")
         compose.onNodeWithText("Abbrechen").assertIsDisplayed().performClick()
@@ -99,13 +116,15 @@ class WidgetConfigUiTest {
                 }
             }
         }
-        compose.onNodeWithText("Nächster Eintrag hinzufügen").performClick()
-        compose.onNodeWithText("Terminliste hinzufügen").performScrollTo().performClick()
-        assertEquals(WidgetKind.entries, added)
         screenshot("widget-management-light")
-        compose.onNodeWithText("Widget #42 einstellen").performScrollTo().performClick()
+        compose.onNodeWithText("Nächster Eintrag hinzufügen").performClick()
+        managementNode("Terminliste hinzufügen").performClick()
+        assertEquals(WidgetKind.entries, added)
+        screenshot("widget-management-list")
+        compose.onNodeWithTag("widget-settings-list").performScrollToNode(hasTestTag("edit-widget-42"))
+        compose.onNodeWithTag("edit-widget-42").performScrollTo().performClick()
         assertEquals(42, configured)
-        compose.onNodeWithText("Zurück").performScrollTo().performClick()
+        managementNode("Zurück").performClick()
         assertTrue(closed)
     }
 
@@ -114,7 +133,41 @@ class WidgetConfigUiTest {
             WidgetSettingsScreen(emptyList(), false, { fail("Pin unsupported") }, { fail("No widgets") }, {})
         } }
         compose.onNodeWithText("Nächster Eintrag hinzufügen").assertDoesNotExist()
-        compose.onNodeWithText("Zum Hinzufügen auf dem Startbildschirm lange drücken", substring = true).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Noch kein Widget hinzugefügt").performScrollTo().assertIsDisplayed()
+        managementNode("Zum Hinzufügen auf dem Startbildschirm lange drücken", substring = true).assertIsDisplayed()
+        managementNode("Noch kein Widget hinzugefügt").assertIsDisplayed()
+    }
+
+    @Test fun nativePreviewReflectsSourceAndAppearanceAndCannotLaunchExampleActions() {
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            renderedView = LocalView.current
+            ExamCountdownTheme { WidgetConfigScreen(WidgetConfig(), false, {}, {}) }
+        }
+        compose.runOnIdle {
+            val root = requireNotNull(renderedView)
+            assertEquals("Mathematik · Funktionen", root.findViewById<TextView>(R.id.nextExamTitle).text.toString())
+            assertFalse(root.findViewById<View>(R.id.nextWidgetConfigure).performClick())
+            assertFalse(root.findViewById<View>(R.id.widgetRoot).performClick())
+        }
+        screenshot("widget-config-next")
+        configNode("Agenda").performClick()
+        configNode("Vorschau · Beispiel")
+        compose.runOnIdle {
+            assertEquals("Englisch", requireNotNull(renderedView).findViewById<TextView>(R.id.nextExamTitle).text.toString())
+        }
+        configNode("Raum anzeigen").performClick()
+        configNode("Countdown anzeigen").performClick()
+        configNode("Vorschau · Beispiel")
+        compose.runOnIdle {
+            val root = requireNotNull(renderedView)
+            assertFalse(root.findViewById<TextView>(R.id.nextExamTime).text.contains("102"))
+            assertEquals(View.GONE, root.findViewById<View>(R.id.nextExamCountdown).visibility)
+        }
+        compose.onNodeWithText("Ausblenden").performClick()
+        compose.onNodeWithTag("widget-live-preview").assertDoesNotExist()
+        restoration.emulateSavedInstanceStateRestore()
+        compose.onNodeWithTag("widget-live-preview").assertDoesNotExist()
+        compose.onNodeWithText("Anzeigen").performClick()
+        compose.onNodeWithTag("widget-live-preview").assertIsDisplayed()
     }
 }

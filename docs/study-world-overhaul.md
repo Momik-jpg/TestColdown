@@ -21,7 +21,9 @@ barrierearmen Farbpaletten bleiben erhalten.
   und behält die Listen-/Kalender-/Wochenansicht bei.
 - In Prüfungen bleibt die Sortierung auch im einfachen Modus über „Filter“ erreichbar.
 - Einstellungen sind nach Kalender, Darstellung, Sicherheit, Daten und Hilfe
-  geordnet. Die Suche zeigt passende Aktionen über alle Kategorien hinweg und
+  geordnet. Kategorien haben eigene Icon-Flächen; aufgeklappte Aktionen stehen
+  als klare Zeilen mit Trennlinien in einer Gruppe. „Dein Setup“ fasst Verbinden und
+  Aktualisieren zusammen. Die Suche zeigt passende Aktionen über alle Kategorien hinweg und
   versteht auch „Backup“. Bestehende Aktionen verwenden dieselben Dialoge und
   gespeicherten Einstellungen wie zuvor. Schalter sind über die gesamte Zeile bedienbar.
 - Filter, Tab-Zustände und Noten-Eingaben bleiben beim Tabwechsel erhalten.
@@ -86,11 +88,11 @@ zusätzlich nötig; synthetische Oberflächentests beweisen keine externe Anbind
 ### Tatsächlich ausgeführt am 03.10.2026
 
 In Codex Cloud mit JDK 17, Android SDK 34 und Gradle 8.2:
-**109 Tests bestanden, keine Fehler oder Skips**. Kotlin-Kompilierung,
+**113 Tests bestanden, keine Fehler oder Skips**. Kotlin-Kompilierung,
 Android-Lint und Debug-APK-Build erfolgreich; `git diff --check` bestanden.
 Die Abdeckung umfasst die 60 ursprünglichen Tests, sieben Filter-/Zahleneingabe-
-Regressionen, 18 Compose-Tests, fünf Stundenplan-/Agenda-Regressionen sowie 19 Widget-Regressionen.
-Debug- und Preview-Lint: je 25 Warnungen, keine Fehler. APK-Build und Signaturprüfung bestanden.
+Regressionen, 18 Compose-Tests, fünf Stundenplan-/Agenda-Regressionen sowie 23 Widget-Regressionen.
+Debug- und Preview-Lint: je 32 Warnungen, keine Fehler. APK-Build und Signaturprüfung bestanden.
 Die Widget-Ansichten, Konfiguration und der lokale Kalenderpfad wurden ebenfalls geprüft;
 [Widget-Überarbeitung](widget-overhaul.md) beschreibt die Abnahme und ihre Grenzen.
 

@@ -16,4 +16,9 @@
     <string name="widget_preview_next">Lineare Funktionen</string>
     <string name="widget_preview_next_time">Mo 05.10. · 08:00 · Raum 204</string>
     <string name="widget_preview_countdown">in 2 Tagen</string>
+    <string name="widget_preview_number">2</string>
+    <string name="widget_preview_unit">TAGE</string>
+    <string name="widget_preview_day">06</string>
+    <string name="widget_preview_month">OKT</string>
+    <string name="widget_preview_row_time">08:00 · Raum 204</string>
 </resources>

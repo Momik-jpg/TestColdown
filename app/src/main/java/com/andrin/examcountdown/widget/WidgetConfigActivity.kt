@@ -14,14 +14,21 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Scaffold
-import com.andrin.examcountdown.ui.SettingToggleRow
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.ui.platform.testTag
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.ViewCompact
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -104,38 +111,45 @@ internal fun WidgetConfigScreen(
     var compact by rememberSaveable { mutableStateOf(initialConfig.compact) }
     var showLocation by rememberSaveable { mutableStateOf(initialConfig.showLocation) }
     var showCountdown by rememberSaveable { mutableStateOf(initialConfig.showCountdown) }
+    var previewExpanded by rememberSaveable { mutableStateOf(true) }
     val config = WidgetConfig(mode, windowDays, sortMode, compact, showLocation, showCountdown)
 
     Scaffold(bottomBar = {
-        Surface(tonalElevation = 3.dp) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Surface(shadowElevation = 6.dp) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("Abbrechen") }
                 Button(onClick = { onSave(config) }, modifier = Modifier.weight(1f)) { Text("Speichern") }
             }
         }
     }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("widget-config-list"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
-                Text("Widget einstellen", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                Text(if (isList) "Terminliste" else "Nächster Eintrag", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Widget einstellen", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(if (isList) "Deine Terminliste" else "Dein nächster Eintrag", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             item {
-                WidgetConfigCard("Vorschau · Beispiel") {
-                    Text(if (mode == WidgetMode.EXAMS) "Mathematik · Funktionen" else "Englisch", style = MaterialTheme.typography.titleMedium)
-                    Text("Mo · 08:00" + if (showLocation) " · Raum 204" else "", style = MaterialTheme.typography.bodySmall)
-                    if (showCountdown) Text("in 2 Tagen", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
-                    if (isList && !compact) {
-                        Text("${if (mode == WidgetMode.EXAMS) "Deutsch · Literatur" else "Projektabgabe"} · Di 10:15", style = MaterialTheme.typography.bodySmall)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text("Vorschau · Beispiel", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        androidx.compose.material3.TextButton(onClick = { previewExpanded = !previewExpanded }) {
+                            Text(if (previewExpanded) "Ausblenden" else "Anzeigen")
+                        }
+                    }
+                    if (previewExpanded) WidgetLivePreview(isList, config)
+                }
+            }
+            item {
+                WidgetSection("Inhalt", Icons.Outlined.CalendarToday) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WidgetChoice("Nur Prüfungen", "Fokus auf Prüfungen", Icons.Outlined.School,
+                            mode == WidgetMode.EXAMS, { mode = WidgetMode.EXAMS }, Modifier.weight(1f))
+                        WidgetChoice("Agenda", "Dein gesamter Plan", Icons.Outlined.CalendarToday,
+                            mode == WidgetMode.AGENDA, { mode = WidgetMode.AGENDA }, Modifier.weight(1f))
                     }
                 }
             }
             item {
-                WidgetConfigCard("Inhalt & Zeitraum") {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(mode == WidgetMode.EXAMS, { mode = WidgetMode.EXAMS }, label = { Text("Nur Prüfungen") })
-                        FilterChip(mode == WidgetMode.AGENDA, { mode = WidgetMode.AGENDA }, label = { Text("Agenda") })
-                    }
-                    Text("Agenda enthält auch Unterricht und Termine.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                WidgetSection("Zeitraum", Icons.Outlined.Schedule) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         (listOf(7, 30, 90, WIDGET_WINDOW_DAYS_ALL) + windowDays).distinct().sorted().forEach { days ->
                             FilterChip(windowDays == days, { windowDays = days }, label = { Text(if (days == WIDGET_WINDOW_DAYS_ALL) "Alle" else "$days Tage") })
@@ -144,7 +158,7 @@ internal fun WidgetConfigScreen(
                 }
             }
             if (isList) item {
-                WidgetConfigCard("Sortierung") {
+                WidgetSection("Sortierung", Icons.AutoMirrored.Outlined.Sort) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(sortMode == WidgetSortMode.TIME_ASC, { sortMode = WidgetSortMode.TIME_ASC }, label = { Text("Nach Zeit") })
                         FilterChip(sortMode == WidgetSortMode.TYPE_THEN_TIME, { sortMode = WidgetSortMode.TYPE_THEN_TIME }, label = { Text("Nach Typ") })
@@ -152,23 +166,15 @@ internal fun WidgetConfigScreen(
                 }
             }
             item {
-                WidgetConfigCard("Darstellung") {
-                    SettingToggleRow("Kompakte Ansicht", compact, { compact = it })
-                    SettingToggleRow("Raum anzeigen", showLocation, { showLocation = it })
-                    SettingToggleRow("Countdown anzeigen", showCountdown, { showCountdown = it })
-                    Text("Helligkeit folgt dem Handy. Größere Listen zeigen mehr Einträge.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                WidgetSection("Darstellung", Icons.Outlined.Tune) {
+                    WidgetAppearanceToggle("Kompakte Ansicht", "Weniger Höhe", Icons.Outlined.ViewCompact,
+                        compact, { compact = it })
+                    WidgetAppearanceToggle("Raum anzeigen", "Ort im Blick", Icons.Outlined.LocationOn,
+                        showLocation, { showLocation = it })
+                    WidgetAppearanceToggle("Countdown anzeigen", "Zeit bis zum Start", Icons.Outlined.Timer,
+                        showCountdown, { showCountdown = it })
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun WidgetConfigCard(title: String, content: @Composable () -> Unit) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            content()
         }
     }
 }

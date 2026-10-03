@@ -55,4 +55,23 @@ class WidgetPolicyTest {
         assertEquals(0, widgetRowLimit(100, false))
         assertEquals(10, widgetRowLimit(2000, false))
     }
+
+    @Test fun prominentCountdownUsesDaysHoursMinutesAndHonestRunningState() {
+        assertEquals(WidgetCountdown("1", "TAG"), widgetCountdown(item("tomorrow", 1440), now))
+        assertEquals(WidgetCountdown("2", "TAGE"), widgetCountdown(item("later", 2880), now))
+        assertEquals(WidgetCountdown("2", "STD"), widgetCountdown(item("soon", 120), now))
+        assertEquals(WidgetCountdown("35", "MIN"), widgetCountdown(item("soon", 35), now))
+        assertEquals(WidgetCountdown("Jetzt", ""), widgetCountdown(item("lesson", -5, WidgetItemKind.LESSON, 45), now))
+        assertEquals(WidgetCountdown("Heute", ""), widgetCountdown(item("day", -5, WidgetItemKind.EVENT, 1440).copy(isAllDay = true), now))
+    }
+
+    @Test fun dateRailDetailsRetainLessonEndAndOvernightDateWithoutRedundantStartDate() {
+        val lesson = item("lesson", 0, WidgetItemKind.LESSON, 45).copy(location = "204")
+        assertEquals("08:00–08:45 · 204", widgetTimeDetails(lesson, WidgetConfig()))
+        assertEquals("08:00–08:45", widgetTimeDetails(lesson, WidgetConfig(showLocation = false)))
+        val overnight = lesson.copy(startsAtEpochMillis = Instant.parse("2026-10-05T21:00:00Z").toEpochMilli(),
+            endsAtEpochMillis = Instant.parse("2026-10-06T01:00:00Z").toEpochMilli())
+        assertTrue(widgetTimeDetails(overnight, WidgetConfig()).contains("06.10"))
+        assertEquals("Ganztägig · 204", widgetTimeDetails(lesson.copy(isAllDay = true), WidgetConfig()))
+    }
 }

@@ -3,6 +3,10 @@ package com.andrin.examcountdown.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -115,14 +119,27 @@ internal fun SettingsContent(
         }
         if (!searching && expandedSection == null) {
             item("settings-shortcuts") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = { onAction(SettingsAction.CALENDAR) }, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Outlined.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text("Verbinden", modifier = Modifier.padding(start = 6.dp))
-                    }
-                    FilledTonalButton(onClick = { onAction(SettingsAction.SYNC_NOW) }, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text("Aktualisieren", modifier = Modifier.padding(start = 6.dp))
+                Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(Icons.Outlined.Tune, null, Modifier.size(30.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Column {
+                                Text("Dein Setup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text("Alles für deinen Schulalltag", style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilledTonalButton(onClick = { onAction(SettingsAction.CALENDAR) }, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.Outlined.CalendarToday, null, Modifier.size(18.dp))
+                                Text("Verbinden", modifier = Modifier.padding(start = 6.dp))
+                            }
+                            FilledTonalButton(onClick = { onAction(SettingsAction.SYNC_NOW) }, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.Outlined.Refresh, null, Modifier.size(18.dp))
+                                Text("Aktualisieren", modifier = Modifier.padding(start = 6.dp))
+                            }
+                        }
                     }
                 }
             }
@@ -132,9 +149,9 @@ internal fun SettingsContent(
             if (sectionOptions.isNotEmpty()) item("settings-${section.name}") {
                 val expanded = searching || expandedSection == section
                 Surface(
-                    shape = MaterialTheme.shapes.medium,
+                    shape = RoundedCornerShape(20.dp),
                     color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    border = BorderStroke(1.dp, if (expanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
                 ) {
                     Column {
                         Row(
@@ -147,9 +164,14 @@ internal fun SettingsContent(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(section.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Surface(shape = RoundedCornerShape(12.dp), color = if (expanded) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)) {
+                                Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                                    Icon(section.icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(section.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                Text(section.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                                 Text(section.hint, style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
@@ -164,11 +186,7 @@ internal fun SettingsContent(
                                 if (option == SettingsAction.SYNC_STATUS) {
                                     SettingToggleRow(option.title, showSyncStatusStrip, onShowSyncStatusStripChange)
                                 } else {
-                                    QuickActionTile(
-                                        text = option.title, subtitle = option.hint, icon = option.icon,
-                                        showAlertBadge = option == SettingsAction.CHANGELOG && hasUnseenChangelog,
-                                        onClick = { onAction(option) }
-                                    )
+                                    SettingsActionRow(option, option == SettingsAction.CHANGELOG && hasUnseenChangelog) { onAction(option) }
                                 }
                             }
                         }
@@ -180,6 +198,26 @@ internal fun SettingsContent(
             Text("Keine passende Einstellung. Suche nach Kalender, PIN oder Sicherung.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(12.dp))
+        }
+    }
+}
+
+@Composable
+private fun SettingsActionRow(option: SettingsAction, showAlert: Boolean, onClick: () -> Unit) {
+    Column {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+        Row(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(horizontal = 6.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(option.icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(option.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(option.hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (showAlert) Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                Text("Neu", modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

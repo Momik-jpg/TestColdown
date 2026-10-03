@@ -39,14 +39,15 @@ class WidgetNativeTest {
         WidgetTimelineItem("history", "Geschichte · Europa", now + 259_200_000, now + 259_200_000, WidgetItemKind.EXAM, "Aula")
     )
 
-    private fun options(height: Int) = Bundle().apply {
+    private fun options(height: Int, width: Int = 320) = Bundle().apply {
         putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, height)
         putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, height + 300)
+        putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, width)
     }
 
     private fun render(list: Boolean, height: Int, width: Int = 320, config: WidgetConfig = WidgetConfig(WidgetMode.AGENDA), empty: Boolean = false): View {
-        val views = if (list) WidgetPresentation.list(context, 42, config, if (empty) emptyList() else items, options(height), now)
-        else WidgetPresentation.next(context, 42, config, if (empty) null else items.first(), options(height), now)
+        val views = if (list) WidgetPresentation.list(context, 42, config, if (empty) emptyList() else items, options(height, width), now)
+        else WidgetPresentation.next(context, 42, config, if (empty) null else items.first(), options(height, width), now)
         val view = views.apply(context, FrameLayout(context))
         val density = context.resources.displayMetrics.density
         view.measure(View.MeasureSpec.makeMeasureSpec((width * density).toInt(), View.MeasureSpec.EXACTLY),
@@ -160,5 +161,23 @@ class WidgetNativeTest {
         assertFalse(isOwnWidget(context, 999))
         val component = ComponentName(context, WidgetConfigActivity::class.java)
         assertTrue(context.packageManager.getActivityInfo(component, 0).exported)
+    }
+
+    @Test fun dateColumnAndProminentCountdownKeepRealContentAndAdaptToNarrowSpace() {
+        val list = render(true, 440)
+        val row = list.findViewById<ViewGroup>(R.id.listRows).getChildAt(0)
+        assertEquals("06", row.findViewById<TextView>(R.id.widgetRowDay).text.toString())
+        assertEquals("OKT", row.findViewById<TextView>(R.id.widgetRowMonth).text.toString())
+        assertTrue(row.findViewById<TextView>(R.id.widgetRowDetails).text.startsWith("08:00"))
+        val next = render(false, 240)
+        assertEquals("1", next.findViewById<TextView>(R.id.nextExamCountdown).text.toString())
+        assertEquals("TAG", next.findViewById<TextView>(R.id.nextCountdownUnit).text.toString())
+        val narrow = render(false, 240, 220)
+        assertNull(narrow.findViewById<View>(R.id.nextCountdownBox))
+        assertEquals("in 1 Tag", narrow.findViewById<TextView>(R.id.nextExamCountdown).text.toString())
+        screenshot(narrow, "widget-next-narrow")
+        val compact = render(true, 320, config = WidgetConfig(WidgetMode.AGENDA, compact = true))
+        val rows = compact.findViewById<ViewGroup>(R.id.listRows)
+        assertTrue(rows.getChildAt(rows.childCount - 1).bottom <= rows.height)
     }
 }

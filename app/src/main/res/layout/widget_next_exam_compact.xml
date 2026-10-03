@@ -51,69 +51,47 @@
         android:src="@drawable/widget_refresh_focus"
         android:contentDescription="@string/widget_refresh" />
         </LinearLayout>
-        <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-            <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical">
-                <TextView
+        <TextView
         android:id="@+id/nextExamTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
         android:text="@string/widget_preview_next"
-        android:textSize="22sp"
+        android:textSize="21sp"
         android:textStyle="bold"
         android:maxLines="2"
         android:ellipsize="end"
         android:textColor="@color/widget_focus_text" />
-                <TextView
+        <TextView
         android:id="@+id/nextExamTime"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="6dp"
         android:text="@string/widget_preview_next_time"
         android:textSize="12sp"
         android:maxLines="2"
         android:ellipsize="end"
         android:textColor="@color/widget_focus_muted" />
-            </LinearLayout>
-            <LinearLayout
-        android:id="@+id/nextCountdownBox"
-        android:layout_width="80dp"
-        android:layout_height="88dp"
-        android:layout_marginStart="12dp"
-        android:background="@drawable/widget_focus_badge"
-        android:orientation="vertical"
-        android:gravity="center">
-                <TextView
+        <TextView
         android:id="@+id/nextExamCountdown"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/widget_preview_number"
-        android:textSize="40sp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/widget_focus_badge"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:paddingTop="5dp"
+        android:paddingBottom="5dp"
+        android:text="@string/widget_preview_countdown"
+        android:textSize="13sp"
         android:textStyle="bold"
-        android:gravity="center"
-        android:includeFontPadding="false"
+        android:singleLine="true"
+        android:ellipsize="end"
         android:textColor="@color/widget_focus_text" />
-                <TextView
-        android:id="@+id/nextCountdownUnit"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="@string/widget_preview_unit"
-        android:textSize="11sp"
-        android:textStyle="bold"
-        android:letterSpacing="0.08"
-        android:gravity="center"
-        android:textColor="@color/widget_focus_muted" />
-            </LinearLayout>
-        </LinearLayout>
+        <TextView
+        android:layout_width="1dp"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
         <TextView
         android:id="@+id/nextWidgetOpenTimetable"
         android:layout_width="match_parent"

@@ -16,7 +16,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -72,35 +84,58 @@ class WidgetSettingsActivity : ComponentActivity() {
 
 @Composable
 internal fun WidgetSettingsScreen(widgets: List<InstalledWidget>, canPin: Boolean, onAdd: (WidgetKind) -> Unit, onConfigure: (Int) -> Unit, onBack: () -> Unit) {
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("widget-settings-list"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Widgets", style = MaterialTheme.typography.headlineSmall)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Widgets", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 OutlinedButton(onClick = onBack) { Text("Zurück") }
             }
-            Text("Dein Plan auf dem Startbildschirm", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Dein Tag. Direkt auf dem Startbildschirm.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         WidgetKind.entries.forEach { kind -> item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(kind.title, style = MaterialTheme.typography.titleMedium)
-                    Text(kind.hint, style = MaterialTheme.typography.bodyMedium)
-                    if (canPin) Button(onClick = { onAdd(kind) }) { Text("${kind.title} hinzufügen") }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                        Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                            Icon(if (kind == WidgetKind.NEXT) Icons.Outlined.Timer else Icons.Outlined.CalendarToday,
+                                null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        }
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(kind.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(kind.hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                WidgetLivePreview(kind == WidgetKind.LIST, WidgetConfig(mode = if (kind == WidgetKind.LIST) WidgetMode.AGENDA else WidgetMode.EXAMS))
+                if (canPin) Button(onClick = { onAdd(kind) }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.Add, null, Modifier.size(18.dp))
+                    Text("${kind.title} hinzufügen", modifier = Modifier.padding(start = 8.dp))
                 }
             }
         } }
         item {
-            Text("Nach dem Hinzufügen: Zahnrad im Widget antippen. Inhalt, Zeitraum und Darstellung lassen sich je Widget einstellen.", style = MaterialTheme.typography.bodyMedium)
-            if (!canPin) Text("Zum Hinzufügen auf dem Startbildschirm lange drücken → Widgets → Prüfungs-Countdown.", style = MaterialTheme.typography.bodyMedium)
-            Text("Deine Widgets · ${widgets.size}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 12.dp))
-            if (widgets.isEmpty()) Text("Noch kein Widget hinzugefügt", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)) {
+                Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Outlined.Tune, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    Text(if (canPin) "Nach dem Hinzufügen über das Zahnrad einstellen." else
+                        "Zum Hinzufügen auf dem Startbildschirm lange drücken → Widgets → Prüfungs-Countdown.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Text("Deine Widgets · ${widgets.size}", style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 20.dp))
+            if (widgets.isEmpty()) Text("Noch kein Widget hinzugefügt", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
         }
-        widgets.forEach { widget -> item(key = widget.id) {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${widget.kind.title} · #${widget.id}", style = MaterialTheme.typography.titleSmall)
-                    Text(widgetHeaderLabel(widget.config), style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = { onConfigure(widget.id) }) { Text("Widget #${widget.id} einstellen") }
+        widgets.forEachIndexed { index, widget -> item(key = widget.id) {
+            Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("${widget.kind.title} · ${index + 1}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(widgetHeaderLabel(widget.config), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    OutlinedButton(onClick = { onConfigure(widget.id) }, modifier = Modifier.testTag("edit-widget-${widget.id}")) { Text("Einstellen") }
                 }
             }
         } }
