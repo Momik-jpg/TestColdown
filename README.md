@@ -3,8 +3,9 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 
 ## Funktionen
 - `Prüfungen`: Suche, Filter, Sortierung, Countdown und Kollisionsprüfung.
-- `Stundenplan`: Lektionen inkl. Verschiebungen, Ausfällen und Raumänderungen.
-- `Events`: Zeitachsen-Ansicht mit Filtern (`Alles`, `Prüfungen`, `Lektionen`, `Events`).
+- `Stundenplan`: Fach-/Raumsuche, Liste/Woche und Filter für Verschiebungen, Ausfälle und Raumänderungen.
+- `Agenda`: Liste, Kalender und Tagesansicht mit Filtern für Prüfungen, Unterricht und Termine.
+- `Optionen`: durchsuchbare Einstellungen für Kalender, Darstellung, Sicherheit, Daten und Hilfe.
 - `Notenrechner`: Durchschnitt, Zielnote und Noten-Punkte-Rechner.
 - `Sync-Diagnose`: Status, Dauer, HTTP-Code, Delta-Status und Import-Zahlen.
 - `Delta-Sync`: `ETag` und `Last-Modified` zur Reduktion von Datenverkehr.

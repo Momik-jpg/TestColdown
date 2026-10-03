@@ -156,6 +156,7 @@ class StudyWorldUiTest {
         }
         compose.onNodeWithText("Prüfungen").assertIsSelected()
         compose.onNodeWithText("Noten").performClick().assertIsSelected()
+        compose.onNodeWithText("Optionen").performClick().assertIsSelected()
     }
 
     @Test fun compactTimetableKeepsRoomsChangesAndViewControls() {
@@ -178,7 +179,8 @@ class StudyWorldUiTest {
         compose.onNodeWithText("Raum geändert").assertIsDisplayed()
         screenshot("timetable-light")
         compose.onNodeWithText("Filter").performClick()
-        compose.onNodeWithText("Raumwechsel").performClick().assertIsSelected()
+        compose.onNodeWithText("Raumwechsel").performClick()
+        compose.onNodeWithContentDescription("Filter Raumwechsel entfernen").assertIsSelected()
         compose.onNodeWithText("Zurücksetzen").performClick()
         compose.onNodeWithText("Alle").assertIsSelected()
         compose.onNodeWithText("Schließen").performClick()

@@ -55,6 +55,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.ui.AppTextField
+import com.andrin.examcountdown.ui.ActiveFilterChip
+import com.andrin.examcountdown.ui.FilterControls
 import com.andrin.examcountdown.R
 import com.andrin.examcountdown.ui.ExamPresentation
 import com.andrin.examcountdown.util.CollisionSource
@@ -332,6 +334,7 @@ internal fun ExamCollisionOverviewCard(
 
 @Composable
 internal fun ExamSearchAndFilterCard(
+    resultCount: Int,
     query: String,
     onQueryChange: (String) -> Unit,
     selectedSubject: String,
@@ -346,6 +349,8 @@ internal fun ExamSearchAndFilterCard(
     onReset: () -> Unit
 ) {
     var showExtendedFilters by rememberSaveable(simpleModeEnabled) { mutableStateOf(false) }
+    val activeCount = listOf(query.isNotBlank(), selectedSubject != SUBJECT_FILTER_ALL,
+        selectedWindow != ExamWindowFilter.ALL, selectedSortMode != ExamSortMode.NEXT_FIRST).count { it }
     val chipColors = FilterChipDefaults.filterChipColors(
         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
         selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -397,18 +402,26 @@ internal fun ExamSearchAndFilterCard(
                     }
                 }
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Zeitraum",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(onClick = { showExtendedFilters = !showExtendedFilters }) {
-                    Text(if (showExtendedFilters) "Schließen" else if (showSortOptions) "Filter" else "Filter")
+            FilterControls(
+                resultLabel = "$resultCount ${if (resultCount == 1) "Prüfung" else "Prüfungen"}",
+                activeCount = activeCount,
+                expanded = showExtendedFilters,
+                onToggle = { showExtendedFilters = !showExtendedFilters },
+                onReset = onReset
+            )
+            if (activeCount > 0) {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (query.isNotBlank()) ActiveFilterChip("Suche: ${query.trim()}") { onQueryChange("") }
+                    if (selectedSubject != SUBJECT_FILTER_ALL) ActiveFilterChip(selectedSubject) {
+                        onSubjectSelected(SUBJECT_FILTER_ALL)
+                    }
+                    if (selectedWindow != ExamWindowFilter.ALL) ActiveFilterChip(selectedWindow.title) {
+                        onWindowSelected(ExamWindowFilter.ALL)
+                    }
+                    if (selectedSortMode != ExamSortMode.NEXT_FIRST) ActiveFilterChip(selectedSortMode.title) {
+                        onSortModeSelected(ExamSortMode.NEXT_FIRST)
+                    }
                 }
             }
             Row(
@@ -469,12 +482,6 @@ internal fun ExamSearchAndFilterCard(
                             colors = chipColors
                         )
                     }
-                }
-            }
-            if (query.isNotBlank() || selectedSubject != SUBJECT_FILTER_ALL ||
-                selectedWindow != ExamWindowFilter.ALL || selectedSortMode != ExamSortMode.NEXT_FIRST) {
-                TextButton(onClick = onReset, modifier = Modifier.align(Alignment.End)) {
-                    Text("Zurücksetzen")
                 }
             }
         }

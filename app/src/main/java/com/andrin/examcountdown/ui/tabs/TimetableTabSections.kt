@@ -65,6 +65,7 @@ import com.andrin.examcountdown.util.formatCompactDay
 import com.andrin.examcountdown.util.formatDayHeader
 import com.andrin.examcountdown.util.formatExamDateShort
 import com.andrin.examcountdown.util.formatTimeRange
+import java.util.Locale
 import java.time.Instant
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -181,14 +182,14 @@ internal fun TimetableWeekGrid(
             .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
             .plusWeeks(weekOffset.toLong())
     }
-    val weekdays = remember(weekStart) {
-        (0..4).map { index -> weekStart.plusDays(index.toLong()) }
+    val weekdays = remember(weekStart, groupedLessons) {
+        timetableWeekDates(weekStart, groupedLessons)
     }
     val weekScroll = rememberScrollState()
     val density = LocalDensity.current
-    LaunchedEffect(weekStart, density) {
+    LaunchedEffect(weekStart, density, weekdays.size) {
         val dayIndex = if (weekOffset == 0) {
-            (LocalDate.now(schoolZone).dayOfWeek.value - 1).coerceIn(0, 4)
+            (LocalDate.now(schoolZone).dayOfWeek.value - 1).coerceIn(0, weekdays.lastIndex)
         } else 0
         weekScroll.scrollTo(with(density) { (dayIndex * 184).dp.roundToPx() })
     }
@@ -712,16 +713,30 @@ internal fun mergeConsecutiveLessons(
     return result
 }
 
+/** Keep the usual five-day grid compact while retaining actual weekend lessons. */
+internal fun timetableWeekDates(
+    weekStart: LocalDate,
+    groupedLessons: Map<LocalDate, List<TimetableLessonBlock>>
+): List<LocalDate> {
+    val hasWeekendLessons = (5..6).any { groupedLessons[weekStart.plusDays(it.toLong())].orEmpty().isNotEmpty() }
+    return (0..(if (hasWeekendLessons) 6 else 4)).map { weekStart.plusDays(it.toLong()) }
+}
+
 internal fun filterTimetableBlocks(
     lessons: List<TimetableLessonBlock>,
     filter: TimetableFilter,
-    schoolZone: ZoneId
+    schoolZone: ZoneId,
+    query: String = ""
 ): List<TimetableLessonBlock> {
     if (lessons.isEmpty()) return emptyList()
 
     val today = LocalDate.now(schoolZone)
+    val normalized = query.trim().lowercase(Locale.ROOT)
     return lessons.filter { lesson ->
-        when (filter) {
+        val matchesQuery = normalized.isEmpty() || listOf(formatLessonDisplayTitle(lesson.title),
+            lesson.location.orEmpty(), lesson.originalLocation.orEmpty())
+            .joinToString(" ").lowercase(Locale.ROOT).contains(normalized)
+        matchesQuery && when (filter) {
             TimetableFilter.ALL -> true
             TimetableFilter.ONLY_TODAY -> {
                 val lessonDay = Instant.ofEpochMilli(lesson.startsAtEpochMillis)
@@ -788,8 +803,6 @@ internal fun TimetableEmptyState(
         }
     }
 }
-
-@Composable
 
 internal fun formatLessonDisplayTitle(raw: String): String {
     var text = raw

@@ -51,7 +51,9 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material.icons.outlined.MoreVert
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.School
@@ -180,7 +182,8 @@ enum class HomeTab(
     EXAMS("Prüfungen", "Prüfungen", "exams", Icons.Outlined.School),
     TIMETABLE("Stundenplan", "Plan", "timetable", Icons.Outlined.Schedule),
     EVENTS("Agenda", "Agenda", "events", Icons.Outlined.CalendarToday),
-    GRADES("Notenrechner", "Noten", "grades", Icons.Outlined.Calculate);
+    GRADES("Notenrechner", "Noten", "grades", Icons.Outlined.Calculate),
+    SETTINGS("Einstellungen", "Optionen", "settings", Icons.Outlined.Settings);
 
     companion object {
         fun fromRoute(route: String?): HomeTab {
@@ -272,7 +275,6 @@ fun ExamCountdownScreen(
     var showOnboardingDialog by rememberSaveable { mutableStateOf(false) }
     var showReminderSettingsDialog by rememberSaveable { mutableStateOf(false) }
     var showSyncSettingsDialog by rememberSaveable { mutableStateOf(false) }
-    var showQuickActionsDialog by rememberSaveable { mutableStateOf(false) }
     var showPersonalizationDialog by rememberSaveable { mutableStateOf(false) }
     var showAppLockDialog by rememberSaveable { mutableStateOf(false) }
     var showHelpDialog by rememberSaveable { mutableStateOf(false) }
@@ -295,6 +297,7 @@ fun ExamCountdownScreen(
     var onboardingInfoMessage by rememberSaveable { mutableStateOf("") }
     var isSyncingIcal by rememberSaveable { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(initialTab) }
+    var lastContentTab by rememberSaveable { mutableStateOf(HomeTab.EXAMS) }
     var appLockInitialized by rememberSaveable { mutableStateOf(false) }
     var isAppUnlocked by rememberSaveable { mutableStateOf(false) }
     var biometricAutoPromptConsumed by rememberSaveable { mutableStateOf(false) }
@@ -453,6 +456,7 @@ fun ExamCountdownScreen(
             if (showTimetableTab) add(HomeTab.TIMETABLE)
             if (showAgendaTab) add(HomeTab.EVENTS)
             add(HomeTab.GRADES)
+            add(HomeTab.SETTINGS)
         }
     }
 
@@ -726,75 +730,57 @@ fun ExamCountdownScreen(
         )
     }
 
-    if (showQuickActionsDialog) {
-        QuickActionsDialog(
-            showSyncStatusStrip = showSyncStatusStrip,
-            onDismiss = { showQuickActionsDialog = false },
-            onSyncNow = {
-                showQuickActionsDialog = false
+    val onSettingsAction: (SettingsAction) -> Unit = { action ->
+        when (action) {
+            SettingsAction.SYNC_NOW -> {
                 triggerManualRefresh()
-            },
-            onShowSyncStatusStripChange = { enabled ->
-                viewModel.setShowSyncStatusStrip(enabled)
-            },
-            onOpenReminderSettings = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.REMINDERS -> {
                 showReminderSettingsDialog = true
-            },
-            onOpenSyncSettings = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.SYNC_OPTIONS -> {
                 showSyncSettingsDialog = true
-            },
-            onOpenIcalImport = {
+            }
+            SettingsAction.CALENDAR -> {
                 iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
                 iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
                 importEventsToggle = importEventsEnabled
-                showQuickActionsDialog = false
                 showIcalDialog = true
-            },
-            onOpenHelp = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.HELP -> {
                 showHelpDialog = true
-            },
-            onOpenPrivacy = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.PRIVACY -> {
                 showPrivacyDialog = true
-            },
-            onOpenSyncDiagnostics = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.DIAGNOSTICS -> {
                 showSyncDiagnosticsDialog = true
-            },
-            onOpenExport = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.EXPORT -> {
                 showExportDialog = true
-            },
-            onOpenChangelog = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.CHANGELOG -> {
                 viewModel.setLastSeenVersion(BuildConfig.VERSION_NAME)
                 showChangelogDialog = true
-            },
-            onOpenPersonalization = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.PERSONALIZE -> {
                 showPersonalizationDialog = true
-            },
-            onOpenAppLock = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.APP_LOCK -> {
                 showAppLockDialog = true
-            },
-            onExportBackup = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.BACKUP_EXPORT -> {
                 backupExportPassword = ""
                 backupExportAllowUnencrypted = false
                 backupExportUnencryptedWarningConfirmed = false
                 showBackupExportUnencryptedWarningDialog = false
                 showBackupExportDialog = true
-            },
-            onImportBackup = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.BACKUP_IMPORT -> {
                 importBackupLauncher.launch(arrayOf("application/json", "text/plain"))
-            },
-            hasUnseenChangelog = hasUnseenChangelog
-        )
+            }
+            SettingsAction.SYNC_STATUS -> Unit // The dedicated switch handles this preference.
+        }
     }
 
     if (showAppLockDialog) {
@@ -1117,6 +1103,15 @@ fun ExamCountdownScreen(
         )
     }
 
+    val closeSettings = {
+        selectedTab = lastContentTab.takeIf { it in visibleTabs && it != HomeTab.SETTINGS } ?: HomeTab.EXAMS
+    }
+    val selectTab: (HomeTab) -> Unit = { tab ->
+        if (tab == HomeTab.SETTINGS && selectedTab != HomeTab.SETTINGS) lastContentTab = selectedTab
+        selectedTab = tab
+    }
+    BackHandler(enabled = selectedTab == HomeTab.SETTINGS) { closeSettings() }
+
     val tabStateHolder = rememberSaveableStateHolder()
     val scheme = MaterialTheme.colorScheme
     val backgroundBrush = remember(scheme.background) {
@@ -1146,6 +1141,11 @@ fun ExamCountdownScreen(
                     ) {
                         Column {
                             TopAppBar(
+                                navigationIcon = {
+                                    if (selectedTab == HomeTab.SETTINGS) IconButton(onClick = closeSettings) {
+                                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Zurück")
+                                    }
+                                },
                                 title = {
                                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Text(
@@ -1156,7 +1156,7 @@ fun ExamCountdownScreen(
                                     }
                                 },
                                 actions = {
-                                    if (selectedTab != HomeTab.GRADES) {
+                                    if (selectedTab != HomeTab.GRADES && selectedTab != HomeTab.SETTINGS) {
                                         FilledTonalIconButton(
                                             enabled = !isSyncingIcal,
                                             onClick = triggerManualRefresh,
@@ -1180,21 +1180,23 @@ fun ExamCountdownScreen(
                                             }
                                         }
                                     }
-                                    FilledTonalIconButton(
-                                        onClick = {
-                                            showQuickActionsDialog = true
-                                        },
-                                        colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
-                                            containerColor = MaterialTheme.colorScheme.surface.copy(
-                                                alpha = if (isDarkMode) 0.32f else 0.84f
-                                            ),
-                                            contentColor = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.MoreVert,
-                                            contentDescription = "Mehr Aktionen"
-                                        )
+                                    if (selectedTab != HomeTab.SETTINGS) {
+                                        FilledTonalIconButton(
+                                            onClick = {
+                                                selectTab(HomeTab.SETTINGS)
+                                            },
+                                            colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
+                                                containerColor = MaterialTheme.colorScheme.surface.copy(
+                                                    alpha = if (isDarkMode) 0.32f else 0.84f
+                                                ),
+                                                contentColor = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Settings,
+                                                contentDescription = "Einstellungen öffnen"
+                                            )
+                                        }
                                     }
                                 },
                                 colors = TopAppBarDefaults.topAppBarColors(
@@ -1223,7 +1225,7 @@ fun ExamCountdownScreen(
             HomeNavigationBar(
                 visibleTabs = visibleTabs,
                 selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it }
+                onTabSelected = selectTab
             )
         },
         floatingActionButton = {
@@ -1352,6 +1354,12 @@ fun ExamCountdownScreen(
                         }
                     )
 
+                    HomeTab.SETTINGS -> SettingsContent(
+                        showSyncStatusStrip = showSyncStatusStrip,
+                        hasUnseenChangelog = hasUnseenChangelog,
+                        onShowSyncStatusStripChange = viewModel::setShowSyncStatusStrip,
+                        onAction = onSettingsAction
+                    )
                     HomeTab.GRADES -> GradesTabContent(
                         state = gradesTabUiState,
                         modifier = Modifier

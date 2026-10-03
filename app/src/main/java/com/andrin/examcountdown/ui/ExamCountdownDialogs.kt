@@ -1,6 +1,7 @@
 package com.andrin.examcountdown.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -177,7 +179,9 @@ internal fun SettingToggleRow(
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().toggleable(
+            value = checked, role = Role.Switch, onValueChange = onCheckedChange
+        ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -186,12 +190,11 @@ internal fun SettingToggleRow(
             modifier = Modifier
                 .weight(1f)
                 .padding(end = 12.dp),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+            // Let long labels wrap rather than hiding the setting's meaning.
         )
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange
+            onCheckedChange = null
         )
     }
 }

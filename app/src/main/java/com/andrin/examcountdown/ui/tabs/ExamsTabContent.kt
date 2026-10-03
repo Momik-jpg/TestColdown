@@ -219,6 +219,23 @@ fun ExamsTabContent(
         item("study-world") {
             StudyWorldHeader("Deine Prüfungen", "Nächste Prüfung & Lernplan", illustrated = true)
         }
+        item {
+            ExamSearchAndFilterCard(
+                resultCount = filteredExams.size,
+                query = filters.query,
+                onQueryChange = { filters = filters.copy(query = it) },
+                selectedSubject = filters.subject,
+                subjects = subjectOptions,
+                onSubjectSelected = { filters = filters.copy(subject = it) },
+                selectedWindow = filters.window,
+                onWindowSelected = { filters = filters.copy(window = it) },
+                simpleModeEnabled = simpleModeEnabled,
+                showSortOptions = true,
+                selectedSortMode = filters.sort,
+                onSortModeSelected = { filters = filters.copy(sort = it) },
+                onReset = { filters = ExamFilters() }
+            )
+        }
         nextExam?.let { exam ->
             item("next-exam-${exam.id}") {
                 NextExamHero(
@@ -256,22 +273,7 @@ fun ExamsTabContent(
                 )
             }
         }
-        item {
-            ExamSearchAndFilterCard(
-                query = filters.query,
-                onQueryChange = { filters = filters.copy(query = it) },
-                selectedSubject = filters.subject,
-                subjects = subjectOptions,
-                onSubjectSelected = { filters = filters.copy(subject = it) },
-                selectedWindow = filters.window,
-                onWindowSelected = { filters = filters.copy(window = it) },
-                simpleModeEnabled = simpleModeEnabled,
-                showSortOptions = !simpleModeEnabled,
-                selectedSortMode = filters.sort,
-                onSortModeSelected = { filters = filters.copy(sort = it) },
-                onReset = { filters = ExamFilters() }
-            )
-        }
+
         if (!simpleModeEnabled) {
             item {
                 ExamInsightsCard(

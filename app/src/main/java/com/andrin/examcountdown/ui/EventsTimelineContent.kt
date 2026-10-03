@@ -71,7 +71,6 @@ import com.andrin.examcountdown.ui.theme.AppDimens
 import com.andrin.examcountdown.util.SchoolTime
 import com.andrin.examcountdown.util.formatCountdown
 import com.andrin.examcountdown.util.formatExamDateShort
-import com.andrin.examcountdown.util.formatTimeRange
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -81,10 +80,10 @@ import java.util.Calendar
 import java.util.Locale
 
 private enum class CalendarSourceFilter(val title: String) {
-    ALL("Alles"),
-    EXAMS_ONLY("Nur Prüfungen"),
-    LESSONS_ONLY("Nur Lektionen"),
-    EVENTS_ONLY("Nur Events")
+    ALL("Alle"),
+    EXAMS_ONLY("Prüfungen"),
+    LESSONS_ONLY("Unterricht"),
+    EVENTS_ONLY("Termine")
 }
 
 private enum class AgendaLayoutMode(val title: String) {
@@ -122,10 +121,9 @@ private const val AGENDA_MONTH_DAY_CELL_ASPECT_RATIO = 0.80f
 
 internal fun hasActiveAgendaFilters(
     searchQuery: String,
-    sourceFilterIsAll: Boolean,
-    layoutModeIsMonth: Boolean
+    sourceFilterIsAll: Boolean
 ): Boolean {
-    return searchQuery.isNotBlank() || !sourceFilterIsAll || !layoutModeIsMonth
+    return searchQuery.isNotBlank() || !sourceFilterIsAll
 }
 
 internal fun shouldShowEnableEventImportAction(
@@ -245,7 +243,7 @@ fun EventsTimelineContent(
 
     val filteredItems = remember(items, sourceFilter, searchQuery) {
         val now = SchoolTime.nowMillis()
-        val query = searchQuery.trim().lowercase()
+        val query = searchQuery.trim().lowercase(Locale.ROOT)
 
         items.filter { item ->
             val matchesSource = when (sourceFilter) {
@@ -260,7 +258,7 @@ fun EventsTimelineContent(
                 item.title,
                 item.subtitle,
                 item.location.orEmpty()
-            ).joinToString(" ").lowercase().contains(query)
+            ).joinToString(" ").lowercase(Locale.ROOT).contains(query)
 
             matchesSource && matchesWindow && matchesQuery
         }
@@ -359,6 +357,25 @@ fun EventsTimelineContent(
                         }
                     )
 
+                    val activeCount = (if (searchQuery.isNotBlank()) 1 else 0) +
+                        (if (sourceFilter != CalendarSourceFilter.ALL) 1 else 0)
+                    FilterControls(
+                        resultLabel = "${filteredItems.size} " + if (filteredItems.size == 1) "Eintrag" else "Einträge",
+                        activeCount = activeCount,
+                        expanded = showAdvancedFilters,
+                        onToggle = { showAdvancedFilters = !showAdvancedFilters },
+                        onReset = { searchQuery = ""; sourceFilter = CalendarSourceFilter.ALL }
+                    )
+                    if (hasActiveAgendaFilters(searchQuery, sourceFilter == CalendarSourceFilter.ALL)) {
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (searchQuery.isNotBlank()) ActiveFilterChip(searchQuery.trim()) { searchQuery = "" }
+                            if (sourceFilter != CalendarSourceFilter.ALL) ActiveFilterChip(sourceFilter.title) {
+                                sourceFilter = CalendarSourceFilter.ALL
+                            }
+                        }
+                    }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -372,9 +389,6 @@ fun EventsTimelineContent(
                                 selected = layoutMode == mode,
                                 onClick = { layoutMode = mode }
                             )
-                        }
-                        TextButton(onClick = { showAdvancedFilters = !showAdvancedFilters }) {
-                            Text(if (showAdvancedFilters) "Schließen" else "Filter")
                         }
                     }
 
@@ -412,38 +426,12 @@ fun EventsTimelineContent(
                         Text("Neuer Termin")
                     }
 
-                    if (showAdvancedFilters) {
-                        if (
-                            hasActiveAgendaFilters(
-                                searchQuery = searchQuery,
-                                sourceFilterIsAll = sourceFilter == CalendarSourceFilter.ALL,
-                                layoutModeIsMonth = layoutMode == AgendaLayoutMode.MONTH
-                            )
-                        ) {
-                            TextButton(
-                                onClick = {
-                                    searchQuery = ""
-                                    sourceFilter = CalendarSourceFilter.ALL
-                                    layoutMode = AgendaLayoutMode.MONTH
-                                },
-                                modifier = Modifier.align(Alignment.End)
-                            ) {
-                                Text("Filter zurücksetzen")
-                            }
-                        }
-
-                        if (
-                            shouldShowEnableEventImportAction(
-                                sourceFilterIsEventsOnly = sourceFilter == CalendarSourceFilter.EVENTS_ONLY,
-                                importEventsEnabled = importEventsEnabled
-                            )
-                        ) {
-                            OutlinedButton(
-                                onClick = onEnableEventsImportAndSync,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Event-Import aktivieren")
-                            }
+                    if (shouldShowEnableEventImportAction(
+                            sourceFilterIsEventsOnly = sourceFilter == CalendarSourceFilter.EVENTS_ONLY,
+                            importEventsEnabled = importEventsEnabled
+                        )) {
+                        OutlinedButton(onClick = onEnableEventsImportAndSync, modifier = Modifier.fillMaxWidth()) {
+                            Text("Event-Import aktivieren")
                         }
                     }
                 }
@@ -1284,7 +1272,8 @@ private fun AddCustomEventDialog(
         errorMessage = null
     }
 
-    val startDateText = formatExamDateShort(startsAtMillis)
+    val startDateText = Instant.ofEpochMilli(startsAtMillis).atZone(schoolZone)
+        .format(DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.GERMANY))
     val startTimeText = Instant.ofEpochMilli(startsAtMillis)
         .atZone(schoolZone)
         .toLocalTime()
@@ -1564,17 +1553,27 @@ private fun CalendarTimelineCard(
     }
 }
 
-private fun formatCalendarItemTimeLabel(item: CalendarTimelineItem, schoolZone: ZoneId): String {
-    return when {
-        item.isAllDay -> formatAllDayLabel(
-            startsAtMillis = item.startsAtEpochMillis,
-            endsAtMillis = item.endsAtEpochMillis
-                ?: (item.startsAtEpochMillis + 24L * 60L * 60L * 1000L),
-            zoneId = schoolZone
-        )
-        item.endsAtEpochMillis != null -> "${formatExamDateShort(item.startsAtEpochMillis)} · ${formatTimeRange(item.startsAtEpochMillis, item.endsAtEpochMillis)}"
-        else -> formatExamDateShort(item.startsAtEpochMillis)
-    }
+private fun formatCalendarItemTimeLabel(item: CalendarTimelineItem, schoolZone: ZoneId): String =
+    formatAgendaTimeLabel(item.startsAtEpochMillis, item.endsAtEpochMillis, item.isAllDay, schoolZone)
+
+internal fun formatAgendaTimeLabel(
+    startsAtMillis: Long,
+    endsAtMillis: Long?,
+    isAllDay: Boolean,
+    schoolZone: ZoneId
+): String {
+    if (isAllDay) return formatAllDayLabel(
+        startsAtMillis, endsAtMillis ?: (startsAtMillis + 86_400_000L), schoolZone
+    )
+    val start = Instant.ofEpochMilli(startsAtMillis).atZone(schoolZone)
+    val dateFormatter = DateTimeFormatter.ofPattern("dd.MM.", Locale.GERMANY)
+    val timeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.GERMANY)
+    val startLabel = "${start.format(dateFormatter)} · ${start.format(timeFormatter)}"
+    if (endsAtMillis == null) return startLabel
+    val end = Instant.ofEpochMilli(endsAtMillis).atZone(schoolZone)
+    val endLabel = if (start.toLocalDate() == end.toLocalDate()) end.format(timeFormatter)
+        else "${end.format(dateFormatter)} · ${end.format(timeFormatter)}"
+    return "$startLabel – $endLabel"
 }
 
 @Composable
@@ -1665,9 +1664,10 @@ private fun formatAllDayLabel(startsAtMillis: Long, endsAtMillis: Long, zoneId: 
     val startDate = Instant.ofEpochMilli(startsAtMillis).atZone(zoneId).toLocalDate()
     val endDateExclusive = Instant.ofEpochMilli(endsAtMillis).atZone(zoneId).toLocalDate()
     val endDateInclusive = if (endDateExclusive > startDate) endDateExclusive.minusDays(1) else startDate
+    val dateFormatter = DateTimeFormatter.ofPattern("dd.MM.", Locale.GERMANY)
     return if (startDate == endDateInclusive) {
-        "${formatExamDateShort(startsAtMillis)} · Ganztägig"
+        "${startDate.format(dateFormatter)} · Ganztägig"
     } else {
-        "${startDate.dayOfMonth}.${startDate.monthValue} - ${endDateInclusive.dayOfMonth}.${endDateInclusive.monthValue} · Ganztägig"
+        "${startDate.format(dateFormatter)} – ${endDateInclusive.format(dateFormatter)} · Ganztägig"
     }
 }
