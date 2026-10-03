@@ -1,6 +1,10 @@
 package com.andrin.examcountdown.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -27,11 +30,20 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,7 +58,7 @@ internal fun SettingsSectionCard(
     containerColor: Color,
     content: @Composable () -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = isAppDarkTheme()
     val resolvedContainer = if (isDark) {
         MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
     } else {
@@ -69,6 +81,7 @@ internal fun SettingsSectionCard(
         ) {
             Text(
                 text = title,
+                modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -86,7 +99,7 @@ internal fun QuickActionTile(
     showAlertBadge: Boolean = false,
     onClick: () -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = isAppDarkTheme()
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
@@ -179,9 +192,9 @@ internal fun SettingToggleRow(
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().toggleable(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
             value = checked, role = Role.Switch, onValueChange = onCheckedChange
-        ),
+        ).padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -200,81 +213,51 @@ internal fun SettingToggleRow(
 }
 
 @Composable
-internal fun SyncStatusStrip(
-    syncStatus: SyncStatus,
-    onRepairIcalLink: (() -> Unit)? = null
-) {
-    val error = syncStatus.lastSyncError
-    val now = SchoolTime.nowMillis()
-    val staleThresholdMillis = 24L * 60L * 60L * 1000L
-    val isStale = syncStatus.lastSyncAtMillis?.let { last ->
-        now - last > staleThresholdMillis
-    } == true
-    val headline = when {
-        !error.isNullOrBlank() -> error
-        syncStatus.lastSyncAtMillis != null -> {
-            val time = formatSyncDateTime(syncStatus.lastSyncAtMillis)
-            if (isStale) {
-                "Zuletzt synchronisiert: $time (veraltet)"
-            } else {
-                "Zuletzt synchronisiert: $time"
-            }
-        }
+internal fun SyncStatusStrip(syncStatus: SyncStatus, onRepairIcalLink: (() -> Unit)? = null) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val error = syncStatus.lastSyncError?.takeIf { it.isNotBlank() }
+    val stale = syncStatus.lastSyncAtMillis?.let { SchoolTime.nowMillis() - it > 24L * 60 * 60 * 1000 } == true
+    val title = when {
+        error != null -> "Kalenderaktualisierung fehlgeschlagen"
+        stale -> "Kalenderdaten veraltet"
+        syncStatus.lastSyncAtMillis != null -> "Kalender aktualisiert"
         else -> "Noch keine Synchronisierung"
     }
-    val details = when {
-        !error.isNullOrBlank() -> null
-        isStale -> "Letzter erfolgreicher Sync ist älter als 24h. Bitte oben auf Aktualisieren tippen."
-        else -> syncStatus.lastSyncSummary?.takeIf { it.isNotBlank() }
-    }
-
-    val containerColor = when {
-        !error.isNullOrBlank() -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
-        isStale -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f)
-        else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
-    }
-
-    val textColor = when {
-        !error.isNullOrBlank() -> MaterialTheme.colorScheme.onErrorContainer
-        isStale -> MaterialTheme.colorScheme.onTertiaryContainer
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val showRepairAction = onRepairIcalLink != null && isIcalLinkRepairRecommended(error)
-
+    val timestamp = syncStatus.lastSyncAtMillis?.let { "Zuletzt: ${formatSyncDateTime(it)}" }
+    val detail = error ?: if (stale) {
+        "Die letzte erfolgreiche Aktualisierung ist älter als 24 Stunden. Tippe auf Aktualisieren."
+    } else syncStatus.lastSyncSummary?.takeIf { it.isNotBlank() }
+    val hasDetails = detail != null
+    val container = if (error != null) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface
+    val foreground = if (error != null) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        shape = MaterialTheme.shapes.medium,
-        color = containerColor,
-        tonalElevation = 1.dp,
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-        )
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        shape = MaterialTheme.shapes.medium, color = container,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
     ) {
-        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
-            Text(
-                text = headline,
-                style = MaterialTheme.typography.labelMedium,
-                color = textColor,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            details?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = textColor.copy(alpha = 0.9f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .then(if (hasDetails) Modifier.clickable(role = Role.Button,
+                        onClickLabel = if (expanded) "Synchronisationsdetails schließen" else "Synchronisationsdetails anzeigen",
+                        onClick = { expanded = !expanded }) else Modifier)
+                    .semantics {
+                        liveRegion = LiveRegionMode.Polite
+                        if (hasDetails) stateDescription = if (expanded) "Geöffnet" else "Geschlossen"
+                    }.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(title, style = MaterialTheme.typography.labelLarge, color = foreground)
+                    timestamp?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = foreground) }
+                }
+                if (hasDetails) Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                    null, Modifier.size(24.dp), tint = foreground)
             }
-            if (showRepairAction) {
-                TextButton(
-                    onClick = { onRepairIcalLink?.invoke() },
-                    modifier = Modifier.align(Alignment.End)
-                ) {
+            if (expanded && detail != null) Text(detail, style = MaterialTheme.typography.bodySmall,
+                color = foreground, modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp))
+            if (onRepairIcalLink != null && isIcalLinkRepairRecommended(error)) {
+                TextButton(onClick = onRepairIcalLink, modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp)) {
                     Text("Link reparieren")
                 }
             }

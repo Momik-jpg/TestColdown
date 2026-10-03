@@ -1,0 +1,129 @@
+package com.andrin.examcountdown.ui
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+
+/** Use available width and the user's text size rather than a device/orientation guess. */
+@Composable
+internal fun AdaptiveFieldPair(
+    first: @Composable (Modifier) -> Unit,
+    second: @Composable (Modifier) -> Unit,
+    minimumFieldWidth: Dp = 144.dp
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth / LocalDensity.current.fontScale < minimumFieldWidth * 2) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                first(Modifier.fillMaxWidth())
+                second(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                first(Modifier.weight(1f))
+                second(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** Actual 48 dp layout bounds keep adjacent chips from sharing invisible touch padding. */
+@Composable
+internal fun AppFilterChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    leadingIcon: @Composable (() -> Unit)? = null,
+    colors: SelectableChipColors = FilterChipDefaults.filterChipColors()
+) {
+    androidx.compose.material3.FilterChip(
+        selected = selected, onClick = onClick, label = label,
+        modifier = modifier.heightIn(min = 48.dp), enabled = enabled, colors = colors,
+        leadingIcon = leadingIcon ?: if (selected) {
+            { Icon(Icons.Outlined.Check, null, Modifier.size(16.dp)) }
+        } else null
+    )
+}
+
+@Composable
+internal fun isAppDarkTheme(): Boolean = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+@Composable
+internal fun AppScreenHeading(title: String) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        Text(title, fontWeight = FontWeight.Bold,
+            style = if (maxWidth / LocalDensity.current.fontScale < 280.dp) {
+                MaterialTheme.typography.titleMedium
+            } else MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.semantics { heading() })
+    }
+}
+
+@Composable
+internal fun HomeNavigationBar(
+    visibleTabs: List<HomeTab>, selectedTab: HomeTab, onTabSelected: (HomeTab) -> Unit
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val fontScale = LocalDensity.current.fontScale
+        val availableWidth = maxWidth
+        val compact = maxWidth / fontScale / visibleTabs.size.coerceAtLeast(1) < 72.dp
+        NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+            if (compact) {
+                val activeWidth = (112.dp * fontScale).coerceAtMost(
+                    availableWidth - 48.dp * (visibleTabs.size - 1).coerceAtLeast(0)
+                )
+                Row(Modifier.fillMaxWidth().selectableGroup()) {
+                    visibleTabs.forEach { tab ->
+                        val selected = selectedTab == tab
+                        Column(
+                            modifier = (if (selected) Modifier.width(activeWidth) else Modifier.weight(1f))
+                                .heightIn(min = 80.dp)
+                                .selectable(selected, role = Role.Tab, onClick = { onTabSelected(tab) })
+                                .semantics { contentDescription = tab.title }
+                                .padding(vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Surface(
+                                shape = MaterialTheme.shapes.extraLarge,
+                                color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                            ) {
+                                Icon(tab.icon, null, Modifier.padding(horizontal = 12.dp, vertical = 4.dp).size(24.dp))
+                            }
+                            if (selected) Text(tab.shortTitle, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                        }
+                    }
+                }
+            } else {
+                visibleTabs.forEach { tab ->
+                    NavigationBarItem(
+                        selected = selectedTab == tab, onClick = { onTabSelected(tab) },
+                        modifier = Modifier.semantics { contentDescription = tab.title },
+                        icon = { Icon(tab.icon, null) },
+                        label = { Text(tab.shortTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        alwaysShowLabel = true
+                    )
+                }
+            }
+        }
+    }
+}

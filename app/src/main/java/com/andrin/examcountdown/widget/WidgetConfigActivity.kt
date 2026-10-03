@@ -24,12 +24,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.ViewCompact
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
+import com.andrin.examcountdown.ui.AppFilterChip as FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -116,35 +118,41 @@ internal fun WidgetConfigScreen(
 
     Scaffold(bottomBar = {
         Surface(shadowElevation = 6.dp) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("Abbrechen") }
-                Button(onClick = { onSave(config) }, modifier = Modifier.weight(1f)) { Text("Speichern") }
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                com.andrin.examcountdown.ui.AdaptiveFieldPair(
+                    first = { OutlinedButton(onClick = onCancel, modifier = it.heightIn(min = 48.dp)) { Text("Abbrechen", maxLines = 1) } },
+                    second = { Button(onClick = { onSave(config) }, modifier = it.heightIn(min = 48.dp)) { Text("Speichern", maxLines = 1) } }
+                )
             }
         }
     }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("widget-config-list"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
-                Text("Widget einstellen", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                com.andrin.examcountdown.ui.AppScreenHeading("Widget einstellen")
                 Text(if (isList) "Deine Terminliste" else "Dein nächster Eintrag", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text("Vorschau · Beispiel", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        androidx.compose.material3.TextButton(onClick = { previewExpanded = !previewExpanded }) {
-                            Text(if (previewExpanded) "Ausblenden" else "Anzeigen")
-                        }
-                    }
+                    com.andrin.examcountdown.ui.AdaptiveFieldPair(
+                        first = { Text("Vorschau · Beispiel", modifier = it, style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        second = { androidx.compose.material3.TextButton(onClick = { previewExpanded = !previewExpanded },
+                            modifier = it.heightIn(min = 48.dp)) {
+                            Text(if (previewExpanded) "Ausblenden" else "Anzeigen", maxLines = 1)
+                        } }
+                    )
                     if (previewExpanded) WidgetLivePreview(isList, config)
                 }
             }
             item {
                 WidgetSection("Inhalt", Icons.Outlined.CalendarToday) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        WidgetChoice("Nur Prüfungen", "Fokus auf Prüfungen", Icons.Outlined.School,
-                            mode == WidgetMode.EXAMS, { mode = WidgetMode.EXAMS }, Modifier.weight(1f))
-                        WidgetChoice("Agenda", "Dein gesamter Plan", Icons.Outlined.CalendarToday,
-                            mode == WidgetMode.AGENDA, { mode = WidgetMode.AGENDA }, Modifier.weight(1f))
+                    Column(Modifier.selectableGroup()) {
+                        com.andrin.examcountdown.ui.AdaptiveFieldPair(
+                            first = { WidgetChoice("Nur Prüfungen", "Fokus auf Prüfungen", Icons.Outlined.School,
+                                mode == WidgetMode.EXAMS, { mode = WidgetMode.EXAMS }, it) },
+                            second = { WidgetChoice("Agenda", "Dein gesamter Plan", Icons.Outlined.CalendarToday,
+                                mode == WidgetMode.AGENDA, { mode = WidgetMode.AGENDA }, it) }
+                        )
                     }
                 }
             }

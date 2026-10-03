@@ -20,7 +20,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,7 +69,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.FilterChip
+import com.andrin.examcountdown.ui.AppFilterChip as FilterChip
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -192,28 +191,6 @@ enum class HomeTab(
     }
 }
 
-@Composable
-internal fun HomeNavigationBar(
-    visibleTabs: List<HomeTab>,
-    selectedTab: HomeTab,
-    onTabSelected: (HomeTab) -> Unit
-) {
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp
-    ) {
-        visibleTabs.forEach { tab ->
-            NavigationBarItem(
-                selected = selectedTab == tab,
-                onClick = { onTabSelected(tab) },
-                icon = { Icon(tab.icon, contentDescription = null) },
-                label = { Text(tab.shortTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                alwaysShowLabel = true
-            )
-        }
-    }
-}
-
 private data class StudyWeekdayOption(
     val dayOfWeek: DayOfWeek,
     val shortLabel: String
@@ -269,7 +246,7 @@ fun ExamCountdownScreen(
     val timetableTabUiState by viewModel.timetableTabUiState.collectAsStateWithLifecycle()
     val agendaTabUiState by viewModel.agendaTabUiState.collectAsStateWithLifecycle()
     val gradesTabUiState by viewModel.gradesTabUiState.collectAsStateWithLifecycle()
-    val isDarkMode = isSystemInDarkTheme()
+    val isDarkMode = isAppDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
     var showOnboardingDialog by rememberSaveable { mutableStateOf(false) }
@@ -1151,11 +1128,7 @@ fun ExamCountdownScreen(
                                 },
                                 title = {
                                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(
-                                            text = selectedTab.title,
-                                            style = MaterialTheme.typography.headlineSmall,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        AppScreenHeading(selectedTab.title)
                                     }
                                 },
                                 actions = {

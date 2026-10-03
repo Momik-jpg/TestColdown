@@ -3,6 +3,8 @@ package com.andrin.examcountdown.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -31,7 +33,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
+import com.andrin.examcountdown.ui.AppFilterChip as FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -723,7 +725,7 @@ internal fun PrivacyDialog(
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
-                    text = "Für Sync wird nur dein iCal-Link abgerufen.",
+                    text = "Beim Aktualisieren wird dein Kalender bei deinem Anbieter abgerufen.",
                     style = MaterialTheme.typography.bodySmall
                 )
 
@@ -742,7 +744,8 @@ internal fun PrivacyDialog(
                 ) {
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxWidth().heightIn(min = 48.dp)
+                            .toggleable(value = screenshotProtectionEnabled, role = Role.Switch, onValueChange = onScreenshotProtectionChange)
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
@@ -757,14 +760,14 @@ internal fun PrivacyDialog(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "Aktiviert FLAG_SECURE gegen Mitschnitt in Apps/Recent-Screen.",
+                                text = "Blockiert Screenshots und Vorschauen in der App-Übersicht.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Switch(
                             checked = screenshotProtectionEnabled,
-                            onCheckedChange = onScreenshotProtectionChange
+                            onCheckedChange = null
                         )
                     }
                 }
@@ -776,13 +779,13 @@ internal fun PrivacyDialog(
                             context.startActivity(
                                 Intent(
                                     Intent.ACTION_VIEW,
-                                    Uri.parse("https://github.com/Momik-jpg/TestColdown")
+                                    Uri.parse("https://github.com/Momik-jpg/TestColdown#sicherheit-und-datenschutz")
                                 )
                             )
                         }
                     }
                 ) {
-                    Text("Datenschutz-Infos öffnen")
+                    Text("Projekt und Datenschutz öffnen")
                 }
 
                 OutlinedButton(
