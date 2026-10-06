@@ -148,6 +148,45 @@ class WidgetNativeTest {
         assertEquals(WIDGET_WINDOW_DAYS_ALL, WidgetPreferences.readConfig(context, 2).windowDays)
     }
 
+    @Test fun privateWidgetsHideTitlesAndRoomsInVisibleTextAndScreenreaderDescriptions() {
+        val config = WidgetConfig(WidgetMode.AGENDA, privacyMode = true)
+        fun assertPrivate(view: View) {
+            val content = mutableListOf<String>()
+            fun visit(node: View) {
+                if (node is TextView) content += node.text.toString()
+                content += node.contentDescription?.toString().orEmpty()
+                if (node is ViewGroup) (0 until node.childCount).forEach { visit(node.getChildAt(it)) }
+            }
+            visit(view)
+            items.forEach { item ->
+                assertFalse("Personal title leaked", content.any { it.contains(item.title) })
+                item.location?.let { room -> assertFalse("Room leaked", content.any { it.contains(room) }) }
+            }
+        }
+        listOf(200, 240, 800).forEach { height ->
+            val next = render(false, height, config = config)
+            assertPrivate(next)
+            assertEquals("Prüfung", next.findViewById<TextView>(R.id.nextExamTitle).text.toString())
+            screenshot(next, "widget-private-next-$height")
+        }
+        val list = render(true, 600, config = config)
+        assertPrivate(list)
+        val first = list.findViewById<ViewGroup>(R.id.listRows).getChildAt(0)
+        assertTrue(first.contentDescription.toString().startsWith("Prüfung"))
+        assertTrue(first.contentDescription.toString().contains("08:00"))
+        first.performClick()
+        assertEquals("exams", shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity.getStringExtra(MainActivity.EXTRA_OPEN_TAB))
+        screenshot(list, "widget-private-list")
+    }
+
+    @Test fun widgetPrivacyChoiceIsStoredPerWidgetAndClearedWithItsConfiguration() {
+        WidgetPreferences.saveConfig(context, 51, WidgetConfig(privacyMode = true))
+        assertTrue(WidgetPreferences.readConfig(context, 51).privacyMode)
+        assertFalse(WidgetPreferences.readConfig(context, 52).privacyMode)
+        WidgetPreferences.clearConfig(context, 51)
+        assertFalse(WidgetPreferences.readConfig(context, 51).privacyMode)
+    }
+
     @Test fun pendingIntentsCannotOverwriteOtherWidgetsOrActions() {
         val main = WidgetIntents.open(context, 10_001, "open", "exams")
         val other = WidgetIntents.open(context, 1, "secondary", "timetable")
