@@ -122,7 +122,14 @@ internal fun HomeNavigationBar(
                         modifier = Modifier.semantics { contentDescription = tab.title },
                         icon = { Icon(tab.icon, null) },
                         label = { Text(tab.shortTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        alwaysShowLabel = true
+                        alwaysShowLabel = true,
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                 }
             }
