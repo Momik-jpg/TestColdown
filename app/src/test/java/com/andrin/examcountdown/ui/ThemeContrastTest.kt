@@ -30,6 +30,8 @@ class ThemeContrastTest {
                     c.onSurface to c.surface, c.onSurfaceVariant to c.surface,
                     c.onSurfaceVariant to c.surfaceVariant, c.onBackground to c.background,
                     c.onPrimary to c.primary, c.onPrimaryContainer to c.primaryContainer,
+                    c.onSecondary to c.secondary, c.onTertiary to c.tertiary,
+                    c.onTertiaryContainer to c.tertiaryContainer,
                     c.onSecondaryContainer to c.secondaryContainer,
                     c.onErrorContainer to c.errorContainer, c.error to c.surface
                 )
