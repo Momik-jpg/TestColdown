@@ -1,7 +1,6 @@
 package com.andrin.examcountdown.ui.tabs
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -49,13 +48,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.model.Exam
-import com.andrin.examcountdown.ui.theme.LocalDecorativeArtEnabled
 import com.andrin.examcountdown.ui.AppTextField
 import com.andrin.examcountdown.ui.ActiveFilterChip
 import com.andrin.examcountdown.ui.FilterControls
@@ -701,12 +697,6 @@ internal fun EmptyState(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (LocalDecorativeArtEnabled.current) Image(
-                    painter = painterResource(R.drawable.world_exams),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(96.dp)
-                )
                 Text(
                     text = "Noch keine Prüfungen geplant",
                     style = MaterialTheme.typography.titleLarge
