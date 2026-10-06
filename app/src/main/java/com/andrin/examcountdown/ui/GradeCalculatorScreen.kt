@@ -160,13 +160,13 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        StudyWorldHeader("Dein Lernfortschritt", "Schnitt, Zielnote & Punkte", illustrated = true)
+        StudyWorldHeader("Dein Lernfortschritt", "Schnitt, Zielnote & Punkte", illustrated = true, scene = StudyScene.GRADES)
         CalculatorCard {
             Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
                     text = "Durchschnitt",
@@ -253,8 +253,8 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
 
         CalculatorCard {
             Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
                     text = "Zielnote",
@@ -312,8 +312,8 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
 
         CalculatorCard {
             Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
                     text = "Punkte → Note",
@@ -530,31 +530,30 @@ private fun GradeRowEditor(
 
 @Composable
 private fun ResultPill(average: Double?) {
-    val color = when {
-        average == null -> MaterialTheme.colorScheme.onSurfaceVariant
-        average >= 4.0 -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.error
+    val scheme = MaterialTheme.colorScheme
+    val passed = average != null && average >= 4.0
+    val background = when {
+        average == null -> scheme.surfaceVariant
+        passed -> scheme.primaryContainer
+        else -> scheme.errorContainer
     }
-    val isDark = isAppDarkTheme()
-
-    val text = when {
-        average == null -> "Durchschnitt: -"
-        else -> {
-            val status = if (average >= 4.0) "Bestanden" else "Nicht bestanden"
-            "Durchschnitt: ${formatNumber(average)} ($status)"
+    val foreground = when {
+        average == null -> scheme.onSurfaceVariant
+        passed -> scheme.onPrimaryContainer
+        else -> scheme.onErrorContainer
+    }
+    Surface(Modifier.fillMaxWidth(), color = background, shape = MaterialTheme.shapes.medium) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Dein Durchschnitt", style = MaterialTheme.typography.labelLarge, color = foreground)
+            Text(average?.let { formatNumber(it) } ?: "–",
+                style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
+                color = foreground)
+            Text(when {
+                average == null -> "Füge eine gültige Note und ein Gewicht hinzu."
+                passed -> "Bestanden · ab Note 4.0"
+                else -> "Nicht bestanden · unter Note 4.0"
+            }, style = MaterialTheme.typography.bodySmall, color = foreground)
         }
-    }
-
-    Surface(
-        color = color.copy(alpha = if (isDark) 0.12f else if (average == null) 0.12f else 0.16f),
-        shape = MaterialTheme.shapes.medium
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.titleMedium,
-            color = color,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-        )
     }
 }
 
