@@ -1,87 +1,129 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widgetRoot"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/widget_card_background"
-    android:orientation="vertical"
-    android:padding="14dp">
-
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/widgetRoot"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_focus_background"
+        android:clipToOutline="true">
+    <ImageView
+        android:layout_width="140dp"
+        android:layout_height="140dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:alpha="0.18"
+        android:src="@drawable/widget_focus_orbit"
+        android:importantForAccessibility="no"
+        android:contentDescription="@null" />
     <LinearLayout
         android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="12dp">
+        <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+            <TextView
+        android:id="@+id/nextWidgetHeader"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:id="@+id/nextWidgetHeader"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Nächste Prüfung"
-            android:textColor="@color/widget_muted"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/nextWidgetOpenTimetable"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:background="@drawable/widget_chip_background"
-            android:paddingStart="10dp"
-            android:paddingTop="4dp"
-            android:paddingEnd="10dp"
-            android:paddingBottom="4dp"
-            android:text="Zum Plan"
-            android:textColor="@color/widget_chip_text"
-            android:textSize="10sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/nextWidgetRefresh"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:background="@drawable/widget_chip_background"
-            android:gravity="center"
-            android:text="⟳"
-            android:textColor="@color/widget_on_surface"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <TextView
+        android:layout_weight="1"
+        android:text="@string/widget_next_title"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:textColor="@color/widget_focus_muted" />
+            <ImageButton
+        android:id="@+id/nextWidgetConfigure"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:padding="14dp"
+        android:background="@android:color/transparent"
+        android:src="@drawable/widget_settings_focus"
+        android:contentDescription="@string/widget_configure" />
+            <ImageButton
+        android:id="@+id/nextWidgetRefresh"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:padding="14dp"
+        android:background="@android:color/transparent"
+        android:src="@drawable/widget_refresh_focus"
+        android:contentDescription="@string/widget_refresh" />
+        </LinearLayout>
+        <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+            <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+                <TextView
         android:id="@+id/nextExamTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:ellipsize="end"
+        android:text="@string/widget_preview_next"
+        android:textSize="22sp"
+        android:textStyle="bold"
         android:maxLines="2"
-        android:text="Maturaprüfung Deutsch"
-        android:textColor="@color/widget_on_surface"
-        android:textSize="19sp"
-        android:textStyle="bold" />
-
-    <TextView
+        android:ellipsize="end"
+        android:textColor="@color/widget_focus_text" />
+                <TextView
         android:id="@+id/nextExamTime"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:text="Do, 27.02.2026 · 08:00"
-        android:textColor="@color/widget_muted"
-        android:textSize="12sp" />
-
-    <TextView
+        android:layout_marginTop="8dp"
+        android:text="@string/widget_preview_next_time"
+        android:textSize="12sp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:textColor="@color/widget_focus_muted" />
+            </LinearLayout>
+            <LinearLayout
+        android:id="@+id/nextCountdownBox"
+        android:layout_width="80dp"
+        android:layout_height="88dp"
+        android:layout_marginStart="12dp"
+        android:background="@drawable/widget_focus_badge"
+        android:orientation="vertical"
+        android:gravity="center">
+                <TextView
         android:id="@+id/nextExamCountdown"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:background="@drawable/widget_countdown_badge_background"
-        android:paddingStart="10dp"
-        android:paddingTop="5dp"
-        android:paddingEnd="10dp"
-        android:paddingBottom="5dp"
-        android:text="in 3 Tagen 4 Std"
-        android:textColor="@color/widget_badge_text"
-        android:textSize="14sp"
-        android:textStyle="bold" />
-</LinearLayout>
+        android:text="@string/widget_preview_number"
+        android:textSize="40sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:textColor="@color/widget_focus_text" />
+                <TextView
+        android:id="@+id/nextCountdownUnit"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/widget_preview_unit"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.08"
+        android:gravity="center"
+        android:textColor="@color/widget_focus_muted" />
+            </LinearLayout>
+        </LinearLayout>
+        <TextView
+        android:id="@+id/nextWidgetOpenTimetable"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:text="@string/widget_open_timetable"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="@color/widget_focus_muted"
+        android:singleLine="true"
+        android:ellipsize="end" />
+    </LinearLayout>
+</FrameLayout>

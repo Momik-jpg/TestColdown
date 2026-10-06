@@ -1,10 +1,11 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_next_exam_name"
     android:initialLayout="@layout/widget_next_exam"
-    android:minHeight="110dp"
-    android:minWidth="180dp"
+    android:minHeight="180dp"
+    android:minWidth="220dp"
     android:previewLayout="@layout/widget_next_exam"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
     android:configure="com.andrin.examcountdown.widget.WidgetConfigActivity"
+    android:widgetFeatures="reconfigurable"
     android:widgetCategory="home_screen" />

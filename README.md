@@ -3,12 +3,13 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 
 ## Funktionen
 - `Prüfungen`: Suche, Filter, Sortierung, Countdown und Kollisionsprüfung.
-- `Stundenplan`: Lektionen inkl. Verschiebungen, Ausfällen und Raumänderungen.
-- `Events`: Zeitachsen-Ansicht mit Filtern (`Alles`, `Prüfungen`, `Lektionen`, `Events`).
+- `Stundenplan`: Fach-/Raumsuche, Liste/Woche und Filter für Verschiebungen, Ausfälle und Raumänderungen.
+- `Agenda`: Liste, Kalender und Tagesansicht mit Filtern für Prüfungen, Unterricht und Termine.
+- `Optionen`: durchsuchbare Einstellungen für Kalender, Darstellung, Sicherheit, Daten und Hilfe.
 - `Notenrechner`: Durchschnitt, Zielnote und Noten-Punkte-Rechner.
 - `Sync-Diagnose`: Status, Dauer, HTTP-Code, Delta-Status und Import-Zahlen.
 - `Delta-Sync`: `ETag` und `Last-Modified` zur Reduktion von Datenverkehr.
-- `Widgets`: Nächste Prüfung und Liste, pro Instanz konfigurierbar.
+- `Widgets`: Nächster Eintrag und Terminliste, mit Hell/Dunkel, Raum, Countdown und kompakter Ansicht. Unter `Optionen → Darstellung → Widgets` hinzufügen oder je Instanz einstellen.
 - `Export`: CSV/PDF für Prüfungen und Stundenplan.
 - `Backup`: Export/Import der App-Daten.
 
@@ -18,6 +19,34 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 3. Neueste `ExamCountdown-*.apk` herunterladen.
 4. APK installieren.
 5. Falls nötig: Berechtigung für "Unbekannte Apps installieren" aktivieren.
+
+## Testversion parallel installieren
+
+```bash
+./gradlew :app:testDebugUnitTest :app:lintPreview :app:assemblePreview --no-daemon
+```
+
+Die Preview-APK liegt unter `.build/app/outputs/apk/preview/app-preview.apk`.
+Sie heißt „Prüfungs-Countdown Test“, verwendet `com.andrin.examcountdown.preview`
+und die Version `1.6.15-beta.7` (Code 30). Android 8 oder neuer ist erforderlich.
+Die eigene Paketkennung ermöglicht eine Installation neben der bisherigen App;
+Kalender, PIN und Daten sind getrennt. Die Testversion ist mit dem Android-Testschlüssel
+signiert und ersetzt keine mit dem Produktionsschlüssel signierte Installation.
+
+APK auf dem Handy herunterladen und öffnen. Falls Android danach fragt, für den
+verwendeten Browser die Installation aus dieser Quelle erlauben. In der Test-App
+anschließend den Kalender verbinden oder über `Optionen -> Daten` eine bestehende
+App-Sicherung importieren. Bestehende App-Daten werden nicht automatisch übernommen.
+
+Die CI-Test-APK von Beta 7 ist mit einem anderen Testzertifikat als die veröffentlichte Beta 6 signiert.
+Android lässt deshalb kein direktes Update dieser vorhandenen Test-App zu. Wenn Beta 6 schon installiert
+ist, zuerst unter `Optionen -> Daten` eine App-Sicherung exportieren und die exportierte Datei aufbewahren.
+Erst danach die alte Test-App deinstallieren und Beta 7 installieren; eine Deinstallation löscht ihre
+lokalen Daten. Die aufbewahrte Sicherung anschließend in Beta 7 importieren. Die normale Produktions-App
+hat eine andere Paketkennung und wird dadurch nicht ersetzt. Spätere CI-Builds können ebenfalls andere
+Testzertifikate haben; vor einem Update müssen Paketkennung und Zertifikat übereinstimmen.
+
+[Widget-Vorschauen und Prüfumfang](docs/widget-overhaul.md) · [Design- und Bedienprüfung](docs/usability-polish.md) · [Neue Fantasy-Lernwelt und Prüfumfang](docs/fantasy-accessibility-overhaul.md)
 
 ## Ersteinrichtung
 1. App starten.
@@ -33,6 +62,7 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 - Snooze und stille Zeiten werden unterstützt.
 
 ## Sicherheit und Datenschutz
+- Vollständige Hinweise: [Datenschutz](PRIVACY.md), auch offline in der App.
 - iCal-Links werden lokal verschlüsselt gespeichert.
 - Es werden nur `https`-Links akzeptiert.
 - Sensible URL-Daten werden in Fehlermeldungen redigiert.
@@ -62,6 +92,10 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 4. Ergebnis: `dist/ExamCountdown-release.aab`
 
 ## Dokumentation
+- Barrierefreie Bedienung: [Schrift, Kontrast, TalkBack und Widgets](docs/accessibility.md)
+- Lizenzen: [Bibliotheken und Nachweise](THIRD_PARTY_NOTICES.md)
+- Fantasy-Illustrationen: [Herkunft und Nutzung](docs/graphics-provenance.md)
+- Lernwelt-Design, Bedienung und Prüfungen: `docs/study-world-overhaul.md`
 - Schüler-Kurzanleitung: `docs/kurzanleitung-schueler.md`
 - iCal-Link-Anleitung mit Bild: `docs/ical-link-anleitung-mit-bild.md`
 - Troubleshooting: `docs/troubleshooting.md`

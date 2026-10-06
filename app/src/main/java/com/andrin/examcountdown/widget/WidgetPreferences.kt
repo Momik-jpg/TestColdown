@@ -19,7 +19,11 @@ private const val WIDGET_WINDOW_DAYS_MAX = WIDGET_WINDOW_DAYS_ALL
 data class WidgetConfig(
     val mode: WidgetMode = WidgetMode.EXAMS,
     val windowDays: Int = 30,
-    val sortMode: WidgetSortMode = WidgetSortMode.TIME_ASC
+    val sortMode: WidgetSortMode = WidgetSortMode.TIME_ASC,
+    val compact: Boolean = false,
+    val showLocation: Boolean = true,
+    val showCountdown: Boolean = true,
+    val privacyMode: Boolean = false
 )
 
 object WidgetPreferences {
@@ -41,7 +45,11 @@ object WidgetPreferences {
         return WidgetConfig(
             mode = mode,
             windowDays = windowDays,
-            sortMode = sortMode
+            sortMode = sortMode,
+            compact = prefs.getBoolean("compact_$appWidgetId", false),
+            showLocation = prefs.getBoolean("location_$appWidgetId", true),
+            showCountdown = prefs.getBoolean("countdown_$appWidgetId", true),
+            privacyMode = prefs.getBoolean("privacy_$appWidgetId", false)
         )
     }
 
@@ -54,6 +62,10 @@ object WidgetPreferences {
                 config.windowDays.coerceIn(WIDGET_WINDOW_DAYS_MIN, WIDGET_WINDOW_DAYS_MAX)
             )
             .putString("$KEY_SORT_PREFIX$appWidgetId", config.sortMode.name)
+            .putBoolean("compact_$appWidgetId", config.compact)
+            .putBoolean("location_$appWidgetId", config.showLocation)
+            .putBoolean("countdown_$appWidgetId", config.showCountdown)
+            .putBoolean("privacy_$appWidgetId", config.privacyMode)
             .apply()
     }
 
@@ -63,6 +75,10 @@ object WidgetPreferences {
             .remove("$KEY_MODE_PREFIX$appWidgetId")
             .remove("$KEY_WINDOW_DAYS_PREFIX$appWidgetId")
             .remove("$KEY_SORT_PREFIX$appWidgetId")
+            .remove("compact_$appWidgetId")
+            .remove("location_$appWidgetId")
+            .remove("countdown_$appWidgetId")
+            .remove("privacy_$appWidgetId")
             .apply()
     }
 }

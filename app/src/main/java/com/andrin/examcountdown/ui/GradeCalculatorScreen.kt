@@ -1,13 +1,23 @@
 package com.andrin.examcountdown.ui
 
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
@@ -21,10 +31,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +41,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,28 +60,35 @@ private data class GradeRow(
     val category: String
 )
 
+private val GradeRowsSaver = listSaver<SnapshotStateList<GradeRow>, String>(
+    save = { rows -> rows.flatMap { listOf(it.id.toString(), it.grade, it.weight, it.category) } },
+    restore = { saved -> saved.chunked(4).map { GradeRow(it[0].toInt(), it[1], it[2], it[3]) }.toMutableStateList() }
+)
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
-    val isDark = isSystemInDarkTheme()
-    val fieldColors = calculatorTextFieldColors()
-    val rows = remember {
+    val isDark = isAppDarkTheme()
+    val fieldColors = appTextFieldColors()
+    var showCategories by rememberSaveable { mutableStateOf(false) }
+    val rows = rememberSaveable(saver = GradeRowsSaver) {
         mutableStateListOf(
             GradeRow(id = 1, grade = "", weight = "1", category = "Prüfungen"),
             GradeRow(id = 2, grade = "", weight = "1", category = "Tests")
         )
     }
-    var nextId by remember { mutableIntStateOf(3) }
-    var targetAverageText by remember { mutableStateOf("4.0") }
-    var nextWeightText by remember { mutableStateOf("1") }
-    var achievedPointsText by remember { mutableStateOf("") }
-    var maxPointsText by remember { mutableStateOf("100") }
-    var minGradeText by remember { mutableStateOf("1.0") }
-    var maxGradeText by remember { mutableStateOf("6.0") }
-    var targetGradeByPointsText by remember { mutableStateOf("4.0") }
+    var nextId by rememberSaveable { mutableIntStateOf(3) }
+    var targetAverageText by rememberSaveable { mutableStateOf("4.0") }
+    var nextWeightText by rememberSaveable { mutableStateOf("1") }
+    var achievedPointsText by rememberSaveable { mutableStateOf("") }
+    var maxPointsText by rememberSaveable { mutableStateOf("100") }
+    var minGradeText by rememberSaveable { mutableStateOf("1.0") }
+    var maxGradeText by rememberSaveable { mutableStateOf("6.0") }
+    var targetGradeByPointsText by rememberSaveable { mutableStateOf("4.0") }
 
     val parsedRows = rows.mapNotNull { row ->
-        val grade = parseNumber(row.grade)
-        val weight = parseNumber(row.weight)
+        val grade = parseGradeNumber(row.grade)
+        val weight = parseGradeNumber(row.weight)
         val category = row.category.trim().ifBlank { "Allgemein" }
         if (grade == null || weight == null || weight <= 0.0) {
             null
@@ -89,8 +109,8 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
         }
         .toSortedMap()
 
-    val targetAverage = parseNumber(targetAverageText)
-    val nextWeight = parseNumber(nextWeightText)
+    val targetAverage = parseGradeNumber(targetAverageText)
+    val nextWeight = parseGradeNumber(nextWeightText)
     val requiredNextGrade = if (
         targetAverage != null &&
         nextWeight != null &&
@@ -102,11 +122,11 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
         null
     }
 
-    val achievedPoints = parseNumber(achievedPointsText)
-    val maxPoints = parseNumber(maxPointsText)
-    val minGrade = parseNumber(minGradeText)
-    val maxGrade = parseNumber(maxGradeText)
-    val targetGradeByPoints = parseNumber(targetGradeByPointsText)
+    val achievedPoints = parseGradeNumber(achievedPointsText)
+    val maxPoints = parseGradeNumber(maxPointsText)
+    val minGrade = parseGradeNumber(minGradeText)
+    val maxGrade = parseGradeNumber(maxGradeText)
+    val targetGradeByPoints = parseGradeNumber(targetGradeByPointsText)
 
     val validScale = minGrade != null && maxGrade != null && maxGrade > minGrade
     val validPointsRange = maxPoints != null && maxPoints > 0.0
@@ -140,20 +160,22 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        StudyWorldHeader("Dein Lernfortschritt", "Schnitt, Zielnote & Punkte", illustrated = true)
         CalculatorCard {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Notenrechner",
-                    style = MaterialTheme.typography.titleLarge,
+                    text = "Durchschnitt",
+                    modifier = Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "Noten und Gewichte eintragen (z. B. Gewicht 2 für doppelte Wertung).",
+                    text = "Gewicht 2 zählt doppelt.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -162,6 +184,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                     GradeRowEditor(
                         row = row,
                         canDelete = rows.size > 1,
+                        showCategoryEditor = showCategories,
                         fieldColors = fieldColors,
                         onGradeChange = { newGrade -> rows[index] = row.copy(grade = newGrade) },
                         onWeightChange = { newWeight -> rows[index] = row.copy(weight = newWeight) },
@@ -170,34 +193,40 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                     )
                 }
 
-                FilledTonalButton(
-                    onClick = {
-                        rows.add(GradeRow(id = nextId, grade = "", weight = "1", category = "Allgemein"))
-                        nextId += 1
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = if (isDark) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                        } else {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.82f)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    FilledTonalButton(
+                        onClick = {
+                            rows.add(GradeRow(id = nextId, grade = "", weight = "1", category = "Allgemein"))
+                            nextId += 1
                         },
-                        contentColor = if (isDark) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        }
-                    )
-                ) {
-                    Icon(Icons.Outlined.Add, contentDescription = null)
-                    Text(" Note hinzufügen", modifier = Modifier.padding(start = 6.dp))
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = if (isDark) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                            } else {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.82f)
+                            },
+                            contentColor = if (isDark) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            }
+                        )
+                    ) {
+                        Icon(Icons.Outlined.Add, contentDescription = null)
+                        Text("Note hinzufügen", modifier = Modifier.padding(start = 6.dp), maxLines = 1)
+                    }
+                    TextButton(onClick = { showCategories = !showCategories }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text(if (showCategories) "Fertig" else "Kategorien")
+                    }
                 }
 
                 ResultPill(average = average)
 
                 if (categoryAverages.isNotEmpty()) {
                     Text(
-                        text = "Kategorien",
+                        text = "Schnitt je Kategorie",
+                        modifier = Modifier.semantics { heading() },
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -224,38 +253,46 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
 
         CalculatorCard {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Zielnote-Rechner",
+                    text = "Zielnote",
+                    modifier = Modifier.semantics { heading() },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
 
-                OutlinedTextField(
-                    value = targetAverageText,
-                    onValueChange = { targetAverageText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Gewünschter Schnitt") },
-                    placeholder = { Text("z. B. 4.5") },
-                    colors = fieldColors
-                )
-
-                OutlinedTextField(
-                    value = nextWeightText,
-                    onValueChange = { nextWeightText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Gewicht nächste Note") },
-                    placeholder = { Text("z. B. 1") },
-                    colors = fieldColors
+                AdaptiveFieldPair(
+                    first = { fieldModifier ->
+                        AppTextField(
+                            value = targetAverageText,
+                            onValueChange = { targetAverageText = it },
+                            modifier = fieldModifier,
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            label = { Text("Zielschnitt") },
+                            placeholder = { Text("z. B. 4.5") },
+                            colors = fieldColors
+                        )
+                    },
+                    second = { fieldModifier ->
+                        AppTextField(
+                            value = nextWeightText,
+                            onValueChange = { nextWeightText = it },
+                            modifier = fieldModifier,
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                            label = { Text("Gewicht") },
+                            placeholder = { Text("z. B. 1") },
+                            colors = fieldColors
+                        )
+                    }
                 )
 
                 val requiredText = requiredNextGrade?.let { formatNumber(it) } ?: "-"
                 Text(
-                    text = "Benötigte nächste Note: $requiredText",
+                    text = "Nächste Note: $requiredText",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -264,7 +301,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                     val clamped = needed.coerceIn(1.0, 6.0)
                     if (needed != clamped) {
                         Text(
-                            text = "Hinweis: Für das Ziel wäre ${formatNumber(needed)} nötig. Im Schweizer System ist der Bereich 1.0 bis 6.0.",
+                            text = "${formatNumber(needed)} liegt außerhalb der Schweizer Skala (1–6).",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -275,59 +312,69 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
 
         CalculatorCard {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Noten-Punkte-Rechner",
+                    text = "Punkte → Note",
+                    modifier = Modifier.semantics { heading() },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
 
-                OutlinedTextField(
-                    value = achievedPointsText,
-                    onValueChange = { achievedPointsText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Erreichte Punkte") },
-                    placeholder = { Text("z. B. 42") },
-                    colors = fieldColors
+                AdaptiveFieldPair(
+                    first = { fieldModifier ->
+                        AppTextField(
+                            value = achievedPointsText,
+                            onValueChange = { achievedPointsText = it },
+                            modifier = fieldModifier,
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            label = { Text("Erreicht") },
+                            placeholder = { Text("z. B. 42") },
+                            colors = fieldColors
+                        )
+                    },
+                    second = { fieldModifier ->
+                        AppTextField(
+                            value = maxPointsText,
+                            onValueChange = { maxPointsText = it },
+                            modifier = fieldModifier,
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                            label = { Text("Maximum") },
+                            placeholder = { Text("z. B. 60") },
+                            colors = fieldColors
+                        )
+                    }
                 )
 
-                OutlinedTextField(
-                    value = maxPointsText,
-                    onValueChange = { maxPointsText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Maximale Punkte") },
-                    placeholder = { Text("z. B. 60") },
-                    colors = fieldColors
+                AdaptiveFieldPair(
+                    first = { fieldModifier ->
+                        AppTextField(
+                            value = minGradeText,
+                            onValueChange = { minGradeText = it },
+                            modifier = fieldModifier,
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            label = { Text("Note min") },
+                            placeholder = { Text("1.0") },
+                            colors = fieldColors
+                        )
+                    },
+                    second = { fieldModifier ->
+                        AppTextField(
+                            value = maxGradeText,
+                            onValueChange = { maxGradeText = it },
+                            modifier = fieldModifier,
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                            label = { Text("Note max") },
+                            placeholder = { Text("6.0") },
+                            colors = fieldColors
+                        )
+                    }
                 )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = minGradeText,
-                        onValueChange = { minGradeText = it },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        label = { Text("Note min") },
-                        placeholder = { Text("1.0") },
-                        colors = fieldColors
-                    )
-
-                    OutlinedTextField(
-                        value = maxGradeText,
-                        onValueChange = { maxGradeText = it },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        label = { Text("Note max") },
-                        placeholder = { Text("6.0") },
-                        colors = fieldColors
-                    )
-                }
 
                 val gradeFromPointsText = gradeFromPoints?.let { formatNumber(it) } ?: "-"
                 val pointsPercentText = pointsPercent?.let { "${formatNumber(it)} %" } ?: "-"
@@ -342,11 +389,12 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodyMedium
                 )
 
-                OutlinedTextField(
+                AppTextField(
                     value = targetGradeByPointsText,
                     onValueChange = { targetGradeByPointsText = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                     label = { Text("Zielnote") },
                     placeholder = { Text("z. B. 5.0") },
                     colors = fieldColors
@@ -384,7 +432,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
 private fun CalculatorCard(
     content: @Composable () -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = isAppDarkTheme()
     Card(
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
@@ -399,7 +447,7 @@ private fun CalculatorCard(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.18f else 0.42f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         content()
     }
@@ -409,83 +457,72 @@ private fun CalculatorCard(
 private fun GradeRowEditor(
     row: GradeRow,
     canDelete: Boolean,
+    showCategoryEditor: Boolean,
     fieldColors: androidx.compose.material3.TextFieldColors,
     onGradeChange: (String) -> Unit,
     onWeightChange: (String) -> Unit,
     onCategoryChange: (String) -> Unit,
     onDelete: () -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
+    val badGrade = row.grade.isNotBlank() && parseGradeNumber(row.grade) == null
+    val badWeight = row.weight.isNotBlank() && (parseGradeNumber(row.weight)?.let { it <= 0.0 } ?: true)
+    val gradeField: @Composable (Modifier) -> Unit = { fieldModifier ->
+        AppTextField(
+            value = row.grade, onValueChange = onGradeChange, modifier = fieldModifier,
+            singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            isError = badGrade, errorMessage = "Gib eine gültige Zahl ein.",
+            supportingText = if (badGrade) { { Text("Zahl eingeben") } } else null,
+            label = { Text("Note") }, placeholder = { Text("z. B. 5.25") }, colors = fieldColors
+        )
+    }
+    val weightField: @Composable (Modifier) -> Unit = { fieldModifier ->
+        AppTextField(
+            value = row.weight, onValueChange = onWeightChange, modifier = fieldModifier,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal,
+                imeAction = if (showCategoryEditor) ImeAction.Next else ImeAction.Done),
+            isError = badWeight, errorMessage = "Das Gewicht muss eine Zahl größer als 0 sein.",
+            supportingText = if (badWeight) { { Text("Größer als 0") } } else null,
+            label = { Text("Gewicht") }, placeholder = { Text("1") }, colors = fieldColors
+        )
+    }
+    val deleteButton: @Composable () -> Unit = {
+        FilledTonalIconButton(onClick = onDelete, enabled = canDelete, modifier = Modifier.size(48.dp),
+            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )) {
+            Icon(Icons.Outlined.Delete, contentDescription = "Notenzeile ${row.id} löschen")
+        }
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = if (isDark) {
-            MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.24f)
-        },
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.24f),
         shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.14f else 0.22f)
-        )
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
     ) {
-        Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = row.grade,
-                    onValueChange = onGradeChange,
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    label = { Text("Note") },
-                    placeholder = { Text("z. B. 5.25") },
-                    colors = fieldColors
-                )
-
-                OutlinedTextField(
-                    value = row.weight,
-                    onValueChange = onWeightChange,
-                    modifier = Modifier.weight(0.7f),
-                    singleLine = true,
-                    label = { Text("Gewicht") },
-                    placeholder = { Text("1") },
-                    colors = fieldColors
-                )
-
-                FilledTonalIconButton(
-                    onClick = onDelete,
-                    enabled = canDelete,
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = if (isDark) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-                        } else {
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.78f)
-                        },
-                        contentColor = if (isDark) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                if (maxWidth / LocalDensity.current.fontScale < 300.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Note ${row.id}", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                            deleteButton()
                         }
-                    )
-                ) {
-                    Icon(Icons.Outlined.Delete, contentDescription = "Zeile löschen")
+                        AdaptiveFieldPair(gradeField, weightField)
+                    }
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        gradeField(Modifier.weight(1f))
+                        weightField(Modifier.weight(0.8f))
+                        deleteButton()
+                    }
                 }
             }
-
-            OutlinedTextField(
-                value = row.category,
-                onValueChange = onCategoryChange,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Kategorie") },
-                placeholder = { Text("z. B. Prüfungen, Tests, Mitarbeit") },
-                colors = fieldColors
+            if (showCategoryEditor) AppTextField(
+                value = row.category, onValueChange = onCategoryChange, modifier = Modifier.fillMaxWidth(),
+                singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                label = { Text("Kategorie") }, placeholder = { Text("z. B. Prüfungen, Tests, Mitarbeit") }, colors = fieldColors
             )
         }
     }
@@ -498,7 +535,7 @@ private fun ResultPill(average: Double?) {
         average >= 4.0 -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.error
     }
-    val isDark = isSystemInDarkTheme()
+    val isDark = isAppDarkTheme()
 
     val text = when {
         average == null -> "Durchschnitt: -"
@@ -519,38 +556,6 @@ private fun ResultPill(average: Double?) {
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
         )
     }
-}
-
-@Composable
-private fun calculatorTextFieldColors(): androidx.compose.material3.TextFieldColors {
-    val isDark = isSystemInDarkTheme()
-    return OutlinedTextFieldDefaults.colors(
-        focusedContainerColor = if (isDark) {
-            MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-        } else {
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-        },
-        unfocusedContainerColor = if (isDark) {
-            MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
-        } else {
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)
-        },
-        disabledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.12f),
-        focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.34f else 0.7f),
-        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.22f else 0.5f),
-        disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-        focusedLabelColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.92f),
-        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        cursorColor = MaterialTheme.colorScheme.primary,
-        focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (isDark) 0.52f else 0.72f),
-        unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (isDark) 0.44f else 0.62f)
-    )
-}
-
-private fun parseNumber(raw: String): Double? {
-    return raw.trim()
-        .replace(',', '.')
-        .toDoubleOrNull()
 }
 
 private fun formatNumber(value: Double): String {

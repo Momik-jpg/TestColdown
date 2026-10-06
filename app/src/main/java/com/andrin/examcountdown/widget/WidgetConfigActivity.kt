@@ -1,22 +1,38 @@
 package com.andrin.examcountdown.widget
 
 import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Scaffold
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.ui.platform.testTag
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.ViewCompact
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
+import com.andrin.examcountdown.ui.AppFilterChip as FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -25,7 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -41,7 +57,8 @@ class WidgetConfigActivity : ComponentActivity() {
             AppWidgetManager.INVALID_APPWIDGET_ID
         ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
 
-        if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
+        // Launchers must be able to open this activity; reject unrelated or stale widget IDs.
+        if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID || !isOwnWidget(this, widgetId)) {
             finish()
             return
         }
@@ -60,6 +77,7 @@ class WidgetConfigActivity : ComponentActivity() {
                 ) {
                     WidgetConfigScreen(
                         initialConfig = initial,
+                        isList = AppWidgetManager.getInstance(this).getAppWidgetInfo(widgetId)?.provider?.className == ExamListWidgetProvider::class.java.name,
                         onSave = { config ->
                             WidgetPreferences.saveConfig(this, widgetId, config)
                             WidgetUpdater.updateAll(this)
@@ -77,126 +95,99 @@ class WidgetConfigActivity : ComponentActivity() {
     }
 }
 
+internal fun isOwnWidget(context: Context, widgetId: Int): Boolean {
+    val provider = AppWidgetManager.getInstance(context).getAppWidgetInfo(widgetId)?.provider ?: return false
+    return WidgetKind.entries.any { provider == ComponentName(context, it.provider) }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun WidgetConfigScreen(
+internal fun WidgetConfigScreen(
     initialConfig: WidgetConfig,
+    isList: Boolean,
     onSave: (WidgetConfig) -> Unit,
     onCancel: () -> Unit
 ) {
-    var mode by remember { mutableStateOf(initialConfig.mode) }
-    var windowDays by remember { mutableIntStateOf(initialConfig.windowDays) }
-    var sortMode by remember { mutableStateOf(initialConfig.sortMode) }
+    var mode by rememberSaveable { mutableStateOf(initialConfig.mode) }
+    var windowDays by rememberSaveable { mutableIntStateOf(initialConfig.windowDays) }
+    var sortMode by rememberSaveable { mutableStateOf(initialConfig.sortMode) }
+    var compact by rememberSaveable { mutableStateOf(initialConfig.compact) }
+    var showLocation by rememberSaveable { mutableStateOf(initialConfig.showLocation) }
+    var showCountdown by rememberSaveable { mutableStateOf(initialConfig.showCountdown) }
+    var privacyMode by rememberSaveable { mutableStateOf(initialConfig.privacyMode) }
+    var previewExpanded by rememberSaveable { mutableStateOf(true) }
+    val config = WidgetConfig(mode, windowDays, sortMode, compact, showLocation, showCountdown, privacyMode)
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(
-            text = "Widget konfigurieren",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            text = "Wähle Inhalt, Zeitraum und Sortierung für dieses Widget.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Card(
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text("Inhalt", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = mode == WidgetMode.EXAMS,
-                        onClick = { mode = WidgetMode.EXAMS },
-                        label = { Text("Nur Prüfungen") }
-                    )
-                    FilterChip(
-                        selected = mode == WidgetMode.AGENDA,
-                        onClick = { mode = WidgetMode.AGENDA },
-                        label = { Text("Agenda") }
-                    )
-                }
+    Scaffold(bottomBar = {
+        Surface(shadowElevation = 6.dp) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                com.andrin.examcountdown.ui.AdaptiveFieldPair(
+                    first = { OutlinedButton(onClick = onCancel, modifier = it.heightIn(min = 48.dp)) { Text("Abbrechen", maxLines = 1) } },
+                    second = { Button(onClick = { onSave(config) }, modifier = it.heightIn(min = 48.dp)) { Text("Speichern", maxLines = 1) } }
+                )
             }
         }
-
-        Card(
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text("Zeitraum", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(7, 30, 90, WIDGET_WINDOW_DAYS_ALL).forEach { days ->
-                        FilterChip(
-                            selected = windowDays == days,
-                            onClick = { windowDays = days },
-                            label = { Text(if (days == WIDGET_WINDOW_DAYS_ALL) "Alle" else "$days Tage") }
+    }) { padding ->
+        LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("widget-config-list"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            item {
+                com.andrin.examcountdown.ui.AppScreenHeading("Widget einstellen")
+                Text(if (isList) "Deine Terminliste" else "Dein nächster Eintrag", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.andrin.examcountdown.ui.AdaptiveFieldPair(
+                        first = { Text("Vorschau · Beispiel", modifier = it, style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        second = { androidx.compose.material3.TextButton(onClick = { previewExpanded = !previewExpanded },
+                            modifier = it.heightIn(min = 48.dp)) {
+                            Text(if (previewExpanded) "Ausblenden" else "Anzeigen", maxLines = 1)
+                        } }
+                    )
+                    if (previewExpanded) WidgetLivePreview(isList, config)
+                }
+            }
+            item {
+                WidgetSection("Inhalt", Icons.Outlined.CalendarToday) {
+                    Column(Modifier.selectableGroup()) {
+                        com.andrin.examcountdown.ui.AdaptiveFieldPair(
+                            first = { WidgetChoice("Nur Prüfungen", "Fokus auf Prüfungen", Icons.Outlined.School,
+                                mode == WidgetMode.EXAMS, { mode = WidgetMode.EXAMS }, it) },
+                            second = { WidgetChoice("Agenda", "Dein gesamter Plan", Icons.Outlined.CalendarToday,
+                                mode == WidgetMode.AGENDA, { mode = WidgetMode.AGENDA }, it) }
                         )
                     }
                 }
             }
-        }
-
-        Card(
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text("Sortierung", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = sortMode == WidgetSortMode.TIME_ASC,
-                        onClick = { sortMode = WidgetSortMode.TIME_ASC },
-                        label = { Text("Nach Zeit") }
-                    )
-                    FilterChip(
-                        selected = sortMode == WidgetSortMode.TYPE_THEN_TIME,
-                        onClick = { sortMode = WidgetSortMode.TYPE_THEN_TIME },
-                        label = { Text("Nach Typ") }
-                    )
+            item {
+                WidgetSection("Zeitraum", Icons.Outlined.Schedule) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        (listOf(7, 30, 90, WIDGET_WINDOW_DAYS_ALL) + windowDays).distinct().sorted().forEach { days ->
+                            FilterChip(windowDays == days, { windowDays = days }, label = { Text(if (days == WIDGET_WINDOW_DAYS_ALL) "Alle" else "$days Tage") })
+                        }
+                    }
                 }
             }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                modifier = Modifier.weight(1f),
-                onClick = onCancel
-            ) {
-                Text("Abbrechen")
-            }
-            Button(
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    onSave(
-                        WidgetConfig(
-                            mode = mode,
-                            windowDays = windowDays,
-                            sortMode = sortMode
-                        )
-                    )
+            if (isList) item {
+                WidgetSection("Sortierung", Icons.AutoMirrored.Outlined.Sort) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(sortMode == WidgetSortMode.TIME_ASC, { sortMode = WidgetSortMode.TIME_ASC }, label = { Text("Nach Zeit") })
+                        FilterChip(sortMode == WidgetSortMode.TYPE_THEN_TIME, { sortMode = WidgetSortMode.TYPE_THEN_TIME }, label = { Text("Nach Typ") })
+                    }
                 }
-            ) {
-                Text("Speichern")
+            }
+            item {
+                WidgetSection("Darstellung", Icons.Outlined.Tune) {
+                    WidgetAppearanceToggle("Kompakte Ansicht", "Weniger Höhe", Icons.Outlined.ViewCompact,
+                        compact, { compact = it })
+                    WidgetAppearanceToggle("Raum anzeigen", "Ort im Blick", Icons.Outlined.LocationOn,
+                        showLocation, { showLocation = it })
+                    WidgetAppearanceToggle("Countdown anzeigen", "Zeit bis zum Start", Icons.Outlined.Timer,
+                        showCountdown, { showCountdown = it })
+                    WidgetAppearanceToggle("Persönliche Details verbergen", "Verbirgt Titel und Räume. Datum und Uhrzeit bleiben sichtbar.", Icons.Outlined.Lock,
+                        privacyMode, { privacyMode = it })
+                    Text("Widgets sind außerhalb des App-Schutzes sichtbar. Für eine vollständig private Ansicht entferne das Widget vom Startbildschirm.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }

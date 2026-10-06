@@ -20,7 +20,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,7 +50,9 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material.icons.outlined.MoreVert
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.School
@@ -68,13 +69,15 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.FilterChip
+import com.andrin.examcountdown.ui.AppFilterChip as FilterChip
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -97,6 +100,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -174,84 +178,15 @@ enum class HomeTab(
     val route: String,
     val icon: ImageVector
 ) {
-    EXAMS("Prüfungen", "Prüf.", "exams", Icons.Outlined.School),
+    EXAMS("Prüfungen", "Prüfungen", "exams", Icons.Outlined.School),
     TIMETABLE("Stundenplan", "Plan", "timetable", Icons.Outlined.Schedule),
     EVENTS("Agenda", "Agenda", "events", Icons.Outlined.CalendarToday),
-    GRADES("Notenrechner", "Noten", "grades", Icons.Outlined.Calculate);
+    GRADES("Notenrechner", "Noten", "grades", Icons.Outlined.Calculate),
+    SETTINGS("Einstellungen", "Optionen", "settings", Icons.Outlined.Settings);
 
     companion object {
         fun fromRoute(route: String?): HomeTab {
             return entries.firstOrNull { it.route == route } ?: EXAMS
-        }
-    }
-}
-
-@Composable
-private fun HomeTabPillRow(
-    visibleTabs: List<HomeTab>,
-    selectedTab: HomeTab,
-    onTabSelected: (HomeTab) -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-        border = BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f)
-        ),
-        tonalElevation = 1.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            visibleTabs.forEach { tab ->
-                val selected = selectedTab == tab
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(MaterialTheme.shapes.medium)
-                        .background(
-                            if (selected) {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f)
-                            } else {
-                                Color.Transparent
-                            }
-                        )
-                        .clickable { onTabSelected(tab) }
-                        .padding(horizontal = 4.dp, vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = tab.icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = if (selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
-                    Text(
-                        text = tab.shortTitle,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
         }
     }
 }
@@ -311,17 +246,17 @@ fun ExamCountdownScreen(
     val timetableTabUiState by viewModel.timetableTabUiState.collectAsStateWithLifecycle()
     val agendaTabUiState by viewModel.agendaTabUiState.collectAsStateWithLifecycle()
     val gradesTabUiState by viewModel.gradesTabUiState.collectAsStateWithLifecycle()
-    val isDarkMode = isSystemInDarkTheme()
+    val isDarkMode = isAppDarkTheme()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var showIcalDialog by rememberSaveable { mutableStateOf(false) }
     var showOnboardingDialog by rememberSaveable { mutableStateOf(false) }
     var showReminderSettingsDialog by rememberSaveable { mutableStateOf(false) }
     var showSyncSettingsDialog by rememberSaveable { mutableStateOf(false) }
-    var showQuickActionsDialog by rememberSaveable { mutableStateOf(false) }
     var showPersonalizationDialog by rememberSaveable { mutableStateOf(false) }
     var showAppLockDialog by rememberSaveable { mutableStateOf(false) }
     var showHelpDialog by rememberSaveable { mutableStateOf(false) }
     var showPrivacyDialog by rememberSaveable { mutableStateOf(false) }
+    var informationPage by rememberSaveable { mutableStateOf<AppInformationPage?>(null) }
     var showBackupExportDialog by rememberSaveable { mutableStateOf(false) }
     var showBackupImportDialog by rememberSaveable { mutableStateOf(false) }
     var showSyncDiagnosticsDialog by rememberSaveable { mutableStateOf(false) }
@@ -340,6 +275,7 @@ fun ExamCountdownScreen(
     var onboardingInfoMessage by rememberSaveable { mutableStateOf("") }
     var isSyncingIcal by rememberSaveable { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(initialTab) }
+    var lastContentTab by rememberSaveable { mutableStateOf(HomeTab.EXAMS) }
     var appLockInitialized by rememberSaveable { mutableStateOf(false) }
     var isAppUnlocked by rememberSaveable { mutableStateOf(false) }
     var biometricAutoPromptConsumed by rememberSaveable { mutableStateOf(false) }
@@ -498,6 +434,7 @@ fun ExamCountdownScreen(
             if (showTimetableTab) add(HomeTab.TIMETABLE)
             if (showAgendaTab) add(HomeTab.EVENTS)
             add(HomeTab.GRADES)
+            add(HomeTab.SETTINGS)
         }
     }
 
@@ -771,75 +708,66 @@ fun ExamCountdownScreen(
         )
     }
 
-    if (showQuickActionsDialog) {
-        QuickActionsDialog(
-            showSyncStatusStrip = showSyncStatusStrip,
-            onDismiss = { showQuickActionsDialog = false },
-            onSyncNow = {
-                showQuickActionsDialog = false
+    val onSettingsAction: (SettingsAction) -> Unit = { action ->
+        when (action) {
+            SettingsAction.SYNC_NOW -> {
                 triggerManualRefresh()
-            },
-            onShowSyncStatusStripChange = { enabled ->
-                viewModel.setShowSyncStatusStrip(enabled)
-            },
-            onOpenReminderSettings = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.REMINDERS -> {
                 showReminderSettingsDialog = true
-            },
-            onOpenSyncSettings = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.SYNC_OPTIONS -> {
                 showSyncSettingsDialog = true
-            },
-            onOpenIcalImport = {
+            }
+            SettingsAction.CALENDAR -> {
                 iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
                 iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
                 importEventsToggle = importEventsEnabled
-                showQuickActionsDialog = false
                 showIcalDialog = true
-            },
-            onOpenHelp = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.HELP -> {
                 showHelpDialog = true
-            },
-            onOpenPrivacy = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.PRIVACY -> {
                 showPrivacyDialog = true
-            },
-            onOpenSyncDiagnostics = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.ACCESSIBILITY -> {
+                informationPage = AppInformationPage.ACCESSIBILITY
+            }
+            SettingsAction.LICENSES -> {
+                informationPage = AppInformationPage.LICENSES
+            }
+            SettingsAction.DIAGNOSTICS -> {
                 showSyncDiagnosticsDialog = true
-            },
-            onOpenExport = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.EXPORT -> {
                 showExportDialog = true
-            },
-            onOpenChangelog = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.CHANGELOG -> {
                 viewModel.setLastSeenVersion(BuildConfig.VERSION_NAME)
                 showChangelogDialog = true
-            },
-            onOpenPersonalization = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.PERSONALIZE -> {
                 showPersonalizationDialog = true
-            },
-            onOpenAppLock = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.WIDGETS -> {
+                context.startActivity(Intent(context, com.andrin.examcountdown.widget.WidgetSettingsActivity::class.java))
+            }
+            SettingsAction.APP_LOCK -> {
                 showAppLockDialog = true
-            },
-            onExportBackup = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.BACKUP_EXPORT -> {
                 backupExportPassword = ""
                 backupExportAllowUnencrypted = false
                 backupExportUnencryptedWarningConfirmed = false
                 showBackupExportUnencryptedWarningDialog = false
                 showBackupExportDialog = true
-            },
-            onImportBackup = {
-                showQuickActionsDialog = false
+            }
+            SettingsAction.BACKUP_IMPORT -> {
                 importBackupLauncher.launch(arrayOf("application/json", "text/plain"))
-            },
-            hasUnseenChangelog = hasUnseenChangelog
-        )
+            }
+            SettingsAction.SYNC_STATUS -> Unit // The dedicated switch handles this preference.
+        }
     }
 
     if (showAppLockDialog) {
@@ -882,6 +810,12 @@ fun ExamCountdownScreen(
         )
     }
 
+    informationPage?.let { page ->
+        AppInformationDialog(page, onDismiss = { informationPage = null }, onPersonalize = {
+            informationPage = null
+            showPersonalizationDialog = true
+        })
+    }
     if (showPrivacyDialog) {
         PrivacyDialog(
             screenshotProtectionEnabled = screenshotProtectionEnabled,
@@ -893,7 +827,11 @@ fun ExamCountdownScreen(
                     scope.launch { snackbarHostState.showSnackbar(message) }
                 }
             },
-            onDismiss = { showPrivacyDialog = false }
+            onDismiss = { showPrivacyDialog = false },
+            onReadPolicy = {
+                showPrivacyDialog = false
+                informationPage = AppInformationPage.PRIVACY
+            }
         )
     }
 
@@ -1162,51 +1100,22 @@ fun ExamCountdownScreen(
         )
     }
 
-    val scheme = MaterialTheme.colorScheme
-    val backgroundBrush = remember(
-        isDarkMode,
-        scheme.background,
-        scheme.surface,
-        scheme.surfaceVariant,
-        scheme.primaryContainer
-    ) {
-        val colors = if (isDarkMode) {
-            listOf(
-                scheme.background,
-                scheme.surfaceVariant.copy(alpha = 0.92f),
-                scheme.surface,
-                scheme.background
-            )
-        } else {
-            listOf(
-                scheme.primaryContainer.copy(alpha = 0.45f),
-                scheme.background,
-                scheme.surface,
-                scheme.surfaceVariant.copy(alpha = 0.78f)
-            )
-        }
-        Brush.verticalGradient(colors)
+    val closeSettings = {
+        selectedTab = lastContentTab.takeIf { it in visibleTabs && it != HomeTab.SETTINGS } ?: HomeTab.EXAMS
     }
-    val headerBrush = remember(
-        isDarkMode,
-        scheme.primaryContainer,
-        scheme.surface,
-        scheme.background
-    ) {
-        val colors = if (isDarkMode) {
-            listOf(
-                scheme.primaryContainer.copy(alpha = 0.72f),
-                scheme.surface.copy(alpha = 0.98f),
-                scheme.background.copy(alpha = 0.94f)
-            )
-        } else {
-            listOf(
-                scheme.primaryContainer.copy(alpha = 0.98f),
-                scheme.surface.copy(alpha = 0.96f),
-                scheme.background.copy(alpha = 0.94f)
-            )
-        }
-        Brush.verticalGradient(colors)
+    val selectTab: (HomeTab) -> Unit = { tab ->
+        if (tab == HomeTab.SETTINGS && selectedTab != HomeTab.SETTINGS) lastContentTab = selectedTab
+        selectedTab = tab
+    }
+    BackHandler(enabled = selectedTab == HomeTab.SETTINGS) { closeSettings() }
+
+    val tabStateHolder = rememberSaveableStateHolder()
+    val scheme = MaterialTheme.colorScheme
+    val backgroundBrush = remember(scheme.background) {
+        Brush.verticalGradient(listOf(scheme.background, scheme.background))
+    }
+    val headerBrush = remember(scheme.surface) {
+        Brush.verticalGradient(listOf(scheme.surface, scheme.surface))
     }
 
     Scaffold(
@@ -1219,8 +1128,8 @@ fun ExamCountdownScreen(
                         bottomStart = 24.dp,
                         bottomEnd = 24.dp
                     ),
-                    tonalElevation = if (isDarkMode) 2.dp else 4.dp,
-                    shadowElevation = if (isDarkMode) 0.dp else 8.dp
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp
                 ) {
                     Box(
                         modifier = Modifier
@@ -1229,22 +1138,18 @@ fun ExamCountdownScreen(
                     ) {
                         Column {
                             TopAppBar(
+                                navigationIcon = {
+                                    if (selectedTab == HomeTab.SETTINGS) IconButton(onClick = closeSettings) {
+                                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Zurück")
+                                    }
+                                },
                                 title = {
                                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(
-                                            text = "Prüfungs-Planer",
-                                            style = MaterialTheme.typography.headlineSmall,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            text = "Alles an einem Ort",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                        AppScreenHeading(selectedTab.title)
                                     }
                                 },
                                 actions = {
-                                    if (selectedTab != HomeTab.GRADES) {
+                                    if (selectedTab != HomeTab.GRADES && selectedTab != HomeTab.SETTINGS) {
                                         FilledTonalIconButton(
                                             enabled = !isSyncingIcal,
                                             onClick = triggerManualRefresh,
@@ -1267,9 +1172,11 @@ fun ExamCountdownScreen(
                                                 )
                                             }
                                         }
+                                    }
+                                    if (selectedTab != HomeTab.SETTINGS) {
                                         FilledTonalIconButton(
                                             onClick = {
-                                                showQuickActionsDialog = true
+                                                selectTab(HomeTab.SETTINGS)
                                             },
                                             colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
                                                 containerColor = MaterialTheme.colorScheme.surface.copy(
@@ -1279,8 +1186,8 @@ fun ExamCountdownScreen(
                                             )
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Outlined.MoreVert,
-                                                contentDescription = "Mehr Aktionen"
+                                                imageVector = Icons.Outlined.Settings,
+                                                contentDescription = "Einstellungen öffnen"
                                             )
                                         }
                                     }
@@ -1290,11 +1197,7 @@ fun ExamCountdownScreen(
                                     scrolledContainerColor = Color.Transparent
                                 )
                             )
-                            HomeTabPillRow(
-                                visibleTabs = visibleTabs,
-                                selectedTab = selectedTab,
-                                onTabSelected = { selectedTab = it }
-                            )
+
                         }
                     }
                 }
@@ -1311,16 +1214,23 @@ fun ExamCountdownScreen(
                 }
             }
         },
+        bottomBar = {
+            HomeNavigationBar(
+                visibleTabs = visibleTabs,
+                selectedTab = selectedTab,
+                onTabSelected = selectTab
+            )
+        },
         floatingActionButton = {
             if (selectedTab == HomeTab.EXAMS) {
-                FloatingActionButton(
+                ExtendedFloatingActionButton(
+                    text = { Text("Neue Prüfung") },
+                    icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
                     onClick = { showAddDialog = true },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                     shape = MaterialTheme.shapes.large
-                ) {
-                    Icon(imageVector = Icons.Outlined.Add, contentDescription = "Prüfung hinzufügen")
-                }
+                )
             }
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -1331,117 +1241,125 @@ fun ExamCountdownScreen(
                 .background(backgroundBrush)
                 .padding(paddingValues)
         ) {
-            when (selectedTab) {
-                HomeTab.EXAMS -> ExamsTabContent(
-                    state = examsTabUiState,
-                    onEvent = { event ->
-                        when (event) {
-                            ExamsTabEvent.OpenIcalImport -> {
-                                iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
-                                iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
-                                importEventsToggle = importEventsEnabled
-                                showIcalDialog = true
-                            }
-                            ExamsTabEvent.RefreshNow -> triggerManualRefresh()
-                            ExamsTabEvent.OpenHelp -> {
-                                showHelpDialog = true
-                            }
-                            ExamsTabEvent.OpenSyncDiagnostics -> {
-                                showSyncDiagnosticsDialog = true
-                            }
-                            ExamsTabEvent.AddExam -> {
-                                showAddDialog = true
-                            }
-                            ExamsTabEvent.HideSetupGuide -> {
-                                viewModel.onExamsEvent(event)
-                            }
-                            is ExamsTabEvent.PlanStudy -> {
-                                studyPlanExam = event.exam
-                                studyPlanExamPresentation = buildExamPresentation(event.exam)
-                            }
-                            is ExamsTabEvent.DeleteExam -> {
-                                val exam = event.exam
-                                viewModel.onExamsEvent(event)
-                                val deletedTitle = buildExamPresentation(exam).title
-                                scope.launch {
-                                    val result = snackbarHostState.showSnackbar(
-                                        message = "\"$deletedTitle\" gelöscht",
-                                        actionLabel = "Rückgängig",
-                                        duration = SnackbarDuration.Long
-                                    )
-                                    if (result == SnackbarResult.ActionPerformed) {
-                                        viewModel.restoreExam(exam)
-                                        snackbarHostState.showSnackbar("Prüfung wiederhergestellt.")
-                                    }
+            tabStateHolder.SaveableStateProvider(selectedTab.route) {
+                when (selectedTab) {
+                    HomeTab.EXAMS -> ExamsTabContent(
+                        state = examsTabUiState,
+                        onEvent = { event ->
+                            when (event) {
+                                ExamsTabEvent.OpenIcalImport -> {
+                                    iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                                    iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
+                                    importEventsToggle = importEventsEnabled
+                                    showIcalDialog = true
                                 }
-                            }
-                        }
-                    }
-                )
-
-                HomeTab.TIMETABLE -> TimetableTabContent(
-                    state = timetableTabUiState,
-                    onEvent = { event ->
-                        when (event) {
-                            TimetableTabEvent.OpenIcalImport -> {
-                                iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
-                                iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
-                                importEventsToggle = importEventsEnabled
-                                showIcalDialog = true
-                            }
-                            TimetableTabEvent.ClearChanges -> viewModel.onTimetableEvent(event)
-                        }
-                    }
-                )
-
-                HomeTab.EVENTS -> AgendaTabContent(
-                    state = agendaTabUiState,
-                    onEvent = { event ->
-                        when (event) {
-                            AgendaTabEvent.OpenIcalImport -> {
-                                iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
-                                iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
-                                importEventsToggle = importEventsEnabled
-                                showIcalDialog = true
-                            }
-                            AgendaTabEvent.EnableEventsImportAndSync -> {
-                                isSyncingIcal = true
-                                viewModel.enableEventsImportAndRefresh { message ->
-                                    isSyncingIcal = false
+                                ExamsTabEvent.RefreshNow -> triggerManualRefresh()
+                                ExamsTabEvent.OpenHelp -> {
+                                    showHelpDialog = true
+                                }
+                                ExamsTabEvent.OpenSyncDiagnostics -> {
+                                    showSyncDiagnosticsDialog = true
+                                }
+                                ExamsTabEvent.AddExam -> {
+                                    showAddDialog = true
+                                }
+                                ExamsTabEvent.HideSetupGuide -> {
+                                    viewModel.onExamsEvent(event)
+                                }
+                                is ExamsTabEvent.PlanStudy -> {
+                                    studyPlanExam = event.exam
+                                    studyPlanExamPresentation = buildExamPresentation(event.exam)
+                                }
+                                is ExamsTabEvent.DeleteExam -> {
+                                    val exam = event.exam
+                                    viewModel.onExamsEvent(event)
+                                    val deletedTitle = buildExamPresentation(exam).title
                                     scope.launch {
-                                        snackbarHostState.showSnackbar(message)
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "\"$deletedTitle\" gelöscht",
+                                            actionLabel = "Rückgängig",
+                                            duration = SnackbarDuration.Long
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            viewModel.restoreExam(exam)
+                                            snackbarHostState.showSnackbar("Prüfung wiederhergestellt.")
+                                        }
                                     }
                                 }
                             }
-                            is AgendaTabEvent.AddCustomEvents -> {
-                                viewModel.onAgendaEvent(event)
-                                scope.launch {
-                                    val label = if (event.events.size == 1) "Event gespeichert." else "${event.events.size} Events gespeichert."
-                                    snackbarHostState.showSnackbar(label)
+                        }
+                    )
+
+                    HomeTab.TIMETABLE -> TimetableTabContent(
+                        state = timetableTabUiState,
+                        onEvent = { event ->
+                            when (event) {
+                                TimetableTabEvent.OpenIcalImport -> {
+                                    iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                                    iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
+                                    importEventsToggle = importEventsEnabled
+                                    showIcalDialog = true
                                 }
+                                TimetableTabEvent.ClearChanges -> viewModel.onTimetableEvent(event)
                             }
-                            is AgendaTabEvent.DeleteCustomEvent -> {
-                                viewModel.onAgendaEvent(event)
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Event gelöscht.")
+                        }
+                    )
+
+                    HomeTab.EVENTS -> AgendaTabContent(
+                        state = agendaTabUiState,
+                        onEvent = { event ->
+                            when (event) {
+                                AgendaTabEvent.OpenIcalImport -> {
+                                    iCalUrlPrimary = savedIcalUrls.getOrNull(0).orEmpty()
+                                    iCalUrlSecondary = savedIcalUrls.getOrNull(1).orEmpty()
+                                    importEventsToggle = importEventsEnabled
+                                    showIcalDialog = true
                                 }
-                            }
-                            is AgendaTabEvent.UpdateCustomEvent -> {
-                                viewModel.onAgendaEvent(event)
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Event aktualisiert.")
+                                AgendaTabEvent.EnableEventsImportAndSync -> {
+                                    isSyncingIcal = true
+                                    viewModel.enableEventsImportAndRefresh { message ->
+                                        isSyncingIcal = false
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(message)
+                                        }
+                                    }
+                                }
+                                is AgendaTabEvent.AddCustomEvents -> {
+                                    viewModel.onAgendaEvent(event)
+                                    scope.launch {
+                                        val label = if (event.events.size == 1) "Event gespeichert." else "${event.events.size} Events gespeichert."
+                                        snackbarHostState.showSnackbar(label)
+                                    }
+                                }
+                                is AgendaTabEvent.DeleteCustomEvent -> {
+                                    viewModel.onAgendaEvent(event)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Event gelöscht.")
+                                    }
+                                }
+                                is AgendaTabEvent.UpdateCustomEvent -> {
+                                    viewModel.onAgendaEvent(event)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Event aktualisiert.")
+                                    }
                                 }
                             }
                         }
-                    }
-                )
+                    )
 
-                HomeTab.GRADES -> GradesTabContent(
-                    state = gradesTabUiState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                )
+                    HomeTab.SETTINGS -> SettingsContent(
+                        showSyncStatusStrip = showSyncStatusStrip,
+                        hasUnseenChangelog = hasUnseenChangelog,
+                        onShowSyncStatusStripChange = viewModel::setShowSyncStatusStrip,
+                        onAction = onSettingsAction
+                    )
+                    HomeTab.GRADES -> GradesTabContent(
+                        state = gradesTabUiState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    )
+                }
             }
         }
     }
@@ -1503,7 +1421,7 @@ private fun AppLockSettingsDialog(
                         onCheckedChange = { enableBiometricOnSetup = it }
                     )
                 }
-                OutlinedTextField(
+                AppTextField(
                     value = pin,
                     onValueChange = { value ->
                         pin = value.filter { it.isDigit() }.take(APP_LOCK_MAX_PIN_DIGITS)
@@ -1567,7 +1485,7 @@ private fun AppUnlockDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = pin,
                     onValueChange = { value ->
                         pin = value.filter { it.isDigit() }.take(APP_LOCK_MAX_PIN_DIGITS)
@@ -1708,7 +1626,7 @@ private fun PlanExamStudySessionsDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                OutlinedTextField(
+                AppTextField(
                     value = studyStartWeeksBeforeRaw,
                     onValueChange = {
                         studyStartWeeksBeforeRaw = it.filter(Char::isDigit).take(2)
@@ -1719,7 +1637,7 @@ private fun PlanExamStudySessionsDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
 
-                OutlinedTextField(
+                AppTextField(
                     value = studyDurationMinutesRaw,
                     onValueChange = {
                         studyDurationMinutesRaw = it.filter(Char::isDigit).take(3)
@@ -1730,7 +1648,7 @@ private fun PlanExamStudySessionsDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
 
-                OutlinedTextField(
+                AppTextField(
                     value = studySessionCountRaw,
                     onValueChange = {
                         studySessionCountRaw = it.filter(Char::isDigit).take(3)
@@ -1988,7 +1906,7 @@ private fun AddExamDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutlinedTextField(
+                AppTextField(
                     value = subject,
                     onValueChange = { subject = it },
                     label = { Text("Fach (optional)") },
@@ -1996,7 +1914,7 @@ private fun AddExamDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
+                AppTextField(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("Titel / Prüfung") },
@@ -2004,7 +1922,7 @@ private fun AddExamDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
+                AppTextField(
                     value = location,
                     onValueChange = { location = it },
                     label = { Text("Ort (optional)") },
@@ -2174,7 +2092,7 @@ private fun AddExamDialog(
                         }
 
                         if (studyPlanEnabled) {
-                            OutlinedTextField(
+                            AppTextField(
                                 value = studyStartWeeksBeforeRaw,
                                 onValueChange = {
                                     studyStartWeeksBeforeRaw = it.filter(Char::isDigit).take(2)
@@ -2185,7 +2103,7 @@ private fun AddExamDialog(
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                             )
 
-                            OutlinedTextField(
+                            AppTextField(
                                 value = studyDurationMinutesRaw,
                                 onValueChange = {
                                     studyDurationMinutesRaw = it.filter(Char::isDigit).take(3)
@@ -2196,7 +2114,7 @@ private fun AddExamDialog(
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                             )
 
-                            OutlinedTextField(
+                            AppTextField(
                                 value = studySessionCountRaw,
                                 onValueChange = {
                                     studySessionCountRaw = it.filter(Char::isDigit).take(3)
@@ -2405,24 +2323,27 @@ private fun DurationPartsInputRow(
     onMinutesChange: (String) -> Unit
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
+        AppTextField(
             value = daysRaw,
             onValueChange = { onDaysChange(it.filter(Char::isDigit).take(2)) },
             label = { Text("Tage") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             modifier = Modifier.weight(1f)
         )
-        OutlinedTextField(
+        AppTextField(
             value = hoursRaw,
             onValueChange = { onHoursChange(it.filter(Char::isDigit).take(2)) },
             label = { Text("Std") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             modifier = Modifier.weight(1f)
         )
-        OutlinedTextField(
+        AppTextField(
             value = minutesRaw,
             onValueChange = { onMinutesChange(it.filter(Char::isDigit).take(2)) },
             label = { Text("Min") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             modifier = Modifier.weight(1f)
         )
@@ -2533,5 +2454,3 @@ private fun getOrCreateBiometricSecretKey(): SecretKey {
     keyGenerator.init(builder.build())
     return keyGenerator.generateKey()
 }
-
-

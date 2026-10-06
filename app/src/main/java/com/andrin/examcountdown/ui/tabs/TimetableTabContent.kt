@@ -30,7 +30,7 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
+import com.andrin.examcountdown.ui.AppFilterChip as FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +52,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.andrin.examcountdown.ui.StudyWorldHeader
+import com.andrin.examcountdown.ui.AppTextField
+import com.andrin.examcountdown.ui.ActiveFilterChip
+import com.andrin.examcountdown.ui.FilterControls
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Close
 import com.andrin.examcountdown.model.TimetableChangeEntry
 import com.andrin.examcountdown.model.TimetableChangeType
 import com.andrin.examcountdown.model.TimetableLesson
@@ -76,9 +82,9 @@ internal enum class TimetableViewMode(val title: String) {
 
 internal enum class TimetableFilter(val title: String) {
     ALL("Alle"),
-    ONLY_TODAY("Nur heute"),
+    ONLY_TODAY("Heute"),
     ONLY_MOVED("Verschoben"),
-    ONLY_ROOM_CHANGED("Nur Raum")
+    ONLY_ROOM_CHANGED("Raumwechsel")
 }
 
 internal data class TimetableLessonBlock(
@@ -109,8 +115,8 @@ fun TimetableTabContent(
         if (changes.isNotEmpty()) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 item("today-changes-feed-empty") {
                     TimetableChangesCard(
@@ -136,6 +142,8 @@ fun TimetableTabContent(
         return
     }
 
+    var query by rememberSaveable { mutableStateOf("") }
+    var showFilters by rememberSaveable { mutableStateOf(false) }
     var selectedFilter by rememberSaveable { mutableStateOf(TimetableFilter.ALL) }
     var viewMode by rememberSaveable { mutableStateOf(TimetableViewMode.LIST) }
     var weekOffset by rememberSaveable { mutableIntStateOf(0) }
@@ -145,11 +153,12 @@ fun TimetableTabContent(
         mergeConsecutiveLessons(lessonsWithCancelledSlots)
     }
     val schoolZone = remember { ZoneId.of("Europe/Zurich") }
-    val filteredLessons = remember(mergedLessons, selectedFilter) {
+    val filteredLessons = remember(mergedLessons, selectedFilter, query) {
         filterTimetableBlocks(
             lessons = mergedLessons,
             filter = selectedFilter,
-            schoolZone = schoolZone
+            schoolZone = schoolZone,
+            query = query
         )
     }
     val grouped = remember(filteredLessons) {
@@ -171,14 +180,14 @@ fun TimetableTabContent(
         }
     }
     val nowMillis = SchoolTime.nowMillis()
-    val activeLesson = remember(mergedLessons, nowMillis) {
-        mergedLessons.firstOrNull { lesson ->
+    val activeLesson = remember(filteredLessons, nowMillis) {
+        filteredLessons.firstOrNull { lesson ->
             !lesson.isCancelledSlot &&
                 nowMillis in lesson.startsAtEpochMillis until lesson.endsAtEpochMillis
         }
     }
-    val upcomingLesson = remember(mergedLessons, nowMillis) {
-        mergedLessons.firstOrNull { lesson ->
+    val upcomingLesson = remember(filteredLessons, nowMillis) {
+        filteredLessons.firstOrNull { lesson ->
             !lesson.isCancelledSlot &&
                 lesson.startsAtEpochMillis > nowMillis
         }
@@ -186,9 +195,84 @@ fun TimetableTabContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        item("study-timetable-heading") {
+            StudyWorldHeader("Dein Schultag", "Zeiten, Räume & Änderungen", illustrated = true)
+        }
+        item(key = "timetable-controls") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AppTextField(
+                        value = query, onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        label = { Text("Stundenplan durchsuchen") }, placeholder = { Text("Fach oder Raum") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Search
+                        ),
+                        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (query.isNotBlank()) IconButton(onClick = { query = "" }) {
+                                Icon(Icons.Outlined.Close, contentDescription = "Stundenplansuche löschen")
+                            }
+                        }
+                    )
+                    FilterControls(
+                        resultLabel = "${filteredLessons.size} ${if (filteredLessons.size == 1) "Eintrag" else "Einträge"}",
+                        activeCount = listOf(query.isNotBlank(), selectedFilter != TimetableFilter.ALL).count { it },
+                        expanded = showFilters,
+                        onToggle = { showFilters = !showFilters },
+                        onReset = { query = ""; selectedFilter = TimetableFilter.ALL }
+                    )
+                    if (query.isNotBlank() || selectedFilter != TimetableFilter.ALL) {
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (query.isNotBlank()) ActiveFilterChip("Suche: ${query.trim()}") { query = "" }
+                            if (selectedFilter != TimetableFilter.ALL) ActiveFilterChip(selectedFilter.title) {
+                                selectedFilter = TimetableFilter.ALL
+                            }
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TimetableViewMode.entries.forEach { mode ->
+                            TimetableChoiceChip(
+                                text = mode.title,
+                                selected = viewMode == mode,
+                                onClick = { viewMode = mode }
+                            )
+                        }
+                    }
+
+                    if (showFilters) {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TimetableFilter.entries.forEach { filter ->
+                                TimetableChoiceChip(
+                                    text = filter.title,
+                                    selected = selectedFilter == filter,
+                                    onClick = { selectedFilter = filter }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if (todayChanges.isNotEmpty()) {
             item(key = "today-changes-feed") {
                 TimetableChangesCard(
@@ -203,74 +287,6 @@ fun TimetableTabContent(
                 activeLesson = activeLesson,
                 upcomingLesson = upcomingLesson
             )
-        }
-
-        item(key = "timetable-controls") {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "Ansicht & Filter",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    TimetableSectionLabel("Ansicht")
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TimetableViewMode.entries.forEach { mode ->
-                            TimetableChoiceChip(
-                                text = mode.title,
-                                selected = viewMode == mode,
-                                onClick = { viewMode = mode }
-                            )
-                        }
-                    }
-
-                    TimetableSectionLabel("Filter")
-                    FlowRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TimetableFilter.entries.forEach { filter ->
-                            TimetableChoiceChip(
-                                text = filter.title,
-                                selected = selectedFilter == filter,
-                                onClick = { selectedFilter = filter }
-                            )
-                        }
-                    }
-
-                    if (
-                        viewMode != TimetableViewMode.LIST ||
-                        selectedFilter != TimetableFilter.ALL ||
-                        weekOffset != 0
-                    ) {
-                        TextButton(
-                            onClick = {
-                                viewMode = TimetableViewMode.LIST
-                                selectedFilter = TimetableFilter.ALL
-                                weekOffset = 0
-                            },
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            Text("Zurücksetzen")
-                        }
-                    }
-                }
-            }
         }
 
         if (viewMode == TimetableViewMode.WEEK) {
@@ -318,4 +334,3 @@ fun TimetableTabContent(
         }
     }
 }
-

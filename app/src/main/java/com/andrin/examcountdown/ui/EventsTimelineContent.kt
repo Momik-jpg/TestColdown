@@ -39,12 +39,11 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
+import com.andrin.examcountdown.ui.AppFilterChip as FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -72,7 +71,6 @@ import com.andrin.examcountdown.ui.theme.AppDimens
 import com.andrin.examcountdown.util.SchoolTime
 import com.andrin.examcountdown.util.formatCountdown
 import com.andrin.examcountdown.util.formatExamDateShort
-import com.andrin.examcountdown.util.formatTimeRange
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -82,10 +80,10 @@ import java.util.Calendar
 import java.util.Locale
 
 private enum class CalendarSourceFilter(val title: String) {
-    ALL("Alles"),
-    EXAMS_ONLY("Nur Prüfungen"),
-    LESSONS_ONLY("Nur Lektionen"),
-    EVENTS_ONLY("Nur Events")
+    ALL("Alle"),
+    EXAMS_ONLY("Prüfungen"),
+    LESSONS_ONLY("Unterricht"),
+    EVENTS_ONLY("Termine")
 }
 
 private enum class AgendaLayoutMode(val title: String) {
@@ -123,10 +121,9 @@ private const val AGENDA_MONTH_DAY_CELL_ASPECT_RATIO = 0.80f
 
 internal fun hasActiveAgendaFilters(
     searchQuery: String,
-    sourceFilterIsAll: Boolean,
-    layoutModeIsMonth: Boolean
+    sourceFilterIsAll: Boolean
 ): Boolean {
-    return searchQuery.isNotBlank() || !sourceFilterIsAll || !layoutModeIsMonth
+    return searchQuery.isNotBlank() || !sourceFilterIsAll
 }
 
 internal fun shouldShowEnableEventImportAction(
@@ -246,7 +243,7 @@ fun EventsTimelineContent(
 
     val filteredItems = remember(items, sourceFilter, searchQuery) {
         val now = SchoolTime.nowMillis()
-        val query = searchQuery.trim().lowercase()
+        val query = searchQuery.trim().lowercase(Locale.ROOT)
 
         items.filter { item ->
             val matchesSource = when (sourceFilter) {
@@ -261,7 +258,7 @@ fun EventsTimelineContent(
                 item.title,
                 item.subtitle,
                 item.location.orEmpty()
-            ).joinToString(" ").lowercase().contains(query)
+            ).joinToString(" ").lowercase(Locale.ROOT).contains(query)
 
             matchesSource && matchesWindow && matchesQuery
         }
@@ -294,7 +291,12 @@ fun EventsTimelineContent(
             hasIcalUrl = hasIcalUrl,
             importEventsEnabled = importEventsEnabled,
             onOpenIcalImport = onOpenIcalImport,
-            onEnableEventsImportAndSync = onEnableEventsImportAndSync
+            onEnableEventsImportAndSync = onEnableEventsImportAndSync,
+            onAddEvent = {
+                eventDialogInitialStartsAtMillis = null
+                editingEventId = null
+                showAddCustomEventDialog = true
+            }
         )
         return
     }
@@ -307,6 +309,9 @@ fun EventsTimelineContent(
         ),
         verticalArrangement = Arrangement.spacedBy(AppDimens.itemSpacing)
     ) {
+        item("study-agenda-heading") {
+            StudyWorldHeader("Deine Woche", "Prüfungen, Unterricht & Termine", illustrated = true)
+        }
         item("calendar-controls") {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -324,16 +329,20 @@ fun EventsTimelineContent(
                     modifier = Modifier.padding(AppDimens.cardInnerPadding),
                     verticalArrangement = Arrangement.spacedBy(AppDimens.itemSpacing)
                 ) {
-                    OutlinedTextField(
+                    AppTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         label = { Text("Suche") },
+                        placeholder = { Text("Titel, Fach oder Ort") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Search
+                        ),
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Outlined.Search,
-                                contentDescription = "Suche"
+                                contentDescription = null
                             )
                         },
                         trailingIcon = {
@@ -348,12 +357,31 @@ fun EventsTimelineContent(
                         }
                     )
 
-                    EventControlsSectionLabel("Ansicht")
+                    val activeCount = (if (searchQuery.isNotBlank()) 1 else 0) +
+                        (if (sourceFilter != CalendarSourceFilter.ALL) 1 else 0)
+                    FilterControls(
+                        resultLabel = "${filteredItems.size} " + if (filteredItems.size == 1) "Eintrag" else "Einträge",
+                        activeCount = activeCount,
+                        expanded = showAdvancedFilters,
+                        onToggle = { showAdvancedFilters = !showAdvancedFilters },
+                        onReset = { searchQuery = ""; sourceFilter = CalendarSourceFilter.ALL }
+                    )
+                    if (hasActiveAgendaFilters(searchQuery, sourceFilter == CalendarSourceFilter.ALL)) {
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (searchQuery.isNotBlank()) ActiveFilterChip(searchQuery.trim()) { searchQuery = "" }
+                            if (sourceFilter != CalendarSourceFilter.ALL) ActiveFilterChip(sourceFilter.title) {
+                                sourceFilter = CalendarSourceFilter.ALL
+                            }
+                        }
+                    }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         AgendaLayoutMode.entries.forEach { mode ->
                             EventChoiceChip(
@@ -362,13 +390,6 @@ fun EventsTimelineContent(
                                 onClick = { layoutMode = mode }
                             )
                         }
-                    }
-
-                    TextButton(
-                        onClick = { showAdvancedFilters = !showAdvancedFilters },
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text(if (showAdvancedFilters) "Weniger Optionen" else "Mehr Optionen")
                     }
 
                     if (showAdvancedFilters) {
@@ -402,41 +423,15 @@ fun EventsTimelineContent(
                             contentDescription = null,
                             modifier = Modifier.padding(end = 6.dp)
                         )
-                        Text("Termin hinzufügen")
+                        Text("Neuer Termin")
                     }
 
-                    if (showAdvancedFilters) {
-                        if (
-                            hasActiveAgendaFilters(
-                                searchQuery = searchQuery,
-                                sourceFilterIsAll = sourceFilter == CalendarSourceFilter.ALL,
-                                layoutModeIsMonth = layoutMode == AgendaLayoutMode.MONTH
-                            )
-                        ) {
-                            TextButton(
-                                onClick = {
-                                    searchQuery = ""
-                                    sourceFilter = CalendarSourceFilter.ALL
-                                    layoutMode = AgendaLayoutMode.MONTH
-                                },
-                                modifier = Modifier.align(Alignment.End)
-                            ) {
-                                Text("Filter zurücksetzen")
-                            }
-                        }
-
-                        if (
-                            shouldShowEnableEventImportAction(
-                                sourceFilterIsEventsOnly = sourceFilter == CalendarSourceFilter.EVENTS_ONLY,
-                                importEventsEnabled = importEventsEnabled
-                            )
-                        ) {
-                            OutlinedButton(
-                                onClick = onEnableEventsImportAndSync,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Event-Import aktivieren")
-                            }
+                    if (shouldShowEnableEventImportAction(
+                            sourceFilterIsEventsOnly = sourceFilter == CalendarSourceFilter.EVENTS_ONLY,
+                            importEventsEnabled = importEventsEnabled
+                        )) {
+                        OutlinedButton(onClick = onEnableEventsImportAndSync, modifier = Modifier.fillMaxWidth()) {
+                            Text("Event-Import aktivieren")
                         }
                     }
                 }
@@ -1056,7 +1051,7 @@ private fun AgendaDayTimelineContent(
                         contentDescription = null,
                         modifier = Modifier.padding(end = 6.dp)
                     )
-                    Text("Termin hinzufügen")
+                    Text("Neuer Termin")
                 }
             }
         }
@@ -1277,7 +1272,8 @@ private fun AddCustomEventDialog(
         errorMessage = null
     }
 
-    val startDateText = formatExamDateShort(startsAtMillis)
+    val startDateText = Instant.ofEpochMilli(startsAtMillis).atZone(schoolZone)
+        .format(DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.GERMANY))
     val startTimeText = Instant.ofEpochMilli(startsAtMillis)
         .atZone(schoolZone)
         .toLocalTime()
@@ -1285,17 +1281,17 @@ private fun AddCustomEventDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (editingEvent != null) "Event bearbeiten" else "Eigenes Event hinzufügen") },
+        title = { Text(if (editingEvent != null) "Termin bearbeiten" else "Neuer Termin") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                AppTextField(
                     value = title,
                     onValueChange = { title = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     label = { Text("Titel") }
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = location,
                     onValueChange = { location = it },
                     modifier = Modifier.fillMaxWidth(),
@@ -1354,7 +1350,7 @@ private fun AddCustomEventDialog(
                     }
                 }
 
-                OutlinedTextField(
+                AppTextField(
                     value = durationMinutesRaw,
                     onValueChange = { durationMinutesRaw = it.filter { ch -> ch.isDigit() }.take(4) },
                     modifier = Modifier.fillMaxWidth(),
@@ -1557,17 +1553,27 @@ private fun CalendarTimelineCard(
     }
 }
 
-private fun formatCalendarItemTimeLabel(item: CalendarTimelineItem, schoolZone: ZoneId): String {
-    return when {
-        item.isAllDay -> formatAllDayLabel(
-            startsAtMillis = item.startsAtEpochMillis,
-            endsAtMillis = item.endsAtEpochMillis
-                ?: (item.startsAtEpochMillis + 24L * 60L * 60L * 1000L),
-            zoneId = schoolZone
-        )
-        item.endsAtEpochMillis != null -> "${formatExamDateShort(item.startsAtEpochMillis)} · ${formatTimeRange(item.startsAtEpochMillis, item.endsAtEpochMillis)}"
-        else -> formatExamDateShort(item.startsAtEpochMillis)
-    }
+private fun formatCalendarItemTimeLabel(item: CalendarTimelineItem, schoolZone: ZoneId): String =
+    formatAgendaTimeLabel(item.startsAtEpochMillis, item.endsAtEpochMillis, item.isAllDay, schoolZone)
+
+internal fun formatAgendaTimeLabel(
+    startsAtMillis: Long,
+    endsAtMillis: Long?,
+    isAllDay: Boolean,
+    schoolZone: ZoneId
+): String {
+    if (isAllDay) return formatAllDayLabel(
+        startsAtMillis, endsAtMillis ?: (startsAtMillis + 86_400_000L), schoolZone
+    )
+    val start = Instant.ofEpochMilli(startsAtMillis).atZone(schoolZone)
+    val dateFormatter = DateTimeFormatter.ofPattern("dd.MM.", Locale.GERMANY)
+    val timeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.GERMANY)
+    val startLabel = "${start.format(dateFormatter)} · ${start.format(timeFormatter)}"
+    if (endsAtMillis == null) return startLabel
+    val end = Instant.ofEpochMilli(endsAtMillis).atZone(schoolZone)
+    val endLabel = if (start.toLocalDate() == end.toLocalDate()) end.format(timeFormatter)
+        else "${end.format(dateFormatter)} · ${end.format(timeFormatter)}"
+    return "$startLabel – $endLabel"
 }
 
 @Composable
@@ -1575,12 +1581,16 @@ private fun EventEmptyState(
     hasIcalUrl: Boolean,
     importEventsEnabled: Boolean,
     onOpenIcalImport: () -> Unit,
-    onEnableEventsImportAndSync: () -> Unit
+    onEnableEventsImportAndSync: () -> Unit,
+    onAddEvent: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
+        item("study-agenda-empty-heading") {
+            StudyWorldHeader("Agenda", "Deine Termine auf einen Blick", illustrated = true)
+        }
         item("events-empty") {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -1588,8 +1598,8 @@ private fun EventEmptyState(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(
@@ -1598,19 +1608,23 @@ private fun EventEmptyState(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Keine Kalender-Einträge verfügbar",
+                        text = "Dein Kalender ist leer",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         text = if (hasIcalUrl) {
-                            "Tippe oben rechts auf Aktualisieren. Optional kannst du Event-Import aktivieren."
+                            "Kalender aktualisieren oder Termin anlegen."
                         } else {
-                            "Füge zuerst deinen iCal-Link hinzu."
+                            "Termin anlegen oder Schulkalender importieren."
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    OutlinedButton(onClick = onAddEvent, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Outlined.Add, contentDescription = null)
+                        Text("Neuer Termin", modifier = Modifier.padding(start = 6.dp))
+                    }
                     OutlinedButton(onClick = onOpenIcalImport) {
                         Text(if (hasIcalUrl) "iCal aktualisieren" else "iCal hinzufügen")
                     }
@@ -1650,9 +1664,10 @@ private fun formatAllDayLabel(startsAtMillis: Long, endsAtMillis: Long, zoneId: 
     val startDate = Instant.ofEpochMilli(startsAtMillis).atZone(zoneId).toLocalDate()
     val endDateExclusive = Instant.ofEpochMilli(endsAtMillis).atZone(zoneId).toLocalDate()
     val endDateInclusive = if (endDateExclusive > startDate) endDateExclusive.minusDays(1) else startDate
+    val dateFormatter = DateTimeFormatter.ofPattern("dd.MM.", Locale.GERMANY)
     return if (startDate == endDateInclusive) {
-        "${formatExamDateShort(startsAtMillis)} · Ganztägig"
+        "${startDate.format(dateFormatter)} · Ganztägig"
     } else {
-        "${startDate.dayOfMonth}.${startDate.monthValue} - ${endDateInclusive.dayOfMonth}.${endDateInclusive.monthValue} · Ganztägig"
+        "${startDate.format(dateFormatter)} – ${endDateInclusive.format(dateFormatter)} · Ganztägig"
     }
 }
