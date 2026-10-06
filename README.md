@@ -28,7 +28,7 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 
 Die Preview-APK liegt unter `.build/app/outputs/apk/preview/app-preview.apk`.
 Sie heißt „Prüfungs-Countdown Test“, verwendet `com.andrin.examcountdown.preview`
-und die Version `1.6.15-beta.6` (Code 29). Android 8 oder neuer ist erforderlich.
+und die Version `1.6.15-beta.7` (Code 30). Android 8 oder neuer ist erforderlich.
 Die eigene Paketkennung ermöglicht eine Installation neben der bisherigen App;
 Kalender, PIN und Daten sind getrennt. Die Testversion ist mit dem Android-Testschlüssel
 signiert und ersetzt keine mit dem Produktionsschlüssel signierte Installation.
@@ -37,9 +37,9 @@ APK auf dem Handy herunterladen und öffnen. Falls Android danach fragt, für de
 verwendeten Browser die Installation aus dieser Quelle erlauben. In der Test-App
 anschließend den Kalender verbinden oder über `Optionen -> Daten` eine bestehende
 App-Sicherung importieren. Bestehende App-Daten werden nicht automatisch übernommen. Diese APK kann die vorherigen
-Test-APKs 1.6.15-beta.1/2/3/4/5 mit demselben Testschlüssel aktualisieren; die Test-App-Daten bleiben erhalten.
+Test-APKs 1.6.15-beta.1/2/3/4/5/6 mit demselben Testschlüssel aktualisieren; die Test-App-Daten bleiben erhalten.
 
-[Widget-Vorschauen und Prüfumfang](docs/widget-overhaul.md) · [Design- und Bedienprüfung](docs/usability-polish.md) · [Testversion 1.6.15-beta.6](docs/releases/1.6.15-beta.6.md)
+[Widget-Vorschauen und Prüfumfang](docs/widget-overhaul.md) · [Design- und Bedienprüfung](docs/usability-polish.md) · [Neue Fantasy-Lernwelt und Prüfumfang](docs/fantasy-accessibility-overhaul.md)
 
 ## Ersteinrichtung
 1. App starten.
@@ -55,6 +55,7 @@ Test-APKs 1.6.15-beta.1/2/3/4/5 mit demselben Testschlüssel aktualisieren; die 
 - Snooze und stille Zeiten werden unterstützt.
 
 ## Sicherheit und Datenschutz
+- Vollständige Hinweise: [Datenschutz](PRIVACY.md), auch offline in der App.
 - iCal-Links werden lokal verschlüsselt gespeichert.
 - Es werden nur `https`-Links akzeptiert.
 - Sensible URL-Daten werden in Fehlermeldungen redigiert.
@@ -84,6 +85,9 @@ Test-APKs 1.6.15-beta.1/2/3/4/5 mit demselben Testschlüssel aktualisieren; die 
 4. Ergebnis: `dist/ExamCountdown-release.aab`
 
 ## Dokumentation
+- Barrierefreie Bedienung: [Schrift, Kontrast, TalkBack und Widgets](docs/accessibility.md)
+- Lizenzen: [Bibliotheken und Nachweise](THIRD_PARTY_NOTICES.md)
+- Fantasy-Illustrationen: [Herkunft und Nutzung](docs/graphics-provenance.md)
 - Lernwelt-Design, Bedienung und Prüfungen: `docs/study-world-overhaul.md`
 - Schüler-Kurzanleitung: `docs/kurzanleitung-schueler.md`
 - iCal-Link-Anleitung mit Bild: `docs/ical-link-anleitung-mit-bild.md`
