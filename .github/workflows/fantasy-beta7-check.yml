@@ -20,7 +20,7 @@ jobs:
       - name: Checkout verified app source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: a88770cbf2cee94714b86984d50405b8a3eb06a9
+          ref: e1f4f88959623a2895073822a50878d17a5b167c
           path: project
           persist-credentials: false
       - name: Record exact source snapshot
