@@ -1,0 +1,102 @@
+name: Check Fantasy Accessibility Beta 7
+
+on:
+  push:
+    branches: [ci/check-fantasy-beta7]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-fantasy-beta7
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout reviewed handoff
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: handoff
+          persist-credentials: false
+      - name: Checkout isolated app branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feat/fantasy-accessibility-beta7
+          path: project
+          persist-credentials: false
+      - name: Apply source changes with path and digest verification
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, pathlib, zipfile, subprocess
+          project = pathlib.Path('project').resolve()
+          with zipfile.ZipFile('handoff/fantasy-update.zip') as archive:
+              manifest = json.loads(archive.read('manifest.json'))
+              names = set(manifest['files'])
+              if set(archive.namelist()) != names | {'manifest.json'}:
+                  raise SystemExit('Unexpected archive members')
+              for name, expected in manifest['files'].items():
+                  path = pathlib.PurePosixPath(name)
+                  if path.is_absolute() or '..' in path.parts or not (
+                      name.startswith(('app/', 'docs/', 'third-party/')) or
+                      name in ('README.md', 'PRIVACY.md', 'THIRD_PARTY_NOTICES.md')):
+                      raise SystemExit('Unapproved path: ' + name)
+                  payload = archive.read(name)
+                  if hashlib.sha256(payload).hexdigest() != expected:
+                      raise SystemExit('Digest mismatch: ' + name)
+                  target = project.joinpath(*path.parts)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(payload)
+              subprocess.run(['git', '-C', str(project), 'add', '--', *sorted(names)], check=True)
+          PY
+      - name: Record source snapshot
+        working-directory: project
+        run: |
+          git diff --cached --check
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Improve fantasy design, accessibility, widget privacy and offline legal notices'
+          git rev-parse HEAD > ../verified-source-sha.txt
+          git archive --format=zip --output=../fantasy-beta7-source.zip HEAD
+      - name: Set up JDK 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: project/**/*.gradle*
+      - name: Tests, lint and separate preview APK
+        working-directory: project
+        env:
+          STUDY_UI_ARTIFACTS: ${{ github.workspace }}/artifacts/study-ui
+        run: bash ./gradlew :app:testDebugUnitTest :app:lintDebug :app:lintPreview :app:assemblePreview --no-daemon
+      - name: Verify packaged policies, license inventory and preview identity
+        working-directory: project
+        run: |
+          python3 - <<'PY'
+          import pathlib, zipfile
+          apk = pathlib.Path('.build/app/outputs/apk/preview/app-preview.apk')
+          with zipfile.ZipFile(apk) as archive:
+              for name in ('privacy.md', 'accessibility.md', 'licenses.md'):
+                  assert len(archive.read('assets/legal/' + name)) > 1000, name
+              licenses = archive.read('assets/legal/licenses.md').decode()
+              assert 'MIT License' in licenses and 'androidx.core:core-ktx:1.12.0' in licenses
+          PY
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging .build/app/outputs/apk/preview/app-preview.apk | head -n 4
+          sha256sum .build/app/outputs/apk/preview/app-preview.apk > ../preview-sha256.txt
+      - name: Upload preview, native views and reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: fantasy-beta7-qa
+          path: |
+            project/.build/app/reports/**
+            project/.build/app/test-results/**
+            project/.build/app/generated/legalAssets/**
+            project/.build/app/outputs/apk/preview/*.apk
+            artifacts/study-ui/*.png
+            verified-source-sha.txt
+            preview-sha256.txt
+            fantasy-beta7-source.zip
+          if-no-files-found: warn
