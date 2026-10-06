@@ -14,11 +14,12 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 - `Backup`: Export/Import der App-Daten.
 
 ## Installation auf Android
-1. Repository öffnen: `https://github.com/Momik-jpg/TestColdown`
-2. `Releases` öffnen.
-3. Neueste `ExamCountdown-*.apk` herunterladen.
-4. APK installieren.
-5. Falls nötig: Berechtigung für "Unbekannte Apps installieren" aktivieren.
+1. [Feste Beta 8 öffnen](https://testcoldown-work-30min.andrin875272.chatgpt.site/).
+2. Bei vorhandener Beta 7 zuerst eine Sicherung exportieren (siehe unten).
+3. `ExamCountdown-test-v1.6.15-beta.8.apk` herunterladen und öffnen.
+4. Falls Android danach fragt, für den verwendeten Browser die Installation aus dieser Quelle erlauben.
+
+Der [GitHub-Release](https://github.com/Momik-jpg/TestColdown/releases/tag/test-v1.6.15-beta.8) enthält den festgelegten Quellstand und die Prüfhinweise. Die APK-Datei wird über die Download-Seite bereitgestellt.
 
 ## Testversion parallel installieren
 
@@ -28,7 +29,7 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 
 Die Preview-APK liegt unter `.build/app/outputs/apk/preview/app-preview.apk`.
 Sie heißt „Prüfungs-Countdown Test“, verwendet `com.andrin.examcountdown.preview`
-und die Version `1.6.15-beta.7` (Code 30). Android 8 oder neuer ist erforderlich.
+und die Version `1.6.15-beta.8` (Code 31). Android 8 oder neuer ist erforderlich.
 Die eigene Paketkennung ermöglicht eine Installation neben der bisherigen App;
 Kalender, PIN und Daten sind getrennt. Die Testversion ist mit dem Android-Testschlüssel
 signiert und ersetzt keine mit dem Produktionsschlüssel signierte Installation.
@@ -38,15 +39,22 @@ verwendeten Browser die Installation aus dieser Quelle erlauben. In der Test-App
 anschließend den Kalender verbinden oder über `Optionen -> Daten` eine bestehende
 App-Sicherung importieren. Bestehende App-Daten werden nicht automatisch übernommen.
 
-Die CI-Test-APK von Beta 7 ist mit einem anderen Testzertifikat als die veröffentlichte Beta 6 signiert.
-Android lässt deshalb kein direktes Update dieser vorhandenen Test-App zu. Wenn Beta 6 schon installiert
-ist, zuerst unter `Optionen -> Daten` eine App-Sicherung exportieren und die exportierte Datei aufbewahren.
-Erst danach die alte Test-App deinstallieren und Beta 7 installieren; eine Deinstallation löscht ihre
-lokalen Daten. Die aufbewahrte Sicherung anschließend in Beta 7 importieren. Die normale Produktions-App
-hat eine andere Paketkennung und wird dadurch nicht ersetzt. Spätere CI-Builds können ebenfalls andere
-Testzertifikate haben; vor einem Update müssen Paketkennung und Zertifikat übereinstimmen.
+Die feste Beta 8 steht auf [der Download-Seite](https://testcoldown-work-30min.andrin875272.chatgpt.site/) bereit; dort gibt es eine einzelne APK und die Installationsanleitung.
 
-[Widget-Vorschauen und Prüfumfang](docs/widget-overhaul.md) · [Design- und Bedienprüfung](docs/usability-polish.md) · [Neue Fantasy-Lernwelt und Prüfumfang](docs/fantasy-accessibility-overhaul.md)
+Die CI-Test-APK von Beta 8 besitzt ein anderes Testzertifikat als Beta 7. Android lässt deshalb
+kein direktes Update dieser vorhandenen Test-App zu. Zuerst unter `Optionen -> Daten` eine
+App-Sicherung exportieren und die Datei aufbewahren. Erst danach die alte Test-App deinstallieren
+und Beta 8 installieren; eine Deinstallation löscht lokale Daten. Die Sicherung anschliessend
+in Beta 8 importieren. Die Produktions-App hat eine andere Paketkennung. Spätere Test-Builds
+können ebenfalls andere Zertifikate haben; ein direktes Update benötigt identische Paketkennung
+und identisches Zertifikat.
+
+Geprüfter Android-Stand: `e1f4f88959623a2895073822a50878d17a5b167c`,
+140 Tests in 31 Klassen bestanden, 67 native Bildschirmansichten, Lint ohne Fehler (36 Warnungen).
+APK-V2-Signatur und öffentlicher Download geprüft. Handy, TalkBack und externe Synchronisierung
+sind noch keine abgeschlossenen Live-Abnahmen.
+
+[Widget-Vorschauen und Prüfumfang](docs/widget-overhaul.md) · [Design- und Bedienprüfung](docs/usability-polish.md) · [Fantasy-Lernwelt Beta 7](docs/fantasy-accessibility-overhaul.md) · [Durchgehende Lernwelt Beta 8 und Prüfumfang](docs/immersive-learning-world-beta8.md)
 
 ## Ersteinrichtung
 1. App starten.
