@@ -3,6 +3,7 @@ package com.andrin.examcountdown.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -13,13 +14,12 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,7 +27,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -59,16 +61,22 @@ internal fun AppInformationDialog(page: AppInformationPage, onDismiss: () -> Uni
 }
 
 /** Paragraphs are individually selectable and lazily laid out, including long dependency notices. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AppInformationContent(page: AppInformationPage, document: String, onDismiss: () -> Unit, onPersonalize: () -> Unit) {
     val paragraphs = remember(document) { document.split(Regex("\\n\\s*\\n")).filter { it.isNotBlank() } }
     Scaffold(modifier = Modifier.fillMaxSize(), topBar = {
-        TopAppBar(title = { AppScreenHeading(page.title) }, navigationIcon = {
-            IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Hinweise schließen") }
-        })
+        // The bar grows with system font size; a fixed-height TopAppBar clips wrapped titles.
+        Surface(color = MaterialTheme.colorScheme.surface) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 4.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Hinweise schließen") }
+                Text(page.title, modifier = Modifier.weight(1f).padding(end = 12.dp)
+                    .testTag("app-information-title").semantics { heading() },
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+        }
     }) { insets ->
-        LazyColumn(Modifier.fillMaxSize().padding(insets),
+        LazyColumn(Modifier.fillMaxSize().padding(insets).testTag("app-information-list"),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (page == AppInformationPage.ACCESSIBILITY) item {
