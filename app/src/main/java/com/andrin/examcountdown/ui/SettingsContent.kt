@@ -114,7 +114,7 @@ internal fun SettingsContent(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (!searching && expandedSection == null) item("settings-world") {
-            StudyWorldHeader("Deine Lernwelt", "Kalender, Darstellung und Schutz an einem Ort", illustrated = true)
+            StudyWorldHeader("Deine Lernwelt", "Kalender, Darstellung und Schutz an einem Ort", illustrated = true, scene = StudyScene.SETTINGS)
         }
         item("settings-search") {
             AppTextField(
@@ -131,7 +131,7 @@ internal fun SettingsContent(
         }
         if (!searching && expandedSection == null) {
             item("settings-shortcuts") {
-                Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface,
+                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -165,7 +165,7 @@ internal fun SettingsContent(
             if (sectionOptions.isNotEmpty()) item("settings-${section.name}") {
                 val expanded = searching || expandedSection == section
                 Surface(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surface,
                     border = BorderStroke(1.dp, if (expanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
                 ) {
@@ -180,9 +180,9 @@ internal fun SettingsContent(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)) {
+                            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer) {
                                 Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                                    Icon(section.icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Icon(section.icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
                                 }
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
