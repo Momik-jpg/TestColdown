@@ -87,7 +87,7 @@ internal fun TimetableChangesCard(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -318,7 +318,7 @@ internal fun TimetableNowNextCard(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -453,21 +453,24 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
     val isCancelled = lesson.isCancelledSlot
     val nowMillis = SchoolTime.nowMillis()
     val isCurrent = !isCancelled && nowMillis in lesson.startsAtEpochMillis until lesson.endsAtEpochMillis
-    val cardColor = if (isCancelled) {
-        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.28f)
-    } else {
-        MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+    val cardColor = when {
+        isCancelled -> MaterialTheme.colorScheme.errorContainer
+        isCurrent -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.surface
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = cardColor),
+        colors = CardDefaults.cardColors(
+            containerColor = cardColor,
+            contentColor = if (isCancelled) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface
+        ),
         border = BorderStroke(
             width = 1.dp,
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
@@ -487,7 +490,7 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                     modifier = Modifier.weight(1f),
                     textDecoration = if (isCancelled) TextDecoration.LineThrough else TextDecoration.None,
                     color = if (isCancelled) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                        MaterialTheme.colorScheme.onErrorContainer
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     }
@@ -496,7 +499,7 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                 Text(
                     text = formatTimeRange(lesson.startsAtEpochMillis, lesson.endsAtEpochMillis),
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = if (isCancelled) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 8.dp),
                     textDecoration = if (isCancelled) TextDecoration.LineThrough else TextDecoration.None
                 )
@@ -539,13 +542,13 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
 
                     if (isCancelled) {
                         Surface(
-                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                            color = MaterialTheme.colorScheme.error,
                             shape = MaterialTheme.shapes.small
                         ) {
                             Text(
                                 text = "Entfällt · verschoben",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.error,
+                                color = MaterialTheme.colorScheme.onError,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
@@ -587,7 +590,7 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                     Icon(
                         imageVector = Icons.Outlined.LocationOn,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = if (isCancelled) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(end = 6.dp)
                     )
 
@@ -612,7 +615,7 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                         Text(
                             text = currentLocation.ifBlank { previousLocation },
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (isCancelled) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                             textDecoration = if (isCancelled) TextDecoration.LineThrough else TextDecoration.None
                         )
                     }
@@ -770,7 +773,7 @@ internal fun TimetableEmptyState(
                 1.dp,
                 MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
