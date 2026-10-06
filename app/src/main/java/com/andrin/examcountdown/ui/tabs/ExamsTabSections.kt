@@ -584,9 +584,7 @@ internal fun NextExamHero(
                 Text(
                     text = presentation.title,
                     style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = formatExamDate(exam.startsAtEpochMillis),
@@ -770,9 +768,7 @@ internal fun ExamCard(
                     text = presentation.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    modifier = Modifier.weight(1f)
                 )
                 FilledTonalIconButton(
                     onClick = onPlanStudy,
