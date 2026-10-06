@@ -1,4 +1,4 @@
-name: Check Fantasy Accessibility Beta 7
+name: Check Immersive Learning World Beta 8
 
 on:
   push:
@@ -20,14 +20,14 @@ jobs:
       - name: Checkout verified app source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: b7e6b49d24763371910fa5ba5d5cbc38fd061d26
+          ref: 780a29bdf0e6d5b8368e57956000d62e7b072462
           path: project
           persist-credentials: false
       - name: Record exact source snapshot
         working-directory: project
         run: |
           git rev-parse HEAD > ../verified-source-sha.txt
-          git archive --format=zip --output=../fantasy-beta7-source.zip HEAD
+          git archive --format=zip --output=../learning-world-beta8-source.zip HEAD
       - name: Set up JDK 17
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
@@ -58,7 +58,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: fantasy-beta7-qa
+          name: learning-world-beta8-qa
           path: |
             project/.build/app/reports/**
             project/.build/app/test-results/**
@@ -67,5 +67,5 @@ jobs:
             artifacts/study-ui/*.png
             verified-source-sha.txt
             preview-sha256.txt
-            fantasy-beta7-source.zip
+            learning-world-beta8-source.zip
           if-no-files-found: warn
