@@ -103,6 +103,21 @@ class WidgetConfigUiTest {
         assertFalse(saved)
     }
 
+    @Test fun privacySwitchRestoresAndSavingKeepsTheChosenMode() {
+        var saved: WidgetConfig? = null
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            renderedView = LocalView.current
+            ExamCountdownTheme { WidgetConfigScreen(WidgetConfig(), true, { saved = it }, {}) }
+        }
+        configNode("Persönliche Details verbergen").assertIsOff().performClick().assertIsOn()
+        restoration.emulateSavedInstanceStateRestore()
+        configNode("Persönliche Details verbergen").assertIsOn()
+        compose.onNodeWithText("Speichern").performClick()
+        assertTrue(requireNotNull(saved).privacyMode)
+        screenshot("widget-config-private")
+    }
+
     @Test fun widgetManagementRoutesAddAndExistingConfigurationIndependently() {
         val added = mutableListOf<WidgetKind>()
         var configured = 0
