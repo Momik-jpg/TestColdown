@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.ui.StudyWorldHeader
+import com.andrin.examcountdown.ui.StudyScene
 import com.andrin.examcountdown.ui.AppTextField
 import com.andrin.examcountdown.ui.ActiveFilterChip
 import com.andrin.examcountdown.ui.FilterControls
@@ -199,7 +200,7 @@ fun TimetableTabContent(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item("study-timetable-heading") {
-            StudyWorldHeader("Dein Schultag", "Zeiten, Räume & Änderungen", illustrated = true)
+            StudyWorldHeader("Dein Schultag", "Zeiten, Räume & Änderungen", illustrated = true, scene = StudyScene.TIMETABLE)
         }
         item(key = "timetable-controls") {
             Card(
