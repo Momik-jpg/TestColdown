@@ -310,7 +310,7 @@ fun EventsTimelineContent(
         verticalArrangement = Arrangement.spacedBy(AppDimens.itemSpacing)
     ) {
         item("study-agenda-heading") {
-            StudyWorldHeader("Deine Woche", "Prüfungen, Unterricht & Termine", illustrated = true)
+            StudyWorldHeader("Deine Woche", "Prüfungen, Unterricht & Termine", illustrated = true, scene = StudyScene.AGENDA)
         }
         item("calendar-controls") {
             Card(
@@ -323,7 +323,7 @@ fun EventsTimelineContent(
                     1.dp,
                     MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
                 ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(AppDimens.cardInnerPadding),
@@ -450,7 +450,7 @@ fun EventsTimelineContent(
                         1.dp,
                         MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                     ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
@@ -593,7 +593,7 @@ private fun AgendaMonthContent(
                 1.dp,
                 MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column(
                 modifier = Modifier.padding(8.dp),
@@ -1002,7 +1002,7 @@ private fun AgendaDayTimelineContent(
                 1.dp,
                 MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
@@ -1445,11 +1445,7 @@ private fun CalendarTimelineCard(
         CalendarItemKind.LESSON -> "Lektion"
         CalendarItemKind.EVENT -> eventTypeLabel(item.eventType)
     }
-    val containerColor = when (item.kind) {
-        CalendarItemKind.EXAM -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f)
-        CalendarItemKind.LESSON -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.18f)
-        CalendarItemKind.EVENT -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.18f)
-    }
+    val containerColor = MaterialTheme.colorScheme.surface
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1485,8 +1481,6 @@ private fun CalendarTimelineCard(
                     text = item.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
                 if (item.canDelete) {
@@ -1589,7 +1583,7 @@ private fun EventEmptyState(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
         item("study-agenda-empty-heading") {
-            StudyWorldHeader("Agenda", "Deine Termine auf einen Blick", illustrated = true)
+            StudyWorldHeader("Agenda", "Deine Termine auf einen Blick", illustrated = true, scene = StudyScene.AGENDA)
         }
         item("events-empty") {
             Card(
