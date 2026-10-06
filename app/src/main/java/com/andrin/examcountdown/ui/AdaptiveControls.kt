@@ -1,6 +1,8 @@
 package com.andrin.examcountdown.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
@@ -52,7 +54,12 @@ internal fun AppFilterChip(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     leadingIcon: @Composable (() -> Unit)? = null,
-    colors: SelectableChipColors = FilterChipDefaults.filterChipColors()
+    colors: SelectableChipColors = FilterChipDefaults.filterChipColors(
+        containerColor = MaterialTheme.colorScheme.surface,
+        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
+    )
 ) {
     androidx.compose.material3.FilterChip(
         selected = selected, onClick = onClick, label = label,
@@ -85,7 +92,14 @@ internal fun HomeNavigationBar(
         val fontScale = LocalDensity.current.fontScale
         val compact = maxWidth / fontScale / visibleTabs.size.coerceAtLeast(1) < 72.dp
         val columns = if (maxWidth / fontScale < 176.dp) 2 else 3
-        NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(26.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+            shadowElevation = 3.dp
+        ) {
+        NavigationBar(containerColor = Color.Transparent, tonalElevation = 0.dp) {
             if (compact) {
                 Column(Modifier.fillMaxWidth().selectableGroup()) {
                     visibleTabs.chunked(columns).forEach { tabs ->
@@ -103,8 +117,8 @@ internal fun HomeNavigationBar(
                                 ) {
                                     Surface(
                                         shape = MaterialTheme.shapes.extraLarge,
-                                        color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                        contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                     ) {
                                         Icon(tab.icon, null, Modifier.padding(horizontal = 12.dp, vertical = 4.dp).size(24.dp))
                                     }
@@ -124,15 +138,16 @@ internal fun HomeNavigationBar(
                         label = { Text(tab.shortTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         alwaysShowLabel = true,
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primary,
                             unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                 }
             }
+        }
         }
     }
 }
