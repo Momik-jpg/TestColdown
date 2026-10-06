@@ -17,46 +17,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout reviewed handoff
+      - name: Checkout verified app source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          path: handoff
-          persist-credentials: false
-      - name: Checkout isolated app branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: feat/fantasy-accessibility-beta7
+          ref: b7e6b49d24763371910fa5ba5d5cbc38fd061d26
           path: project
           persist-credentials: false
-      - name: Apply source changes with path and digest verification
-        run: |
-          python3 - <<'PY'
-          import hashlib, json, pathlib, zipfile, subprocess
-          project = pathlib.Path('project').resolve()
-          with zipfile.ZipFile('handoff/fantasy-update.zip') as archive:
-              manifest = json.loads(archive.read('manifest.json'))
-              names = set(manifest['files'])
-              if set(archive.namelist()) != names | {'manifest.json'}:
-                  raise SystemExit('Unexpected archive members')
-              for name, expected in manifest['files'].items():
-                  path = pathlib.PurePosixPath(name)
-                  if path.is_absolute() or '..' in path.parts or not (
-                      name.startswith(('app/', 'docs/', 'third-party/')) or
-                      name in ('README.md', 'PRIVACY.md', 'THIRD_PARTY_NOTICES.md')):
-                      raise SystemExit('Unapproved path: ' + name)
-                  payload = archive.read(name)
-                  if hashlib.sha256(payload).hexdigest() != expected:
-                      raise SystemExit('Digest mismatch: ' + name)
-                  target = project.joinpath(*path.parts)
-                  target.parent.mkdir(parents=True, exist_ok=True)
-                  target.write_bytes(payload)
-              subprocess.run(['git', '-C', str(project), 'add', '--', *sorted(names)], check=True)
-          PY
-      - name: Record source snapshot
+      - name: Record exact source snapshot
         working-directory: project
         run: |
-          git diff --cached --check
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Improve fantasy design, accessibility, widget privacy and offline legal notices'
           git rev-parse HEAD > ../verified-source-sha.txt
           git archive --format=zip --output=../fantasy-beta7-source.zip HEAD
       - name: Set up JDK 17
