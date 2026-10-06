@@ -106,6 +106,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -1111,11 +1112,11 @@ fun ExamCountdownScreen(
 
     val tabStateHolder = rememberSaveableStateHolder()
     val scheme = MaterialTheme.colorScheme
-    val backgroundBrush = remember(scheme.background) {
-        Brush.verticalGradient(listOf(scheme.background, scheme.background))
+    val backgroundBrush = remember(scheme.background, scheme.primaryContainer) {
+        Brush.verticalGradient(listOf(scheme.primaryContainer.copy(alpha = 0.28f).compositeOver(scheme.background), scheme.background))
     }
-    val headerBrush = remember(scheme.surface) {
-        Brush.verticalGradient(listOf(scheme.surface, scheme.surface))
+    val headerBrush = remember(scheme.background) {
+        Brush.verticalGradient(listOf(scheme.background, scheme.background))
     }
 
     Scaffold(
