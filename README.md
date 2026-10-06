@@ -36,8 +36,15 @@ signiert und ersetzt keine mit dem Produktionsschlüssel signierte Installation.
 APK auf dem Handy herunterladen und öffnen. Falls Android danach fragt, für den
 verwendeten Browser die Installation aus dieser Quelle erlauben. In der Test-App
 anschließend den Kalender verbinden oder über `Optionen -> Daten` eine bestehende
-App-Sicherung importieren. Bestehende App-Daten werden nicht automatisch übernommen. Diese APK kann die vorherigen
-Test-APKs 1.6.15-beta.1/2/3/4/5/6 mit demselben Testschlüssel aktualisieren; die Test-App-Daten bleiben erhalten.
+App-Sicherung importieren. Bestehende App-Daten werden nicht automatisch übernommen.
+
+Die CI-Test-APK von Beta 7 ist mit einem anderen Testzertifikat als die veröffentlichte Beta 6 signiert.
+Android lässt deshalb kein direktes Update dieser vorhandenen Test-App zu. Wenn Beta 6 schon installiert
+ist, zuerst unter `Optionen -> Daten` eine App-Sicherung exportieren und die exportierte Datei aufbewahren.
+Erst danach die alte Test-App deinstallieren und Beta 7 installieren; eine Deinstallation löscht ihre
+lokalen Daten. Die aufbewahrte Sicherung anschließend in Beta 7 importieren. Die normale Produktions-App
+hat eine andere Paketkennung und wird dadurch nicht ersetzt. Spätere CI-Builds können ebenfalls andere
+Testzertifikate haben; vor einem Update müssen Paketkennung und Zertifikat übereinstimmen.
 
 [Widget-Vorschauen und Prüfumfang](docs/widget-overhaul.md) · [Design- und Bedienprüfung](docs/usability-polish.md) · [Neue Fantasy-Lernwelt und Prüfumfang](docs/fantasy-accessibility-overhaul.md)
 
