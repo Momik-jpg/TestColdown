@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
@@ -54,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.model.Exam
+import com.andrin.examcountdown.ui.theme.LocalDecorativeArtEnabled
 import com.andrin.examcountdown.ui.AppTextField
 import com.andrin.examcountdown.ui.ActiveFilterChip
 import com.andrin.examcountdown.ui.FilterControls
@@ -88,7 +90,7 @@ internal fun ExamInsightsCard(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -368,7 +370,7 @@ internal fun ExamSearchAndFilterCard(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -501,7 +503,7 @@ internal fun NoExamResultsCard(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -542,7 +544,7 @@ internal fun NextExamHero(
             modifier = Modifier.background(MaterialTheme.colorScheme.surface)
         ) {
             Column(
-                modifier = Modifier.padding(14.dp),
+                modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
@@ -552,14 +554,15 @@ internal fun NextExamHero(
                     Text(
                         text = "Nächste Prüfung",
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f)
                     )
                     FilledTonalIconButton(
                         onClick = onDelete,
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
                             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-                            contentColor = MaterialTheme.colorScheme.primary
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     ) {
                         Icon(
@@ -570,7 +573,7 @@ internal fun NextExamHero(
                 }
                 presentation.subject?.takeIf { it.isNotBlank() }?.let { subject ->
                     Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                        color = MaterialTheme.colorScheme.primaryContainer,
                         shape = MaterialTheme.shapes.small
                     ) {
                         Text(
@@ -586,23 +589,40 @@ internal fun NextExamHero(
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text = formatExamDate(exam.startsAtEpochMillis),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Surface(
-                    color = MaterialTheme.colorScheme.primary,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        text = formatCountdown(exam.startsAtEpochMillis, now),
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        style = MaterialTheme.typography.titleSmall
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Outlined.Schedule, null, Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(formatExamDate(exam.startsAtEpochMillis),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Button(onClick = onPlanStudy, modifier = Modifier.fillMaxWidth()) {
+                exam.location?.takeIf { it.isNotBlank() }?.let { room ->
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Outlined.LocationOn, null, Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(room, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Icon(Icons.Outlined.Schedule, null, Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(formatCountdown(exam.startsAtEpochMillis, now),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                Button(onClick = onPlanStudy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                     Icon(Icons.Outlined.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text("Lernen planen", modifier = Modifier.padding(start = 8.dp))
                 }
@@ -622,7 +642,7 @@ internal fun SyncIssueCard(
     Card(
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.72f)
+            containerColor = MaterialTheme.colorScheme.errorContainer
         )
     ) {
         Column(
@@ -633,12 +653,12 @@ internal fun SyncIssueCard(
                 text = "Synchronisierung braucht Aufmerksamkeit",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onTertiaryContainer
+                color = MaterialTheme.colorScheme.onErrorContainer
             )
             Text(
                 text = errorText,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onTertiaryContainer
+                color = MaterialTheme.colorScheme.onErrorContainer
             )
             Row(
                 modifier = Modifier
@@ -681,11 +701,11 @@ internal fun EmptyState(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Image(
-                    painter = painterResource(R.drawable.study_empty),
+                if (LocalDecorativeArtEnabled.current) Image(
+                    painter = painterResource(R.drawable.world_exams),
                     contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxWidth().height(100.dp)
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().height(96.dp)
                 )
                 Text(
                     text = "Noch keine Prüfungen geplant",
@@ -723,7 +743,7 @@ internal fun ExamCard(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
