@@ -596,7 +596,7 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
 
                     if (!isCancelled && lesson.isLocationChanged && previousLocation.isNotBlank()) {
                         Text(
-                            text = previousLocation,
+                            text = "Raum $previousLocation",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textDecoration = TextDecoration.LineThrough
@@ -607,13 +607,13 @@ internal fun TimetableLessonCard(lesson: TimetableLessonBlock) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = currentLocation.ifBlank { "unbekannt" },
+                            text = "Raum ${currentLocation.ifBlank { "unbekannt" }}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     } else {
                         Text(
-                            text = currentLocation.ifBlank { previousLocation },
+                            text = "Raum ${currentLocation.ifBlank { previousLocation }}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (isCancelled) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                             textDecoration = if (isCancelled) TextDecoration.LineThrough else TextDecoration.None
