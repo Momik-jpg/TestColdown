@@ -20,6 +20,15 @@ private val widgetMonth = DateTimeFormatter.ofPattern("MMM", Locale.GERMANY)
 
 internal data class WidgetCountdown(val value: String, val unit: String)
 
+internal fun widgetKindLabel(item: WidgetTimelineItem): String = when (item.kind) {
+    WidgetItemKind.EXAM -> "Prüfung"
+    WidgetItemKind.LESSON -> "Unterricht"
+    WidgetItemKind.EVENT -> "Termin"
+}
+
+internal fun widgetVisibleTitle(item: WidgetTimelineItem, config: WidgetConfig): String =
+    if (config.privacyMode) widgetKindLabel(item) else item.title
+
 internal fun widgetCountdown(item: WidgetTimelineItem, now: Long): WidgetCountdown {
     if (item.isCancelled) return WidgetCountdown("–", "ENTFÄLLT")
     if (item.startsAtEpochMillis <= now) return WidgetCountdown(if (item.isAllDay) "Heute" else "Jetzt", "")
@@ -40,7 +49,7 @@ internal fun widgetTimeDetails(item: WidgetTimelineItem, config: WidgetConfig): 
         item.endsAtEpochMillis > item.startsAtEpochMillis -> "${widgetClock.format(start)}–${widgetClock.format(end)}"
         else -> widgetClock.format(start)
     }
-    return listOfNotNull(time, item.location?.trim()?.takeIf { config.showLocation && it.isNotEmpty() }).joinToString(" · ")
+    return listOfNotNull(time, item.location?.trim()?.takeIf { config.showLocation && !config.privacyMode && it.isNotEmpty() }).joinToString(" · ")
 }
 
 internal fun widgetStatus(item: WidgetTimelineItem, now: Long): String = when {
@@ -61,7 +70,7 @@ internal fun widgetDetails(item: WidgetTimelineItem, config: WidgetConfig): Stri
     val date = if (item.isAllDay) {
         formatCompactDay(Instant.ofEpochMilli(item.startsAtEpochMillis).atZone(ZoneId.of("Europe/Zurich")).toLocalDate()) + " · Ganztägig"
     } else formatExamDateShort(item.startsAtEpochMillis)
-    val location = item.location?.trim()?.takeIf { it.isNotEmpty() && config.showLocation }
+    val location = item.location?.trim()?.takeIf { it.isNotEmpty() && config.showLocation && !config.privacyMode }
     return listOfNotNull(date, location).joinToString(" · ")
 }
 
@@ -127,7 +136,7 @@ internal object WidgetPresentation {
             else -> R.layout.widget_next_exam
         })
         views.setTextViewText(R.id.nextWidgetHeader, if (config.mode == WidgetMode.EXAMS) "Nächste Prüfung" else "Nächster Termin")
-        views.setTextViewText(R.id.nextExamTitle, item?.title ?: "Keine Einträge")
+        views.setTextViewText(R.id.nextExamTitle, item?.let { widgetVisibleTitle(it, config) } ?: "Keine Einträge")
         views.setInt(R.id.nextExamTitle, "setMaxLines", if (compact && height < 220 * fontScale) 1 else 2)
         views.setTextViewText(R.id.nextExamTime, item?.let {
             if (tall) {
@@ -138,7 +147,7 @@ internal object WidgetPresentation {
         } ?: "App öffnen · Zeitraum oder Kalender prüfen")
         views.setInt(R.id.nextExamTime, "setMaxLines", if (tall) { if (fontScale > 1.2f) 4 else 3 } else if (compact) 1 else 2)
         if (tall) {
-            val location = item?.location?.trim()?.takeIf { config.showLocation && it.isNotEmpty() }
+            val location = item?.location?.trim()?.takeIf { config.showLocation && !config.privacyMode && it.isNotEmpty() }
             views.setTextViewText(R.id.nextExamLocation, location ?: "")
             views.setViewVisibility(R.id.nextLocationSection, if (location != null) View.VISIBLE else View.GONE)
         }
@@ -179,7 +188,8 @@ internal object WidgetPresentation {
         val limit = widgetRowLimit(height, config.compact, scale)
         views.setTextViewText(R.id.listWidgetHeader, if (config.mode == WidgetMode.EXAMS) "Prüfungen" else "Agenda")
         views.setTextViewText(R.id.listWidgetSubtitle, widgetHeaderLabel(config).substringAfter(" · ") +
-            if (config.sortMode == WidgetSortMode.TYPE_THEN_TIME) " · Nach Typ" else " · Nach Zeit")
+            (if (config.sortMode == WidgetSortMode.TYPE_THEN_TIME) " · Nach Typ" else " · Nach Zeit") +
+            if (config.privacyMode) " · Details verborgen" else "")
         views.removeAllViews(R.id.listRows)
         items.take(limit).forEach { item ->
             views.addView(R.id.listRows, timelineRow(context, id, config, item, now))
@@ -196,14 +206,15 @@ internal object WidgetPresentation {
         val start = Instant.ofEpochMilli(item.startsAtEpochMillis).atZone(widgetZone)
         row.setTextViewText(R.id.widgetRowDay, start.dayOfMonth.toString().padStart(2, '0'))
         row.setTextViewText(R.id.widgetRowMonth, widgetMonth.format(start).replace(".", "").uppercase(Locale.GERMANY))
-        row.setTextViewText(R.id.widgetRowTitle, item.title)
+        val title = widgetVisibleTitle(item, config)
+        row.setTextViewText(R.id.widgetRowTitle, title)
         val status = if (item.isCancelled || config.showCountdown) widgetStatus(item, now) else null
-        val kind = when (item.kind) { WidgetItemKind.EXAM -> "Prüfung"; WidgetItemKind.LESSON -> "Unterricht"; WidgetItemKind.EVENT -> "Termin" }
+        val kind = widgetKindLabel(item)
         row.setTextViewText(R.id.widgetRowKind, listOfNotNull(kind, status).joinToString(" · "))
         row.setViewVisibility(R.id.widgetRowKind, if (config.compact) View.GONE else View.VISIBLE)
         val details = widgetTimeDetails(item, config)
         row.setTextViewText(R.id.widgetRowDetails, if (config.compact && status != null) "$status · $details" else details)
-        row.setContentDescription(R.id.widgetRowRoot, listOfNotNull(item.title, widgetDetails(item, config), status).joinToString(" · "))
+        row.setContentDescription(R.id.widgetRowRoot, listOfNotNull(kind, title, widgetDetails(item, config), status).distinct().joinToString(" · "))
         row.setInt(R.id.widgetRowRoot, "setMinimumHeight", ((widgetRowHeight(config.compact, context.resources.configuration.fontScale) - 6) * context.resources.displayMetrics.density).toInt())
         val route = when (item.kind) { WidgetItemKind.EXAM -> "exams"; WidgetItemKind.LESSON -> "timetable"; WidgetItemKind.EVENT -> "events" }
         row.setOnClickPendingIntent(R.id.widgetRowRoot, WidgetIntents.open(context, id, "row-${item.id}", route))
