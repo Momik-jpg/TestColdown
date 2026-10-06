@@ -1,4 +1,4 @@
-# Datenschutzhinweise
+# Datenschutz
 
 Stand: 6. Oktober 2026 · TestColdown / ExamCountdown, Version 1.6.15.
 
