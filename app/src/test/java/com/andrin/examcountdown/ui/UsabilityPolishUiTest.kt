@@ -90,7 +90,7 @@ class UsabilityPolishUiTest {
             }
         }
         screenshot("polish-navigation-large-text")
-        assertWholeLabel("Prüfungen")
+        HomeTab.entries.forEach { assertWholeLabel(it.shortTitle) }
         HomeTab.entries.forEach { tab ->
             val target = compose.onNodeWithContentDescription(tab.title)
             assertTrue(target.fetchSemanticsNode().boundsInRoot.width >= 48f)
