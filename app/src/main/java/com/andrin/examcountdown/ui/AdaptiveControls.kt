@@ -83,33 +83,35 @@ internal fun HomeNavigationBar(
 ) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val fontScale = LocalDensity.current.fontScale
-        val availableWidth = maxWidth
         val compact = maxWidth / fontScale / visibleTabs.size.coerceAtLeast(1) < 72.dp
+        val columns = if (maxWidth / fontScale < 176.dp) 2 else 3
         NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
             if (compact) {
-                val activeWidth = (112.dp * fontScale).coerceAtMost(
-                    availableWidth - 48.dp * (visibleTabs.size - 1).coerceAtLeast(0)
-                )
-                Row(Modifier.fillMaxWidth().selectableGroup()) {
-                    visibleTabs.forEach { tab ->
-                        val selected = selectedTab == tab
-                        Column(
-                            modifier = (if (selected) Modifier.width(activeWidth) else Modifier.weight(1f))
-                                .heightIn(min = 80.dp)
-                                .selectable(selected, role = Role.Tab, onClick = { onTabSelected(tab) })
-                                .semantics { contentDescription = tab.title }
-                                .padding(vertical = 10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Surface(
-                                shape = MaterialTheme.shapes.extraLarge,
-                                color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                            ) {
-                                Icon(tab.icon, null, Modifier.padding(horizontal = 12.dp, vertical = 4.dp).size(24.dp))
+                Column(Modifier.fillMaxWidth().selectableGroup()) {
+                    visibleTabs.chunked(columns).forEach { tabs ->
+                        Row(Modifier.fillMaxWidth()) {
+                            tabs.forEach { tab ->
+                                val selected = selectedTab == tab
+                                Column(
+                                    modifier = Modifier.weight(1f)
+                                        .heightIn(min = 72.dp)
+                                        .selectable(selected, role = Role.Tab, onClick = { onTabSelected(tab) })
+                                        .semantics { contentDescription = tab.title }
+                                        .padding(vertical = 10.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Surface(
+                                        shape = MaterialTheme.shapes.extraLarge,
+                                        color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                        contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                    ) {
+                                        Icon(tab.icon, null, Modifier.padding(horizontal = 12.dp, vertical = 4.dp).size(24.dp))
+                                    }
+                                    Text(tab.shortTitle, style = MaterialTheme.typography.labelMedium,
+                                        color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
-                            if (selected) Text(tab.shortTitle, style = MaterialTheme.typography.labelMedium, maxLines = 1)
                         }
                     }
                 }

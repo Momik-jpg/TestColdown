@@ -256,6 +256,7 @@ fun ExamCountdownScreen(
     var showAppLockDialog by rememberSaveable { mutableStateOf(false) }
     var showHelpDialog by rememberSaveable { mutableStateOf(false) }
     var showPrivacyDialog by rememberSaveable { mutableStateOf(false) }
+    var informationPage by rememberSaveable { mutableStateOf<AppInformationPage?>(null) }
     var showBackupExportDialog by rememberSaveable { mutableStateOf(false) }
     var showBackupImportDialog by rememberSaveable { mutableStateOf(false) }
     var showSyncDiagnosticsDialog by rememberSaveable { mutableStateOf(false) }
@@ -730,6 +731,12 @@ fun ExamCountdownScreen(
             SettingsAction.PRIVACY -> {
                 showPrivacyDialog = true
             }
+            SettingsAction.ACCESSIBILITY -> {
+                informationPage = AppInformationPage.ACCESSIBILITY
+            }
+            SettingsAction.LICENSES -> {
+                informationPage = AppInformationPage.LICENSES
+            }
             SettingsAction.DIAGNOSTICS -> {
                 showSyncDiagnosticsDialog = true
             }
@@ -803,6 +810,12 @@ fun ExamCountdownScreen(
         )
     }
 
+    informationPage?.let { page ->
+        AppInformationDialog(page, onDismiss = { informationPage = null }, onPersonalize = {
+            informationPage = null
+            showPersonalizationDialog = true
+        })
+    }
     if (showPrivacyDialog) {
         PrivacyDialog(
             screenshotProtectionEnabled = screenshotProtectionEnabled,
@@ -814,7 +827,11 @@ fun ExamCountdownScreen(
                     scope.launch { snackbarHostState.showSnackbar(message) }
                 }
             },
-            onDismiss = { showPrivacyDialog = false }
+            onDismiss = { showPrivacyDialog = false },
+            onReadPolicy = {
+                showPrivacyDialog = false
+                informationPage = AppInformationPage.PRIVACY
+            }
         )
     }
 
@@ -2437,4 +2454,3 @@ private fun getOrCreateBiometricSecretKey(): SecretKey {
     keyGenerator.init(builder.build())
     return keyGenerator.generateKey()
 }
-

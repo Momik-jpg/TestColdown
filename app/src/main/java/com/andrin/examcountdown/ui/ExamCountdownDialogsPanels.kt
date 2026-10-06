@@ -696,7 +696,8 @@ internal fun PrivacyDialog(
     screenshotProtectionEnabled: Boolean,
     onScreenshotProtectionChange: (Boolean) -> Unit,
     onDeleteAllData: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onReadPolicy: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var showDeleteConfirmDialog by rememberSaveable { mutableStateOf(false) }
@@ -717,7 +718,7 @@ internal fun PrivacyDialog(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "Daten bleiben lokal auf deinem Gerät.",
+                    text = "Die App speichert Kalenderdaten und Einstellungen auf deinem Gerät. Es gibt keinen App-Server und keine eingebauten Analyse- oder Werbedienste.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
@@ -725,7 +726,7 @@ internal fun PrivacyDialog(
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
-                    text = "Beim Aktualisieren wird dein Kalender bei deinem Anbieter abgerufen.",
+                    text = "Beim Aktualisieren wird dein Kalender per HTTPS bei deinem Anbieter abgerufen. Dabei erhält der Anbieter deinen Kalender-Link und deine IP-Adresse. Exporte speicherst oder teilst du selbst.",
                     style = MaterialTheme.typography.bodySmall
                 )
 
@@ -738,6 +739,11 @@ internal fun PrivacyDialog(
                     text = "Benachrichtigungen werden erst dann angefragt, wenn du Erinnerungen wirklich nutzen willst.",
                     style = MaterialTheme.typography.bodySmall
                 )
+                Text("Widgets und Benachrichtigungen können außerhalb des App-Schutzes sichtbar sein. In der Widget-Konfiguration kannst du persönliche Titel und Räume verbergen.",
+                    style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(onClick = onReadPolicy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text("Vollständige Datenschutzhinweise")
+                }
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     shape = MaterialTheme.shapes.medium

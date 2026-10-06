@@ -20,6 +20,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.AccessibilityNew
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.CloudUpload
@@ -74,6 +76,7 @@ internal enum class SettingsAction(val section: SettingsSection, val title: Stri
     SYNC_OPTIONS(SettingsSection.CALENDAR, "Automatische Aktualisierung", "Intervall festlegen", Icons.Outlined.Sync),
     DIAGNOSTICS(SettingsSection.CALENDAR, "Sync-Diagnose", "Fehler & letzte Aktualisierung", Icons.Outlined.Settings),
     PERSONALIZE(SettingsSection.DISPLAY, "Ansicht & Bedienung", "Tabs, Lesbarkeit & Prüfungskonflikte", Icons.Outlined.Tune),
+    ACCESSIBILITY(SettingsSection.DISPLAY, "Barrierefreie Bedienung", "TalkBack, große Schrift & hoher Kontrast", Icons.Outlined.AccessibilityNew),
     WIDGETS(SettingsSection.DISPLAY, "Widgets", "Startbildschirm, Countdown & Terminliste", Icons.Outlined.Widgets),
     SYNC_STATUS(SettingsSection.DISPLAY, "Sync-Status anzeigen", "Aktualisierung oben im Blick", Icons.Outlined.Sync),
     APP_LOCK(SettingsSection.SECURITY, "App-Schutz", "PIN & optionale Biometrie", Icons.Outlined.Lock),
@@ -82,6 +85,7 @@ internal enum class SettingsAction(val section: SettingsSection, val title: Stri
     BACKUP_EXPORT(SettingsSection.DATA, "Sicherung exportieren", "Backup von Daten und Einstellungen", Icons.Outlined.CloudUpload),
     BACKUP_IMPORT(SettingsSection.DATA, "Sicherung importieren", "Vorhandenes Backup wiederherstellen", Icons.Outlined.CloudDownload),
     HELP(SettingsSection.HELP, "Bedienung & Hilfe", "Schritt für Schritt starten", Icons.AutoMirrored.Outlined.HelpOutline),
+    LICENSES(SettingsSection.HELP, "Lizenzen & Bildnachweise", "Open Source und KI-Illustrationen · offline lesbar", Icons.Outlined.Description),
     CHANGELOG(SettingsSection.HELP, "Was ist neu", "Änderungen dieser Version", Icons.Outlined.CalendarToday)
 }
 
@@ -109,6 +113,9 @@ internal fun SettingsContent(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        if (!searching && expandedSection == null) item("settings-world") {
+            StudyWorldHeader("Deine Lernwelt", "Kalender, Darstellung und Schutz an einem Ort", illustrated = true)
+        }
         item("settings-search") {
             AppTextField(
                 value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),

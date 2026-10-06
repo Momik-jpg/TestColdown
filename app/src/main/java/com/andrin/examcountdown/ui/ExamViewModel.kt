@@ -661,6 +661,7 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
                 val appContext = getApplication<Application>().applicationContext
                 WorkManager.getInstance(appContext).cancelAllWork()
                 repository.clearAllLocalData()
+                androidx.core.app.NotificationManagerCompat.from(appContext).cancelAll()
                 IcalSyncScheduler.scheduleFromRepository(appContext)
                 WidgetUpdater.updateAll(appContext)
             }.onSuccess {

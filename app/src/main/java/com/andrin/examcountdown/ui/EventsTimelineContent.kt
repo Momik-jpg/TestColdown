@@ -310,7 +310,7 @@ fun EventsTimelineContent(
         verticalArrangement = Arrangement.spacedBy(AppDimens.itemSpacing)
     ) {
         item("study-agenda-heading") {
-            StudyWorldHeader("Agenda", "Prüfungen, Unterricht & Termine")
+            StudyWorldHeader("Deine Woche", "Prüfungen, Unterricht & Termine", illustrated = true)
         }
         item("calendar-controls") {
             Card(

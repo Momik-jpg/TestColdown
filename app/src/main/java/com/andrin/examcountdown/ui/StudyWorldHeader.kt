@@ -20,6 +20,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.R
+import com.andrin.examcountdown.ui.theme.LocalDecorativeArtEnabled
 
 /** Art is decorative. All information stays on an opaque theme surface, also in high contrast mode. */
 @Composable
@@ -36,9 +37,9 @@ internal fun StudyWorldHeader(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        if (illustrated) {
+        if (illustrated && LocalDecorativeArtEnabled.current) {
             Image(
-                painter = painterResource(R.drawable.study_landscape),
+                painter = painterResource(R.drawable.study_observatory),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxWidth().height(76.dp)

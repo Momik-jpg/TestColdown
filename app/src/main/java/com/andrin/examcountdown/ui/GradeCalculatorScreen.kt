@@ -162,7 +162,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        StudyWorldHeader("Noten", "Schnitt, Zielnote & Punkte")
+        StudyWorldHeader("Dein Lernfortschritt", "Schnitt, Zielnote & Punkte", illustrated = true)
         CalculatorCard {
             Column(
                 modifier = Modifier.padding(12.dp),
