@@ -1,17 +1,17 @@
 <resources>
-    <color name="widget_surface">#172A31</color>
-    <color name="widget_on_surface">#EAF2EC</color>
-    <color name="widget_muted">#BECDC7</color>
-    <color name="widget_accent">#85D7C1</color>
-    <color name="widget_badge_bg">#61471F</color>
-    <color name="widget_badge_text">#F6E5C4</color>
-    <color name="widget_chip_bg">#214E43</color>
-    <color name="widget_chip_text">#D9EEE7</color>
-    <color name="widget_row_bg">#24383B</color>
-    <color name="widget_row_stroke">#465C55</color>
-    <color name="widget_focus_start">#244943</color>
-    <color name="widget_focus_end">#101E25</color>
+    <color name="widget_surface">#132A34</color>
+    <color name="widget_on_surface">#E7F3EF</color>
+    <color name="widget_muted">#B5CBC8</color>
+    <color name="widget_accent">#8AD8C7</color>
+    <color name="widget_badge_bg">#594323</color>
+    <color name="widget_badge_text">#F4E4C9</color>
+    <color name="widget_chip_bg">#194C45</color>
+    <color name="widget_chip_text">#D5F0E7</color>
+    <color name="widget_row_bg">#1C3540</color>
+    <color name="widget_row_stroke">#39545B</color>
+    <color name="widget_focus_start">#1C544D</color>
+    <color name="widget_focus_end">#0B1A24</color>
     <color name="widget_focus_text">#FFFFFF</color>
-    <color name="widget_focus_muted">#D9EAE4</color>
-    <color name="widget_focus_badge">#365E53</color>
+    <color name="widget_focus_muted">#D5EDE6</color>
+    <color name="widget_focus_badge">#285E55</color>
 </resources>
