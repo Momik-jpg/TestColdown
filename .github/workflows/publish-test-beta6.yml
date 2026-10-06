@@ -1,0 +1,110 @@
+name: Publish verified TestColdown beta.6
+
+on:
+  push:
+    branches:
+      - ci/publish-test-v1.6.15-beta.6
+    paths:
+      - .github/workflows/publish-test-beta6.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-test-v1.6.15-beta.6
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download and verify frozen handoff
+        env:
+          HANDOFF_BASE: https://testcoldown-work-30min.andrin875272.chatgpt.site/files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/testcoldown-handoff"
+          cd "$RUNNER_TEMP/testcoldown-handoff"
+          for n in 01 02 03 04 05; do
+            curl --fail --location --retry 2 --max-time 90 \
+              "$HANDOFF_BASE/TestColdown-Work-beta6.zip.part$n" \
+              -o "TestColdown-Work-beta6.zip.part$n"
+          done
+          cat TestColdown-Work-beta6.zip.part{01,02,03,04,05} > handoff.zip
+          echo '99daa983c6a3a6959555a8b5a60a9e98502bbee981ff08af06454abd5cb68d0f  handoff.zip' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,zipfile
+          with zipfile.ZipFile('handoff.zip') as z:
+              for f in z.infolist():
+                  p=Path(f.filename)
+                  assert not p.is_absolute() and '..' not in p.parts
+              assert z.testzip() is None
+              z.extractall('.')
+          root=Path('TestColdown-Work')
+          m=json.loads((root/'handoff-manifest.json').read_text())
+          assert m['repository']=='Momik-jpg/TestColdown'
+          assert m['commit']=='39a044cf6faeb21e2692f564e6ad612783e8d965'
+          assert m['tag']=='test-v1.6.15-beta.6'
+          for name,e in m['files'].items():
+              b=(root/name).read_bytes()
+              assert len(b)==e['bytes'] and hashlib.sha256(b).hexdigest()==e['sha256'],name
+          print('Frozen archive and all 16 files verified.')
+          PY
+
+      - name: Restore exact reviewed source commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="$RUNNER_TEMP/testcoldown-handoff/TestColdown-Work/release/TestColdown-v1.6.15-beta.6.bundle"
+          git bundle verify "$bundle"
+          git fetch "$bundle" refs/heads/feat/study-world-overhaul
+          test "$(git rev-parse FETCH_HEAD)" = '39a044cf6faeb21e2692f564e6ad612783e8d965'
+          git checkout --detach FETCH_HEAD
+          test -z "$(git status --porcelain)"
+
+      - name: Upload draft, verify APK download, and publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: Momik-jpg/TestColdown
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'Momik-jpg/TestColdown'
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          root=Path(os.environ['RUNNER_TEMP'])/'testcoldown-handoff/TestColdown-Work'
+          script=(root/'tools/publish-testcoldown-beta6-github.sh').read_text()
+          replacements={
+              "assets='/workspace/shared/TestColdown-v1.6.15-beta.6'":'assets="'+str(root/'release')+'"',
+              'cd /workspace/TestColdown':'cd "'+os.environ['GITHUB_WORKSPACE']+'"',
+              "test \"$(gh api user --jq .login)\" = 'Momik-jpg'":'test "$GITHUB_REPOSITORY" = "Momik-jpg/TestColdown"',
+              '/workspace/shared/TestColdown-v1.6.15-beta.6':str(root/'release'),
+              '/workspace/TestColdown-beta.6-github-release.json':str(Path(os.environ['RUNNER_TEMP'])/'testcoldown-release.json'),
+          }
+          for old,new in replacements.items():
+              assert old in script,old
+              script=script.replace(old,new)
+          target=Path(os.environ['RUNNER_TEMP'])/'publish-testcoldown-beta6.sh'
+          target.write_text(script)
+          PY
+          bash -n "$RUNNER_TEMP/publish-testcoldown-beta6.sh"
+          bash "$RUNNER_TEMP/publish-testcoldown-beta6.sh"
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,os
+          r=json.loads((Path(os.environ['RUNNER_TEMP'])/'testcoldown-release.json').read_text())
+          assert not r['draft'] and r['prerelease'] and r['tag_name']=='test-v1.6.15-beta.6'
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
+              f.write('Published verified beta.6 prerelease: '+r['html_url']+'\n\nAll five asset metadata checks passed; uploaded APK downloaded and SHA-256 verified.\n')
+          PY
