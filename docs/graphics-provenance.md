@@ -9,3 +9,17 @@ Eine separate KI-Entwurfstafel mit sechs App-Ansichten und Widgets diente nur al
 Die Illustration wird als Bestandteil dieses MIT-lizenzierten Projekts weitergegeben, soweit Rechte daran bestehen. KI-Ausgaben können ähnlich zu anderen Ausgaben sein; es wird keine Exklusivität oder urheberrechtliche Schutzfähigkeit behauptet. Bedingungen zur Ausgabe: https://openai.com/policies/terms-of-use/. Die App führt keine Bildgenerierung aus und benötigt keinen OpenAI-Schlüssel.
 
 Ältere Bilder `study_landscape.png` und `study_empty.png` wurden laut `docs/study-world-overhaul.md` am 2. Oktober 2026 für dieses Projekt erzeugt. Auch diese sind dekorative KI-Illustrationen. Systemschrift und Material-Symbole stammen aus Android beziehungsweise den ausgewiesenen Open-Source-Bibliotheken.
+
+## Szenen der Beta 8
+
+Am 6. Oktober 2026 wurden fünf weitere originale Szenen mit der integrierten GPT-Bildgenerierung erzeugt, ohne externe Referenzbilder:
+
+- `world_exams.webp`: Sternwarte auf einer bewaldeten Seeinsel.
+- `world_timetable.webp`: Terrassenakademie mit Wegen und Wasserfällen.
+- `world_agenda.webp`: Brückengarten mit Kartentisch.
+- `world_grades.webp`: Mathematikatelier mit gläsernem Orrery.
+- `world_settings.webp`: Bibliothekswerkstatt mit Blick in den Wald.
+
+Gemeinsames Briefing (stylized-concept): Premium fantasy miniature learning world, panoramic 3:1 phone banner, petrol blue, jade, sea-glass green, misty azure mountains, restrained brass and amber lamps, matte stone, carefully crafted architecture. No people, letters, logos, interface, watermark or copyrighted characters. Each scene uses the destination-specific subject above.
+
+Die originalen PNGs wurden nur für die mobile Auslieferung auf 1200 × 400 Pixel verkleinert und als WebP komprimiert. Alle fünf Ressourcen zusammen bleiben unter 750 KB. Texte, Schaltflächen, Kalender- und App-Symbole werden nativ gezeichnet; die App benötigt weder Netzwerk noch einen Bildgenerierungsdienst zum Anzeigen. Die oben genannten Hinweise zu KI-Ausgaben und MIT-Weitergabe gelten auch für diese Szenen.
