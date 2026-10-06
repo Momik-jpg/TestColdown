@@ -22,7 +22,8 @@ data class WidgetConfig(
     val sortMode: WidgetSortMode = WidgetSortMode.TIME_ASC,
     val compact: Boolean = false,
     val showLocation: Boolean = true,
-    val showCountdown: Boolean = true
+    val showCountdown: Boolean = true,
+    val privacyMode: Boolean = false
 )
 
 object WidgetPreferences {
@@ -47,7 +48,8 @@ object WidgetPreferences {
             sortMode = sortMode,
             compact = prefs.getBoolean("compact_$appWidgetId", false),
             showLocation = prefs.getBoolean("location_$appWidgetId", true),
-            showCountdown = prefs.getBoolean("countdown_$appWidgetId", true)
+            showCountdown = prefs.getBoolean("countdown_$appWidgetId", true),
+            privacyMode = prefs.getBoolean("privacy_$appWidgetId", false)
         )
     }
 
@@ -63,6 +65,7 @@ object WidgetPreferences {
             .putBoolean("compact_$appWidgetId", config.compact)
             .putBoolean("location_$appWidgetId", config.showLocation)
             .putBoolean("countdown_$appWidgetId", config.showCountdown)
+            .putBoolean("privacy_$appWidgetId", config.privacyMode)
             .apply()
     }
 
@@ -75,6 +78,7 @@ object WidgetPreferences {
             .remove("compact_$appWidgetId")
             .remove("location_$appWidgetId")
             .remove("countdown_$appWidgetId")
+            .remove("privacy_$appWidgetId")
             .apply()
     }
 }
