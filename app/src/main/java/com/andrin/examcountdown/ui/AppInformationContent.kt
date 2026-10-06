@@ -40,9 +40,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 internal enum class AppInformationPage(val title: String, val asset: String) {
-    PRIVACY("Datenschutzhinweise", "privacy.md"),
-    ACCESSIBILITY("Barrierefreie Bedienung", "accessibility.md"),
-    LICENSES("Lizenzen & Bildnachweise", "licenses.md")
+    PRIVACY("Datenschutz", "privacy.md"),
+    ACCESSIBILITY("Bedienung", "accessibility.md"),
+    LICENSES("Lizenzen", "licenses.md")
 }
 
 @Composable
