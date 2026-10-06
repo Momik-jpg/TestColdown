@@ -123,9 +123,9 @@ private val DarkAccessibleColors = darkColorScheme(
 private val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(18.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(28.dp)
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(26.dp),
+    extraLarge = RoundedCornerShape(30.dp)
 )
 
 /** Decorative artwork is suppressed by the stronger-contrast, simpler reading mode. */
