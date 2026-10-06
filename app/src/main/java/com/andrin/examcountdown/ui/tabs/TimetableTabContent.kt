@@ -283,11 +283,14 @@ fun TimetableTabContent(
             }
         }
 
-        item(key = "now-next-lesson") {
-            TimetableNowNextCard(
-                activeLesson = activeLesson,
-                upcomingLesson = upcomingLesson
-            )
+        // List cards already show the current lesson; reserve the overview for the week grid.
+        if (viewMode == TimetableViewMode.WEEK) {
+            item(key = "now-next-lesson") {
+                TimetableNowNextCard(
+                    activeLesson = activeLesson,
+                    upcomingLesson = upcomingLesson
+                )
+            }
         }
 
         if (viewMode == TimetableViewMode.WEEK) {
