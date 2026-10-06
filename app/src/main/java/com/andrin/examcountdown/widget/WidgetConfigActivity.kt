@@ -17,6 +17,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.automirrored.outlined.Sort
@@ -113,8 +114,9 @@ internal fun WidgetConfigScreen(
     var compact by rememberSaveable { mutableStateOf(initialConfig.compact) }
     var showLocation by rememberSaveable { mutableStateOf(initialConfig.showLocation) }
     var showCountdown by rememberSaveable { mutableStateOf(initialConfig.showCountdown) }
+    var privacyMode by rememberSaveable { mutableStateOf(initialConfig.privacyMode) }
     var previewExpanded by rememberSaveable { mutableStateOf(true) }
-    val config = WidgetConfig(mode, windowDays, sortMode, compact, showLocation, showCountdown)
+    val config = WidgetConfig(mode, windowDays, sortMode, compact, showLocation, showCountdown, privacyMode)
 
     Scaffold(bottomBar = {
         Surface(shadowElevation = 6.dp) {
@@ -181,6 +183,10 @@ internal fun WidgetConfigScreen(
                         showLocation, { showLocation = it })
                     WidgetAppearanceToggle("Countdown anzeigen", "Zeit bis zum Start", Icons.Outlined.Timer,
                         showCountdown, { showCountdown = it })
+                    WidgetAppearanceToggle("Persönliche Details verbergen", "Verbirgt Titel und Räume. Datum und Uhrzeit bleiben sichtbar.", Icons.Outlined.Lock,
+                        privacyMode, { privacyMode = it })
+                    Text("Widgets sind außerhalb des App-Schutzes sichtbar. Für eine vollständig private Ansicht entferne das Widget vom Startbildschirm.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
