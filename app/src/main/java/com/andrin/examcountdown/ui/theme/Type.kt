@@ -48,13 +48,13 @@ val AppTypography = Typography(
     ),
     bodyMedium = TextStyle(
         fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
+        fontSize = 15.sp,
+        lineHeight = 22.sp
     ),
     bodySmall = TextStyle(
         fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 19.sp
+        fontSize = 14.sp,
+        lineHeight = 20.sp
     ),
     labelLarge = TextStyle(
         fontWeight = FontWeight.Medium,

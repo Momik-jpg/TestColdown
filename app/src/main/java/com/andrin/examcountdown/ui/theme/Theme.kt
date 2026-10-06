@@ -10,6 +10,8 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -126,6 +128,9 @@ private val AppShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp)
 )
 
+/** Decorative artwork is suppressed by the stronger-contrast, simpler reading mode. */
+internal val LocalDecorativeArtEnabled = staticCompositionLocalOf { true }
+
 @Composable
 fun ExamCountdownTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -157,12 +162,9 @@ fun ExamCountdownTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = typography,
-        shapes = AppShapes,
-        content = content
-    )
+    CompositionLocalProvider(LocalDecorativeArtEnabled provides !accessibilityMode) {
+        MaterialTheme(colorScheme = colorScheme, typography = typography, shapes = AppShapes, content = content)
+    }
 }
 
 private fun scaledTypography(base: Typography, factor: Float): Typography {
