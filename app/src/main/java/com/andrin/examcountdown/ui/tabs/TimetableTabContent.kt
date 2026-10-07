@@ -200,7 +200,7 @@ fun TimetableTabContent(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item("study-timetable-heading") {
-            StudyWorldHeader("Dein Schultag", "Zeiten, Räume & Änderungen", illustrated = true, scene = StudyScene.TIMETABLE)
+            StudyWorldHeader("Dein Schultag", "Zeiten, Räume & Änderungen", illustrated = false, scene = StudyScene.TIMETABLE)
         }
         item(key = "timetable-controls") {
             Card(
