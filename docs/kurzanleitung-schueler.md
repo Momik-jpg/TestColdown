@@ -8,6 +8,7 @@
 5. `Fertig` drücken.
 
 ## Tägliche Nutzung
+- Unten `Menü` öffnen und den gewünschten Bereich aus der Liste wählen. Die untere Leiste zeigt den aktiven Bereich.
 - Bei neuen Daten oben rechts `Aktualisieren` verwenden.
 - `Prüfungen`: suchen, filtern und sortieren.
 - `Stundenplan`: nach Fach oder Raum suchen; zwischen Liste und Woche wechseln.
