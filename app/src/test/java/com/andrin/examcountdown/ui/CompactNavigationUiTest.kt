@@ -38,24 +38,17 @@ class CompactNavigationUiTest {
 
     private fun save(name: String) {
         compose.runOnIdle {
-            // Modal sheets live in a separate Android window; capture its actual decor.
-            val windowManager = Class.forName("android.view.WindowManagerGlobal")
-            val manager = windowManager.getDeclaredMethod("getInstance").invoke(null)
-            val viewsField = windowManager.getDeclaredField("mViews").apply { isAccessible = true }
-            val windows = (viewsField.get(manager) as List<*>).filterIsInstance<View>()
-            val view = windows.lastOrNull { it.visibility == View.VISIBLE && it.width > 0 && it.height > 0 }
-                ?: requireNotNull(rendered)
+            val view = requireNotNull(rendered)
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
-            requireNotNull(rendered).draw(canvas)
-            if (view !== rendered) view.draw(canvas)
+            view.draw(canvas)
             val folder = File(System.getenv("STUDY_UI_ARTIFACTS") ?: "build/study-ui").apply { mkdirs() }
             File(folder, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
             bitmap.recycle()
         }
     }
 
-    @Test fun verticalMenuRoutesEachVisibleDestinationExactlyOnceAtLargeText() {
+    @Test fun directDestinationsStayVisibleAndRouteOnceAtLargeText() {
         val invoked = mutableListOf<HomeTab>()
         compose.setContent {
             rendered = LocalView.current
@@ -71,25 +64,29 @@ class CompactNavigationUiTest {
                 }
             }
         }
-        compose.onNodeWithContentDescription("Bereiche öffnen").performClick()
-        compose.onNodeWithText("Bereiche").assertIsDisplayed()
-        HomeTab.entries.forEach { compose.onNodeWithTag("home-menu-${it.route}").assertIsDisplayed() }
-        save("compact-menu-dark-large-text")
-        compose.onNodeWithContentDescription("Menü schliessen").performClick()
+        compose.onNodeWithContentDescription("Bereiche öffnen").assertDoesNotExist()
+        var rightEdge = 0f
+        HomeTab.entries.forEach { tab ->
+            val bounds = compose.onNodeWithTag("home-tab-${tab.route}").assertIsDisplayed()
+                .fetchSemanticsNode().boundsInRoot
+            assertTrue("Distinct 48 dp targets", bounds.width >= 48f && bounds.height >= 48f)
+            assertTrue("Destination leaves screen or overlaps", bounds.left >= rightEdge && bounds.right <= 320f)
+            rightEdge = bounds.right
+        }
+        save("navigation-dark-large-text")
         assertTrue(invoked.isEmpty())
         HomeTab.entries.forEach { tab ->
-            compose.onNodeWithContentDescription("Bereiche öffnen").performClick()
-            val destination = compose.onNodeWithTag("home-menu-${tab.route}")
+            val destination = compose.onNodeWithTag("home-tab-${tab.route}")
             assertTrue(destination.fetchSemanticsNode().boundsInRoot.height >= 48f)
             destination.performClick()
             compose.onNodeWithContentDescription(tab.title).assertIsSelected()
-            compose.onNodeWithText("Bereiche").assertDoesNotExist()
+            compose.onNodeWithText(tab.title).assertIsDisplayed()
         }
         assertEquals(HomeTab.entries.toList(), invoked)
-        save("compact-dock-dark-large-text")
+        save("navigation-options-dark-large-text")
     }
 
-    @Test fun simplifiedMenuOnlyOffersEnabledTabsAndDismissDoesNotNavigate() {
+    @Test fun simplifiedNavigationOnlyOffersEnabledDestinationsDirectly() {
         var calls = 0
         compose.setContent {
             rendered = LocalView.current
@@ -103,14 +100,14 @@ class CompactNavigationUiTest {
             }
         }
         compose.onNodeWithContentDescription("Notenrechner").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Bereiche öffnen").performClick()
         compose.onNodeWithText("Stundenplan").assertDoesNotExist()
         compose.onNodeWithText("Agenda").assertDoesNotExist()
         compose.onNodeWithText("Notenrechner").assertDoesNotExist()
-        compose.onNodeWithText("Einstellungen").assertIsDisplayed()
-        save("compact-menu-simple")
-        compose.onNodeWithContentDescription("Menü schliessen").performClick()
+        compose.onNodeWithContentDescription("Einstellungen").assertIsDisplayed()
+        save("navigation-simple")
         compose.onNodeWithText("Prüfungen").assertIsSelected()
         assertEquals(0, calls)
+        compose.onNodeWithContentDescription("Einstellungen").performClick()
+        assertEquals(1, calls)
     }
 }
