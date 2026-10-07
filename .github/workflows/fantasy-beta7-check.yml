@@ -1,4 +1,4 @@
-name: Check Immersive Learning World Beta 8
+name: Check Calculator Feedback Beta 9
 
 on:
   push:
@@ -20,14 +20,14 @@ jobs:
       - name: Checkout verified app source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: e1f4f88959623a2895073822a50878d17a5b167c
+          ref: 6abec523ea74a3afd7cc4d43ee17a98b2d778973
           path: project
           persist-credentials: false
       - name: Record exact source snapshot
         working-directory: project
         run: |
           git rev-parse HEAD > ../verified-source-sha.txt
-          git archive --format=zip --output=../learning-world-beta8-source.zip HEAD
+          git archive --format=zip --output=../calculator-beta9-source.zip HEAD
       - name: Set up JDK 17
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
@@ -52,13 +52,14 @@ jobs:
               licenses = archive.read('assets/legal/licenses.md').decode()
               assert 'MIT License' in licenses and 'androidx.core:core-ktx:1.13.0' in licenses
           PY
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs .build/app/outputs/apk/preview/app-preview.apk
           "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging .build/app/outputs/apk/preview/app-preview.apk | head -n 4
           sha256sum .build/app/outputs/apk/preview/app-preview.apk > ../preview-sha256.txt
       - name: Upload preview, native views and reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: learning-world-beta8-qa
+          name: calculator-beta9-qa
           path: |
             project/.build/app/reports/**
             project/.build/app/test-results/**
@@ -67,5 +68,5 @@ jobs:
             artifacts/study-ui/*.png
             verified-source-sha.txt
             preview-sha256.txt
-            learning-world-beta8-source.zip
+            calculator-beta9-source.zip
           if-no-files-found: warn
