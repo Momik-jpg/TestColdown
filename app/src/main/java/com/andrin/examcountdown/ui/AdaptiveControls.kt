@@ -1,25 +1,31 @@
 package com.andrin.examcountdown.ui
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Menu
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -84,70 +90,82 @@ internal fun AppScreenHeading(title: String) {
     }
 }
 
+/** A single compact dock; destinations open vertically only when requested. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun HomeNavigationBar(
     visibleTabs: List<HomeTab>, selectedTab: HomeTab, onTabSelected: (HomeTab) -> Unit
 ) {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val fontScale = LocalDensity.current.fontScale
-        val compact = maxWidth / fontScale / visibleTabs.size.coerceAtLeast(1) < 72.dp
-        val columns = if (maxWidth / fontScale < 176.dp) 2 else 3
-        Surface(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-            shape = RoundedCornerShape(26.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-            shadowElevation = 3.dp
-        ) {
-        NavigationBar(containerColor = Color.Transparent, tonalElevation = 0.dp) {
-            if (compact) {
+    if (visibleTabs.isEmpty()) return
+    var menuOpen by rememberSaveable { mutableStateOf(false) }
+    val colors = MaterialTheme.colorScheme
+    val current = selectedTab.takeIf { it in visibleTabs } ?: visibleTabs.first()
+    Surface(color = colors.surface, tonalElevation = 0.dp,
+        modifier = Modifier.fillMaxWidth().testTag("home-navigation")) {
+        Column(Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
+            HorizontalDivider(color = colors.outlineVariant)
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.weight(1f).heightIn(min = 48.dp)
+                    .selectable(true, role = Role.Tab, onClick = { menuOpen = true })
+                    .semantics { contentDescription = current.title },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(current.icon, null, Modifier.size(22.dp), tint = colors.tertiary)
+                    Text(current.shortTitle, style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold, color = colors.onSurface)
+                }
+                TextButton(onClick = { menuOpen = true },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                        .semantics { contentDescription = "Bereiche öffnen" },
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)) {
+                    Icon(Icons.Outlined.Menu, null, Modifier.size(20.dp))
+                    Text("Menü", Modifier.padding(start = 8.dp))
+                }
+            }
+        }
+    }
+    if (menuOpen) {
+        ModalBottomSheet(onDismissRequest = { menuOpen = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colors.surface, contentColor = colors.onSurface,
+            shape = MaterialTheme.shapes.extraLarge, dragHandle = null) {
+            Column(Modifier.fillMaxWidth()
+                .heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.7f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Bereiche", style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f).semantics { heading() })
+                    IconButton(onClick = { menuOpen = false }) {
+                        Icon(Icons.Outlined.Close, contentDescription = "Menü schliessen")
+                    }
+                }
                 Column(Modifier.fillMaxWidth().selectableGroup()) {
-                    visibleTabs.chunked(columns).forEach { tabs ->
-                        Row(Modifier.fillMaxWidth()) {
-                            tabs.forEach { tab ->
-                                val selected = selectedTab == tab
-                                Column(
-                                    modifier = Modifier.weight(1f)
-                                        .heightIn(min = 72.dp)
-                                        .selectable(selected, role = Role.Tab, onClick = { onTabSelected(tab) })
-                                        .semantics { contentDescription = tab.title }
-                                        .padding(vertical = 10.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Surface(
-                                        shape = MaterialTheme.shapes.extraLarge,
-                                        color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    ) {
-                                        Icon(tab.icon, null, Modifier.padding(horizontal = 12.dp, vertical = 4.dp).size(24.dp))
-                                    }
-                                    Text(tab.shortTitle, style = MaterialTheme.typography.labelMedium,
-                                        color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
+                    visibleTabs.forEach { tab ->
+                        val selected = current == tab
+                        Surface(color = if (selected) colors.primaryContainer else colors.surface,
+                            shape = MaterialTheme.shapes.small) {
+                            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                                .selectable(selected, role = Role.Tab, onClick = {
+                                    menuOpen = false
+                                    onTabSelected(tab)
+                                }).semantics { contentDescription = tab.title }
+                                .padding(horizontal = 12.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                Icon(tab.icon, null, Modifier.size(24.dp),
+                                    tint = if (selected) colors.tertiary else colors.onSurfaceVariant)
+                                Text(tab.title, style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    modifier = Modifier.weight(1f))
+                                if (selected) Icon(Icons.Outlined.Check, null, Modifier.size(18.dp))
                             }
                         }
                     }
                 }
-            } else {
-                visibleTabs.forEach { tab ->
-                    NavigationBarItem(
-                        selected = selectedTab == tab, onClick = { onTabSelected(tab) },
-                        modifier = Modifier.semantics { contentDescription = tab.title },
-                        icon = { Icon(tab.icon, null) },
-                        label = { Text(tab.shortTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        alwaysShowLabel = true,
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primary,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-                }
             }
-        }
         }
     }
 }
