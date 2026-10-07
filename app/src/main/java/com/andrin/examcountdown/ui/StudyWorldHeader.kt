@@ -35,8 +35,8 @@ internal enum class StudyScene(val artwork: Int, val icon: ImageVector) {
 internal fun StudyWorldHeader(
     title: String,
     subtitle: String,
-    illustrated: Boolean = false,
     modifier: Modifier = Modifier,
+    illustrated: Boolean = false,
     scene: StudyScene = StudyScene.EXAMS
 ) {
     val colors = MaterialTheme.colorScheme
