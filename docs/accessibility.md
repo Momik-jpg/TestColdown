@@ -2,7 +2,7 @@
 
 ## Schrift und Kontrast
 
-Die App übernimmt die Android-Schriftgröße. Unter „Ansicht & Bedienung“ kannst du zusätzlich den Modus für bessere Lesbarkeit und höheren Kontrast aktivieren. In diesem Modus werden dekorative Banner ausgeblendet. Heller, dunkler und systemabhängiger Modus sind verfügbar. Texte stehen auf deckenden Flächen, nie im Bild.
+Die App übernimmt die Android-Schriftgröße. Unter „Ansicht & Bedienung“ kannst du zusätzlich den Modus für bessere Lesbarkeit und höheren Kontrast aktivieren. Bilder erscheinen nur zur Begrüßung vor der ersten Prüfung. Im Kontrastmodus und bei mehr als 130 % Systemschrift wird auch dieses Bild ausgeblendet. Heller, dunkler und systemabhängiger Modus sind verfügbar. Texte stehen auf deckenden Flächen, nie im Bild.
 
 ## Navigation und Screenreader
 
