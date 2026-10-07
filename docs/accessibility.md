@@ -2,11 +2,11 @@
 
 ## Schrift und Kontrast
 
-Die App übernimmt die Android-Schriftgröße. Unter „Ansicht & Bedienung“ kannst du zusätzlich den Modus für bessere Lesbarkeit und höheren Kontrast aktivieren. Bilder erscheinen nur zur Begrüßung vor der ersten Prüfung. Im Kontrastmodus und bei mehr als 130 % Systemschrift wird auch dieses Bild ausgeblendet. Heller, dunkler und systemabhängiger Modus sind verfügbar. Texte stehen auf deckenden Flächen, nie im Bild.
+Die App übernimmt die Android-Schriftgröße. Unter „Ansicht & Bedienung“ kannst du zusätzlich den Modus für bessere Lesbarkeit und höheren Kontrast aktivieren. Arbeitsansichten und Begrüßung enthalten keine dekorativen Landschaftsbilder. Heller, dunkler und systemabhängiger Modus sind verfügbar. Texte stehen auf deckenden Flächen, nie im Bild.
 
 ## Navigation und Screenreader
 
-Die fünf Hauptbereiche sind Prüfungen, Stundenplan, Agenda, Notenrechner und Einstellungen. Die kompakte untere Leiste zeigt den aktiven Bereich und „Menü“. Tippe „Menü“ oder den aktiven Bereich an: Die beschrifteten Ziele öffnen sich untereinander. Die Auswahl schliesst nach einem Bereichswechsel; über „Menü schliessen“, Zurück oder die Fläche ausserhalb lässt sie sich ohne Wechsel schliessen. Bei grosser Schrift bleibt die Auswahl scrollbar. Du kannst Tabs in den Einstellungen ausblenden und deine Startansicht bestimmen. Aktive Tabs, Filter und Schalter geben ihren Zustand an TalkBack weiter. Abschnittstitel sind als Überschriften ausgezeichnet. Dekorative Illustrationen werden nicht vorgelesen.
+Die fünf Hauptbereiche sind Prüfungen, Stundenplan, Agenda, Notenrechner und Einstellungen. Alle eingeschalteten Bereiche sind direkt als Symbole nebeneinander in der unteren Leiste erreichbar. Eine Linie und Farbe kennzeichnen den aktiven Bereich. Wenn alle Beschriftungen in der gewählten Schriftgröße passen, stehen sie unter den Symbolen. Bei wenig Platz bleibt die Symbolreihe vollständig sichtbar; darunter steht der vollständige Name des aktiven Bereichs. TalkBack erhält für jedes Ziel den vollständigen Namen und den Auswahlzustand. Du kannst Bereiche in den Einstellungen ausblenden und deine Startansicht bestimmen. Aktive Tabs, Filter und Schalter geben ihren Zustand weiter. Abschnittstitel sind als Überschriften ausgezeichnet.
 
 Aktiviere TalkBack in den Android-Bedienungshilfen. Wische zum nächsten Element und tippe doppelt zum Ausführen. Bedienelemente lassen sich über ihre Beschriftung finden. Fehlermeldungen in Eingabefeldern erläutern die notwendige Korrektur. Zeiten, Status und Raumänderungen werden auch als Text angegeben.
 
