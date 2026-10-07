@@ -1,10 +1,10 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="200dp" android:height="200dp"
     android:viewportWidth="240" android:viewportHeight="240">
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#655342"
+    <path android:fillColor="@android:color/transparent" android:strokeColor="@color/widget_focus_badge"
         android:strokeWidth="1" android:pathData="M120,14 A106,106 0,1 1,120,226 A106,106 0,1 1,120,14" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#B48A65"
+    <path android:fillColor="@android:color/transparent" android:strokeColor="@color/widget_accent"
         android:strokeWidth="2" android:pathData="M120,28 A92,92 0,1 1,120,212 A92,92 0,1 1,120,28" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#E5AD87"
+    <path android:fillColor="@android:color/transparent" android:strokeColor="@color/widget_focus_text"
         android:strokeWidth="3" android:strokeLineCap="round" android:pathData="M120,28 A92,92 0,0 1,200,75" />
 </vector>
