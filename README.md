@@ -15,16 +15,16 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 
 ## Installation auf Android
 
-Beta 12 zeigt kurze, konkrete Hilfetexte und blendet wiederholte Landschaftsbilder im Arbeitsablauf aus. Die kompakte Navigation und die einheitlichen Farben bleiben erhalten. Die neuen eigenen Ergänzungen haben klare Nutzungsbedingungen gegen Verkauf, Werbung, Betrug, Tracking und Datenhandel; frühere MIT-Rechte bleiben bestehen.
+Beta 13 ist eine neu gebaute Download-Ausgabe der zuletzt geprüften App. Sie übernimmt die kurzen Hilfetexte, die reduzierten Bilder, die kompakte Navigation und die Nutzungsbedingungen aus Beta 12. Es werden keine weiteren Funktionen oder Gestaltungsänderungen eingeführt. Frühere MIT-Rechte bleiben bestehen.
 
 1. [Download-Seite öffnen](https://testcoldown-work-30min.andrin875272.chatgpt.site).
 2. Bei vorhandener Test-App zuerst unter `Optionen → Daten` eine Sicherung exportieren und aufbewahren.
-3. `ExamCountdown-test-v1.6.15-beta.12.apk` herunterladen und öffnen. Falls Android danach fragt, für den verwendeten Browser die Installation erlauben.
-4. Beta 12 hat ein anderes Testzertifikat als Beta 11; ein direktes Update ist nicht möglich. Die alte Test-App erst nach dem Export deinstallieren. **Eine Deinstallation löscht lokale Daten.** Danach installieren und die Sicherung importieren.
+3. `ExamCountdown-test-v1.6.15-beta.13.apk` herunterladen und öffnen. Falls Android danach fragt, für den verwendeten Browser die Installation erlauben.
+4. Das Zertifikat der veröffentlichten APK in den Versionsdaten prüfen. Ein direktes Update benötigt dasselbe Zertifikat. Falls das Zertifikat verschieden ist, die alte Test-App erst nach dem Export deinstallieren. **Eine Deinstallation löscht lokale Daten.** Danach installieren und die Sicherung importieren.
 
-Version `1.6.15-beta.12`, Code 35, Paket `com.andrin.examcountdown.preview`, Android 8+. Ein direktes Update benötigt dieselbe Paketkennung und dasselbe Zertifikat. Die Test-App ist unabhängig von der Produktions-App.
+Version `1.6.15-beta.13`, Code 36, Paket `com.andrin.examcountdown.preview`, Android 8+. Ein direktes Update benötigt dieselbe Paketkennung und dasselbe Zertifikat. Die Test-App ist unabhängig von der Produktions-App.
 
-Die APK wird über die Download-Seite bereitgestellt. Der [GitHub-Release](https://github.com/Momik-jpg/TestColdown/releases/tag/test-v1.6.15-beta.12) legt den geprüften Quellstand fest. Beta 8, Beta 9, Beta 10 und Beta 11 bleiben unter ihren bestehenden Releases und festen APK-Dateien erhalten.
+Die APK wird über die Download-Seite bereitgestellt. Der [GitHub-Release](https://github.com/Momik-jpg/TestColdown/releases/tag/test-v1.6.15-beta.13) legt den geprüften Quellstand fest. Beta 8 bis Beta 12 bleiben unter ihren bestehenden Releases und festen APK-Dateien erhalten.
 
 ## Vorschau selbst bauen
 
