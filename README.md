@@ -14,47 +14,27 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 - `Backup`: Export/Import der App-Daten.
 
 ## Installation auf Android
-1. [Feste Beta 8 öffnen](https://testcoldown-work-30min.andrin875272.chatgpt.site/).
-2. Bei vorhandener Beta 7 zuerst eine Sicherung exportieren (siehe unten).
-3. `ExamCountdown-test-v1.6.15-beta.8.apk` herunterladen und öffnen.
-4. Falls Android danach fragt, für den verwendeten Browser die Installation aus dieser Quelle erlauben.
 
-Der [GitHub-Release](https://github.com/Momik-jpg/TestColdown/releases/tag/test-v1.6.15-beta.8) enthält den festgelegten Quellstand und die Prüfhinweise. Die APK-Datei wird über die Download-Seite bereitgestellt.
+Die feste Beta 9 verbessert den Notenrechner: klare Eingabefehler, eigene Ergebnisflächen und verständliche Hinweise bei nicht erreichbaren Zielnoten. Die Lernwelt und Widgets aus Beta 8 bleiben erhalten.
 
-## Testversion parallel installieren
+1. [Download-Seite öffnen](https://testcoldown-work-30min.andrin875272.chatgpt.site/).
+2. Bei vorhandener Test-App zuerst unter `Optionen → Daten` eine Sicherung exportieren und aufbewahren.
+3. `ExamCountdown-test-v1.6.15-beta.9.apk` herunterladen und öffnen. Falls Android danach fragt, für den verwendeten Browser die Installation erlauben.
+4. Beta 9 hat ein anderes Testzertifikat als Beta 8. Ein direktes Update ist nicht möglich; die alte Test-App erst nach dem Export deinstallieren. **Eine Deinstallation löscht lokale Daten.** Danach installieren und die Sicherung importieren.
+
+Version `1.6.15-beta.9`, Code 32, Paket `com.andrin.examcountdown.preview`, Android 8+. Die eigene Paketkennung erlaubt die Installation neben der Produktions-App; Kalender, PIN und Daten sind getrennt. Ein direktes Update braucht eine identische Paketkennung und ein identisches Zertifikat. Test-Builds können unterschiedliche Zertifikate haben.
+
+Die APK wird über die Download-Seite bereitgestellt. Der [GitHub-Release](https://github.com/Momik-jpg/TestColdown/releases/tag/test-v1.6.15-beta.9) legt den geprüften Quellstand fest. Beta 8 bleibt unter ihrem bestehenden Release und ihrer festen APK-Datei erhalten.
+
+## Vorschau selbst bauen
 
 ```bash
 ./gradlew :app:testDebugUnitTest :app:lintPreview :app:assemblePreview --no-daemon
 ```
 
-Die Preview-APK liegt unter `.build/app/outputs/apk/preview/app-preview.apk`.
-Sie heißt „Prüfungs-Countdown Test“, verwendet `com.andrin.examcountdown.preview`
-und die Version `1.6.15-beta.8` (Code 31). Android 8 oder neuer ist erforderlich.
-Die eigene Paketkennung ermöglicht eine Installation neben der bisherigen App;
-Kalender, PIN und Daten sind getrennt. Die Testversion ist mit dem Android-Testschlüssel
-signiert und ersetzt keine mit dem Produktionsschlüssel signierte Installation.
+Die separate Test-APK liegt unter `.build/app/outputs/apk/preview/app-preview.apk`. Der Testschlüssel ersetzt keine mit dem Produktionsschlüssel signierte App.
 
-APK auf dem Handy herunterladen und öffnen. Falls Android danach fragt, für den
-verwendeten Browser die Installation aus dieser Quelle erlauben. In der Test-App
-anschließend den Kalender verbinden oder über `Optionen -> Daten` eine bestehende
-App-Sicherung importieren. Bestehende App-Daten werden nicht automatisch übernommen.
-
-Die feste Beta 8 steht auf [der Download-Seite](https://testcoldown-work-30min.andrin875272.chatgpt.site/) bereit; dort gibt es eine einzelne APK und die Installationsanleitung.
-
-Die CI-Test-APK von Beta 8 besitzt ein anderes Testzertifikat als Beta 7. Android lässt deshalb
-kein direktes Update dieser vorhandenen Test-App zu. Zuerst unter `Optionen -> Daten` eine
-App-Sicherung exportieren und die Datei aufbewahren. Erst danach die alte Test-App deinstallieren
-und Beta 8 installieren; eine Deinstallation löscht lokale Daten. Die Sicherung anschliessend
-in Beta 8 importieren. Die Produktions-App hat eine andere Paketkennung. Spätere Test-Builds
-können ebenfalls andere Zertifikate haben; ein direktes Update benötigt identische Paketkennung
-und identisches Zertifikat.
-
-Geprüfter Android-Stand: `e1f4f88959623a2895073822a50878d17a5b167c`,
-140 Tests in 31 Klassen bestanden, 67 native Bildschirmansichten, Lint ohne Fehler (36 Warnungen).
-APK-V2-Signatur und öffentlicher Download geprüft. Handy, TalkBack und externe Synchronisierung
-sind noch keine abgeschlossenen Live-Abnahmen.
-
-[Widget-Vorschauen und Prüfumfang](docs/widget-overhaul.md) · [Design- und Bedienprüfung](docs/usability-polish.md) · [Fantasy-Lernwelt Beta 7](docs/fantasy-accessibility-overhaul.md) · [Durchgehende Lernwelt Beta 8 und Prüfumfang](docs/immersive-learning-world-beta8.md)
+[Notenrechner und Abnahme Beta 9](docs/beta9-calculator-feedback.md) · [Lernwelt Beta 8](docs/immersive-learning-world-beta8.md) · [Widget-Vorschauen](docs/widget-overhaul.md) · [Bedienprüfung](docs/usability-polish.md)
 
 ## Ersteinrichtung
 1. App starten.
