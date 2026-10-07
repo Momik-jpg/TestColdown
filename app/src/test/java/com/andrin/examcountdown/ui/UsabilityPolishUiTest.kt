@@ -93,15 +93,13 @@ class UsabilityPolishUiTest {
         val dock = compose.onNodeWithTag("home-navigation").fetchSemanticsNode().boundsInRoot
         assertTrue("Dock takes too much vertical space at 160% text", dock.height <= 88f)
         assertWholeLabel("Prüfungen")
-        assertWholeLabel("Menü")
         HomeTab.entries.forEach { tab ->
-            compose.onNodeWithContentDescription("Bereiche öffnen").performClick()
-            val target = compose.onNodeWithTag("home-menu-${tab.route}")
+            val target = compose.onNodeWithTag("home-tab-${tab.route}")
             val bounds = target.fetchSemanticsNode().boundsInRoot
             assertTrue(bounds.width >= 48f && bounds.height >= 48f)
             target.performClick()
             compose.onNodeWithContentDescription(tab.title).assertIsSelected()
-            assertWholeLabel(tab.shortTitle)
+            assertWholeLabel(tab.title)
         }
     }
 
