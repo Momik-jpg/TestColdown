@@ -1,10 +1,10 @@
 # Datenschutz
 
-Stand: 6. Oktober 2026 · TestColdown / ExamCountdown, Version 1.6.15.
+Stand: 7. Oktober 2026 · TestColdown / ExamCountdown, Version 1.6.15.
 
 ## Projekt und Kontakt
 
-Das öffentliche Open-Source-Projekt TestColdown wird laut Projektlizenz von Andrin Maag veröffentlicht. Projekt und allgemeine Kontaktmöglichkeit: https://github.com/Momik-jpg/TestColdown. Nicht vertrauliche Fragen können über die dortigen Issues gestellt werden. Sicherheitsmeldungen bitte über GitHub Private Vulnerability Reporting, sofern verfügbar. Veröffentliche dort keine privaten Kalender-Links, PINs oder Sicherungen.
+TestColdown wird von Andrin Maag veröffentlicht. Neue eigene Ergänzungen ab Beta 12 haben eine eingeschränkte Nutzungslizenz; bisherige MIT- und Bibliotheksrechte bleiben bestehen. Projekt und allgemeine Kontaktmöglichkeit: https://github.com/Momik-jpg/TestColdown. Nicht vertrauliche Fragen können über die dortigen Issues gestellt werden. Sicherheitsmeldungen bitte über GitHub Private Vulnerability Reporting, sofern verfügbar. Veröffentliche dort keine privaten Kalender-Links, PINs oder Sicherungen.
 
 Diese Hinweise beschreiben die Datenverarbeitung der unveränderten Android-App. Für die Verarbeitung bei deinem Kalenderanbieter, in gewählten Cloud-Speichern, durch Android, deinen Launcher oder GitHub gelten deren eigene Hinweise. Die App betreibt keinen eigenen Server und bietet kein Benutzerkonto an.
 
@@ -12,7 +12,7 @@ Diese Hinweise beschreiben die Datenverarbeitung der unveränderten Android-App.
 
 Auf deinem Gerät werden Prüfungen, Unterricht und Termine mit Titeln, Fächern, Zeiten, Räumen und gegebenenfalls Beschreibungen gespeichert. Hinzu kommen Lernpläne, Erinnerungen, lokale Einstellungen, Synchronisationsstatus und die von dir eingetragenen Kalender-Links. Diese Daten dienen der Anzeige, Lernplanung, Kalenderaktualisierung und den von dir aktivierten Erinnerungen und Widgets.
 
-Die App enthält keine eingebauten Werbe-, Analyse- oder Crash-Upload-Dienste. Sie sendet deine Kalenderdaten nicht an den Projektbetreiber. Die Fantasy-Illustrationen sind mit KI erstellte, mitgelieferte Dateien. Die App ruft dafür keinen KI-Dienst auf und übermittelt keine Nutzerdaten an OpenAI.
+Die App enthält keine Werbung, kein Nutzertracking und keine eingebauten Werbe-, Analyse- oder Crash-Upload-Dienste. Es gibt keinen Datenverkauf durch den Projektbetreiber. Sie sendet deine Kalenderdaten nicht an den Projektbetreiber. Die Fantasy-Illustrationen sind mit KI erstellte, mitgelieferte Dateien. Die App ruft dafür keinen KI-Dienst auf und übermittelt keine Nutzerdaten an OpenAI.
 
 ## Speicherung und App-Schutz
 
