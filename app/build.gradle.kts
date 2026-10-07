@@ -37,7 +37,7 @@ android {
         applicationId = "com.andrin.examcountdown"
         minSdk = 26
         targetSdk = 34
-        versionCode = 34
+        versionCode = 35
         versionName = "1.6.15"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -71,7 +71,7 @@ android {
         create("preview") {
             initWith(getByName("release"))
             applicationIdSuffix = ".preview"
-            versionNameSuffix = "-beta.11"
+            versionNameSuffix = "-beta.12"
             // The separate test app does not require the production signing key.
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
@@ -116,6 +116,7 @@ listOf("debug", "release", "preview").forEach { variant ->
         val runtime = configurations.getByName("${variant}RuntimeClasspath")
         inputs.files(runtime)
         inputs.files(rootProject.file("LICENSE"), rootProject.file("PRIVACY.md"),
+            rootProject.file("third-party/TestColdown-MIT-legacy.txt"), rootProject.file("docs/license-scope.md"),
             rootProject.file("docs/accessibility.md"), rootProject.file("docs/graphics-provenance.md"),
             rootProject.file("third-party/Apache-2.0.txt"))
         outputs.dir(output)
@@ -192,7 +193,10 @@ listOf("debug", "release", "preview").forEach { variant ->
             }
             destination.resolve("licenses.md").writeText(listOf(
                 "# Lizenzen & Bildnachweise\n\nOffline-Nachweise für die Laufzeitbibliotheken dieser $variant-Ausgabe.",
-                "## TestColdown · MIT\n\n" + rootProject.file("LICENSE").readText(),
+                "## Kurz erklärt\n\nNeue eigene Ergänzungen ab Beta 12: kostenlos für Lernen und Bildung. Kein Verkauf, keine Werbung, kein Betrug, kein Tracking oder Datenhandel. Frühere MIT-Rechte und Bibliothekslizenzen bleiben bestehen. Der vollständige Umfang steht unten.",
+                rootProject.file("LICENSE").readText(),
+                rootProject.file("docs/license-scope.md").readText(),
+                "# Bisherige TestColdown-Bestandteile · MIT\n\n" + rootProject.file("third-party/TestColdown-MIT-legacy.txt").readText(),
                 rootProject.file("docs/graphics-provenance.md").readText(),
                 "# Bibliotheken mit aufgelösten Versionen\n\n$inventory",
                 "# Apache License 2.0\n\n" + rootProject.file("third-party/Apache-2.0.txt").readText(),
