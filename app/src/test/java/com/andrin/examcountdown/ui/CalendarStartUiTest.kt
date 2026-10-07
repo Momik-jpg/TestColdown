@@ -63,7 +63,11 @@ class CalendarStartUiTest {
         val layouts = mutableListOf<TextLayoutResult>()
         node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         val result = layouts.single()
-        assertFalse("$text overflows horizontally", result.didOverflowWidth)
+        // Intrinsic text widths are fractional; layout sizes are rounded to whole pixels.
+        // Check the rendered line extents with one pixel of rounding tolerance.
+        val lineExtents = (0 until result.lineCount).map { result.getLineLeft(it) to result.getLineRight(it) }
+        assertTrue("$text exceeds its ${result.size.width}px layout: $lineExtents",
+            lineExtents.all { (left, right) -> left >= -1f && right <= result.size.width + 1f })
         assertEquals(text.length, result.getLineEnd(result.lineCount - 1))
         assertFalse(result.isLineEllipsized(result.lineCount - 1))
     }
