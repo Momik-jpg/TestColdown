@@ -46,7 +46,9 @@ class CompactNavigationUiTest {
             val view = windows.lastOrNull { it.visibility == View.VISIBLE && it.width > 0 && it.height > 0 }
                 ?: requireNotNull(rendered)
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            view.draw(Canvas(bitmap))
+            val canvas = Canvas(bitmap)
+            requireNotNull(rendered).draw(canvas)
+            if (view !== rendered) view.draw(canvas)
             val folder = File(System.getenv("STUDY_UI_ARTIFACTS") ?: "build/study-ui").apply { mkdirs() }
             File(folder, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
             bitmap.recycle()
@@ -71,15 +73,16 @@ class CompactNavigationUiTest {
         }
         compose.onNodeWithContentDescription("Bereiche öffnen").performClick()
         compose.onNodeWithText("Bereiche").assertIsDisplayed()
-        HomeTab.entries.forEach { compose.onNodeWithText(it.title).assertIsDisplayed() }
+        HomeTab.entries.forEach { compose.onNodeWithTag("home-menu-${it.route}").assertIsDisplayed() }
         save("compact-menu-dark-large-text")
         compose.onNodeWithContentDescription("Menü schliessen").performClick()
         assertTrue(invoked.isEmpty())
         HomeTab.entries.forEach { tab ->
             compose.onNodeWithContentDescription("Bereiche öffnen").performClick()
-            val destination = compose.onNodeWithContentDescription(tab.title)
+            val destination = compose.onNodeWithTag("home-menu-${tab.route}")
             assertTrue(destination.fetchSemanticsNode().boundsInRoot.height >= 48f)
-            destination.performClick().assertIsSelected()
+            destination.performClick()
+            compose.onNodeWithContentDescription(tab.title).assertIsSelected()
             compose.onNodeWithText("Bereiche").assertDoesNotExist()
         }
         assertEquals(HomeTab.entries.toList(), invoked)
