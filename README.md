@@ -15,16 +15,16 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 
 ## Installation auf Android
 
-Die feste Beta 9 verbessert den Notenrechner: klare Eingabefehler, eigene Ergebnisflächen und verständliche Hinweise bei nicht erreichbaren Zielnoten. Die Lernwelt und Widgets aus Beta 8 bleiben erhalten.
+Die feste Beta 10 verbessert den Kalenderstart: eindeutige Sync-Zustände, gezielte Wiederholungs- und Reparaturaktionen sowie lesbare Überblickskacheln bei grosser Schrift. Die Lernwelt, Widgets und Rechner aus den vorherigen Betas bleiben erhalten.
 
-1. [Download-Seite öffnen](https://testcoldown-work-30min.andrin875272.chatgpt.site/).
+1. [Download-Seite öffnen](https://testcoldown-work-30min.andrin875272.chatgpt.site).
 2. Bei vorhandener Test-App zuerst unter `Optionen → Daten` eine Sicherung exportieren und aufbewahren.
-3. `ExamCountdown-test-v1.6.15-beta.9.apk` herunterladen und öffnen. Falls Android danach fragt, für den verwendeten Browser die Installation erlauben.
-4. Beta 9 hat ein anderes Testzertifikat als Beta 8. Ein direktes Update ist nicht möglich; die alte Test-App erst nach dem Export deinstallieren. **Eine Deinstallation löscht lokale Daten.** Danach installieren und die Sicherung importieren.
+3. `ExamCountdown-test-v1.6.15-beta.10.apk` herunterladen und öffnen. Falls Android danach fragt, für den verwendeten Browser die Installation erlauben.
+4. Beta 10 hat ein anderes Testzertifikat als Beta 9; ein direktes Update ist nicht möglich. Die alte Test-App erst nach dem Export deinstallieren. **Eine Deinstallation löscht lokale Daten.** Danach installieren und die Sicherung importieren.
 
-Version `1.6.15-beta.9`, Code 32, Paket `com.andrin.examcountdown.preview`, Android 8+. Die eigene Paketkennung erlaubt die Installation neben der Produktions-App; Kalender, PIN und Daten sind getrennt. Ein direktes Update braucht eine identische Paketkennung und ein identisches Zertifikat. Test-Builds können unterschiedliche Zertifikate haben.
+Version `1.6.15-beta.10`, Code 33, Paket `com.andrin.examcountdown.preview`, Android 8+. Ein direktes Update benötigt dieselbe Paketkennung und dasselbe Zertifikat. Die Test-App ist unabhängig von der Produktions-App.
 
-Die APK wird über die Download-Seite bereitgestellt. Der [GitHub-Release](https://github.com/Momik-jpg/TestColdown/releases/tag/test-v1.6.15-beta.9) legt den geprüften Quellstand fest. Beta 8 bleibt unter ihrem bestehenden Release und ihrer festen APK-Datei erhalten.
+Die APK wird über die Download-Seite bereitgestellt. Der [GitHub-Release](https://github.com/Momik-jpg/TestColdown/releases/tag/test-v1.6.15-beta.10) legt den geprüften Quellstand fest. Beta 8 und Beta 9 bleiben unter ihren bestehenden Releases und festen APK-Dateien erhalten.
 
 ## Vorschau selbst bauen
 
@@ -34,7 +34,7 @@ Die APK wird über die Download-Seite bereitgestellt. Der [GitHub-Release](https
 
 Die separate Test-APK liegt unter `.build/app/outputs/apk/preview/app-preview.apk`. Der Testschlüssel ersetzt keine mit dem Produktionsschlüssel signierte App.
 
-[Notenrechner und Abnahme Beta 9](docs/beta9-calculator-feedback.md) · [Lernwelt Beta 8](docs/immersive-learning-world-beta8.md) · [Widget-Vorschauen](docs/widget-overhaul.md) · [Bedienprüfung](docs/usability-polish.md)
+[Kalenderstart und Abnahme Beta 10](docs/beta10-calendar-start.md) · [Notenrechner Beta 9](docs/beta9-calculator-feedback.md) · [Lernwelt Beta 8](docs/immersive-learning-world-beta8.md) · [Widget-Vorschauen](docs/widget-overhaul.md) · [Bedienprüfung](docs/usability-polish.md)
 
 ## Ersteinrichtung
 1. App starten.
