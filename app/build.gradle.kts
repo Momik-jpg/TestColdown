@@ -37,7 +37,7 @@ android {
         applicationId = "com.andrin.examcountdown"
         minSdk = 26
         targetSdk = 34
-        versionCode = 33
+        versionCode = 34
         versionName = "1.6.15"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -71,7 +71,7 @@ android {
         create("preview") {
             initWith(getByName("release"))
             applicationIdSuffix = ".preview"
-            versionNameSuffix = "-beta.10"
+            versionNameSuffix = "-beta.11"
             // The separate test app does not require the production signing key.
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
