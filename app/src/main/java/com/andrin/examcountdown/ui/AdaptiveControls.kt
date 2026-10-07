@@ -1,31 +1,26 @@
 package com.andrin.examcountdown.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Menu
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -90,81 +85,64 @@ internal fun AppScreenHeading(title: String) {
     }
 }
 
-/** A single compact dock; destinations open vertically only when requested. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Every enabled destination stays directly reachable in one row. */
 @Composable
 internal fun HomeNavigationBar(
     visibleTabs: List<HomeTab>, selectedTab: HomeTab, onTabSelected: (HomeTab) -> Unit
 ) {
     if (visibleTabs.isEmpty()) return
-    var menuOpen by rememberSaveable { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
     val current = selectedTab.takeIf { it in visibleTabs } ?: visibleTabs.first()
+    val labelStyle = MaterialTheme.typography.labelMedium
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
     Surface(color = colors.surface, tonalElevation = 0.dp,
         modifier = Modifier.fillMaxWidth().testTag("home-navigation")) {
         Column(Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
             HorizontalDivider(color = colors.outlineVariant)
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(Modifier.weight(1f).heightIn(min = 48.dp)
-                    .selectable(true, role = Role.Tab, onClick = { menuOpen = true })
-                    .semantics { contentDescription = current.title },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(current.icon, null, Modifier.size(22.dp), tint = colors.tertiary)
-                    Text(current.shortTitle, style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold, color = colors.onSurface)
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val cellWidthPx = with(density) { (maxWidth / visibleTabs.size - 8.dp).toPx() }
+                // Measure actual system-scaled labels instead of shrinking or truncating them.
+                val labelsFit = visibleTabs.all { tab ->
+                    measurer.measure(tab.shortTitle,
+                        style = labelStyle.copy(fontWeight = FontWeight.SemiBold),
+                        softWrap = false).size.width <= cellWidthPx
                 }
-                TextButton(onClick = { menuOpen = true },
-                    modifier = Modifier.heightIn(min = 48.dp)
-                        .semantics { contentDescription = "Bereiche öffnen" },
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)) {
-                    Icon(Icons.Outlined.Menu, null, Modifier.size(20.dp))
-                    Text("Menü", Modifier.padding(start = 8.dp))
-                }
-            }
-        }
-    }
-    if (menuOpen) {
-        ModalBottomSheet(onDismissRequest = { menuOpen = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = colors.surface, contentColor = colors.onSurface,
-            shape = MaterialTheme.shapes.extraLarge, dragHandle = null,
-            modifier = Modifier.testTag("home-menu")) {
-            Column(Modifier.fillMaxWidth()
-                .heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.7f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Bereiche", style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.weight(1f).semantics { heading() })
-                    IconButton(onClick = { menuOpen = false }) {
-                        Icon(Icons.Outlined.Close, contentDescription = "Menü schliessen")
-                    }
-                }
-                Column(Modifier.fillMaxWidth().selectableGroup()) {
-                    visibleTabs.forEach { tab ->
-                        val selected = current == tab
-                        Surface(color = if (selected) colors.primaryContainer else colors.surface,
-                            shape = MaterialTheme.shapes.small) {
-                            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp)
-                                .testTag("home-menu-${tab.route}")
-                                .selectable(selected, role = Role.Tab, onClick = {
-                                    menuOpen = false
-                                    onTabSelected(tab)
-                                }).semantics { contentDescription = tab.title }
-                                .padding(horizontal = 12.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                Icon(tab.icon, null, Modifier.size(24.dp),
-                                    tint = if (selected) colors.tertiary else colors.onSurfaceVariant)
-                                Text(tab.title, style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                    modifier = Modifier.weight(1f))
-                                if (selected) Icon(Icons.Outlined.Check, null, Modifier.size(18.dp))
+                val itemHeight = if (labelsFit) {
+                    with(density) { measurer.measure("Ag", style = labelStyle).size.height.toDp() }
+                        .plus(36.dp).coerceAtLeast(64.dp)
+                } else 48.dp
+                Column {
+                    Row(Modifier.fillMaxWidth().selectableGroup()) {
+                        visibleTabs.forEach { tab ->
+                            val selected = current == tab
+                            Column(Modifier.weight(1f).height(itemHeight)
+                                .testTag("home-tab-${tab.route}")
+                                .selectable(selected, role = Role.Tab, onClick = { onTabSelected(tab) })
+                                .semantics { contentDescription = tab.title },
+                                horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(Modifier.fillMaxWidth().height(2.dp)
+                                    .background(if (selected) colors.primary else Color.Transparent))
+                                Column(Modifier.weight(1f).padding(horizontal = 4.dp, vertical = 4.dp),
+                                    verticalArrangement = Arrangement.Center,
+                                    horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(tab.icon, null, Modifier.size(24.dp),
+                                        tint = if (selected) colors.primary else colors.onSurfaceVariant)
+                                    if (labelsFit) {
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(tab.shortTitle, style = labelStyle, maxLines = 1,
+                                            color = if (selected) colors.primary else colors.onSurfaceVariant,
+                                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+                                    }
+                                }
                             }
                         }
+                    }
+                    if (!labelsFit) {
+                        Text(current.title, style = labelStyle, fontWeight = FontWeight.SemiBold,
+                            color = colors.primary, textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                                .testTag("home-current-label"))
                     }
                 }
             }
