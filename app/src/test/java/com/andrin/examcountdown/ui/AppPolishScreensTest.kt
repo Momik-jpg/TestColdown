@@ -80,8 +80,7 @@ class AppPolishScreensTest {
             }
         }
         HomeTab.entries.forEach { tab ->
-            compose.onNodeWithContentDescription("Bereiche öffnen").performClick()
-            compose.onNodeWithTag("home-menu-${tab.route}").performClick()
+            compose.onNodeWithTag("home-tab-${tab.route}").performClick()
             compose.onNodeWithContentDescription(tab.title).assertIsSelected()
             val expected = when (tab) {
                 HomeTab.EXAMS -> "Lernen planen"
