@@ -15,16 +15,16 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 
 ## Installation auf Android
 
-Die feste Beta 10 verbessert den Kalenderstart: eindeutige Sync-Zustände, gezielte Wiederholungs- und Reparaturaktionen sowie lesbare Überblickskacheln bei grosser Schrift. Die Lernwelt, Widgets und Rechner aus den vorherigen Betas bleiben erhalten.
+Die feste Beta 11 vereinheitlicht App, Widgets und Symbol mit Elfenbein, Graphit und gezielten Kupferakzenten. Klarere Ecken und zusammenhängende Abschnitte schaffen Ruhe. Die schmale untere Leiste zeigt den aktiven Bereich und «Menü»; alle Bereiche öffnen sich untereinander.
 
 1. [Download-Seite öffnen](https://testcoldown-work-30min.andrin875272.chatgpt.site).
 2. Bei vorhandener Test-App zuerst unter `Optionen → Daten` eine Sicherung exportieren und aufbewahren.
-3. `ExamCountdown-test-v1.6.15-beta.10.apk` herunterladen und öffnen. Falls Android danach fragt, für den verwendeten Browser die Installation erlauben.
-4. Beta 10 hat ein anderes Testzertifikat als Beta 9; ein direktes Update ist nicht möglich. Die alte Test-App erst nach dem Export deinstallieren. **Eine Deinstallation löscht lokale Daten.** Danach installieren und die Sicherung importieren.
+3. `ExamCountdown-test-v1.6.15-beta.11.apk` herunterladen und öffnen. Falls Android danach fragt, für den verwendeten Browser die Installation erlauben.
+4. Beta 11 hat ein anderes Testzertifikat als Beta 10; ein direktes Update ist nicht möglich. Die alte Test-App erst nach dem Export deinstallieren. **Eine Deinstallation löscht lokale Daten.** Danach installieren und die Sicherung importieren.
 
-Version `1.6.15-beta.10`, Code 33, Paket `com.andrin.examcountdown.preview`, Android 8+. Ein direktes Update benötigt dieselbe Paketkennung und dasselbe Zertifikat. Die Test-App ist unabhängig von der Produktions-App.
+Version `1.6.15-beta.11`, Code 34, Paket `com.andrin.examcountdown.preview`, Android 8+. Ein direktes Update benötigt dieselbe Paketkennung und dasselbe Zertifikat. Die Test-App ist unabhängig von der Produktions-App.
 
-Die APK wird über die Download-Seite bereitgestellt. Der [GitHub-Release](https://github.com/Momik-jpg/TestColdown/releases/tag/test-v1.6.15-beta.10) legt den geprüften Quellstand fest. Beta 8 und Beta 9 bleiben unter ihren bestehenden Releases und festen APK-Dateien erhalten.
+Die APK wird über die Download-Seite bereitgestellt. Der [GitHub-Release](https://github.com/Momik-jpg/TestColdown/releases/tag/test-v1.6.15-beta.11) legt den geprüften Quellstand fest. Beta 8, Beta 9 und Beta 10 bleiben unter ihren bestehenden Releases und festen APK-Dateien erhalten.
 
 ## Vorschau selbst bauen
 
@@ -34,7 +34,7 @@ Die APK wird über die Download-Seite bereitgestellt. Der [GitHub-Release](https
 
 Die separate Test-APK liegt unter `.build/app/outputs/apk/preview/app-preview.apk`. Der Testschlüssel ersetzt keine mit dem Produktionsschlüssel signierte App.
 
-[Kalenderstart und Abnahme Beta 10](docs/beta10-calendar-start.md) · [Notenrechner Beta 9](docs/beta9-calculator-feedback.md) · [Lernwelt Beta 8](docs/immersive-learning-world-beta8.md) · [Widget-Vorschauen](docs/widget-overhaul.md) · [Bedienprüfung](docs/usability-polish.md)
+[Gestaltung und Menü Beta 11](docs/beta11-coherent-design.md) · [Kalenderstart und Abnahme Beta 10](docs/beta10-calendar-start.md) · [Notenrechner Beta 9](docs/beta9-calculator-feedback.md) · [Lernwelt Beta 8](docs/immersive-learning-world-beta8.md) · [Widget-Vorschauen](docs/widget-overhaul.md) · [Bedienprüfung](docs/usability-polish.md)
 
 ## Ersteinrichtung
 1. App starten.
