@@ -39,14 +39,13 @@ internal fun StudyWorldHeader(
     scene: StudyScene = StudyScene.EXAMS
 ) {
     val colors = MaterialTheme.colorScheme
-    val artEnabled = illustrated && LocalDecorativeArtEnabled.current
-    val largeText = LocalDensity.current.fontScale > 1.3f
+    val artEnabled = illustrated && LocalDecorativeArtEnabled.current && LocalDensity.current.fontScale <= 1.3f
     Column(modifier.fillMaxWidth()) {
         if (artEnabled) {
             Image(
                 painter = painterResource(scene.artwork), contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().height(if (largeText) 64.dp else 104.dp).clip(MaterialTheme.shapes.large)
+                modifier = Modifier.fillMaxWidth().height(80.dp).clip(MaterialTheme.shapes.large)
             )
         }
         Row(
