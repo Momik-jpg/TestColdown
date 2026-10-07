@@ -155,8 +155,10 @@ class StudyWorldUiTest {
             }
         }
         compose.onNodeWithText("Prüfungen").assertIsSelected()
-        compose.onNodeWithText("Noten").performClick().assertIsSelected()
-        compose.onNodeWithText("Optionen").performClick().assertIsSelected()
+        compose.onNodeWithContentDescription("Bereiche öffnen").performClick()
+        compose.onNodeWithContentDescription("Notenrechner").performClick().assertIsSelected()
+        compose.onNodeWithContentDescription("Bereiche öffnen").performClick()
+        compose.onNodeWithContentDescription("Einstellungen").performClick().assertIsSelected()
     }
 
     @Test fun compactTimetableKeepsRoomsChangesAndViewControls() {
