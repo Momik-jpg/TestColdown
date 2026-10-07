@@ -173,7 +173,7 @@ fun ExamsTabContent(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item("study-world-empty") {
-                StudyWorldHeader("Deine erste Prüfung", "Kalender verbinden oder Prüfung hinzufügen.", illustrated = true)
+                StudyWorldHeader("Deine erste Prüfung", "Kalender verbinden oder Prüfung hinzufügen.", illustrated = false)
             }
             if (showSetupGuide) {
                 item("setup-guide-empty") {
