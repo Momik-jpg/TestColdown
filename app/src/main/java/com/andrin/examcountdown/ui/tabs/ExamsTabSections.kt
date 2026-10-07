@@ -160,8 +160,8 @@ internal fun SetupGuideCard(
         examCount == 0 -> "Dein Kalender wurde aktualisiert. Es sind noch keine Prüfungen gespeichert."
         else -> "Dein Kalender ist verbunden. Du kannst ihn jederzeit erneut aktualisieren."
     }
-    val container = if (hasError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer
-    val foreground = if (hasError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
+    val container = if (hasError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface
+    val foreground = if (hasError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface
 
     Card(
         shape = MaterialTheme.shapes.large,
@@ -629,7 +629,8 @@ internal fun NextExamHero(
                             fontWeight = FontWeight.SemiBold)
                     }
                 }
-                Button(onClick = onPlanStudy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Button(onClick = onPlanStudy, shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                     Icon(Icons.Outlined.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text("Lernen planen", modifier = Modifier.padding(start = 8.dp))
                 }
