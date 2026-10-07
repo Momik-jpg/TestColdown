@@ -310,7 +310,7 @@ fun EventsTimelineContent(
         verticalArrangement = Arrangement.spacedBy(AppDimens.itemSpacing)
     ) {
         item("study-agenda-heading") {
-            StudyWorldHeader("Deine Woche", "Prüfungen, Unterricht & Termine", illustrated = true, scene = StudyScene.AGENDA)
+            StudyWorldHeader("Deine Woche", "Prüfungen, Unterricht & Termine", illustrated = false, scene = StudyScene.AGENDA)
         }
         item("calendar-controls") {
             Card(
@@ -1583,7 +1583,7 @@ private fun EventEmptyState(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
         item("study-agenda-empty-heading") {
-            StudyWorldHeader("Agenda", "Deine Termine auf einen Blick", illustrated = true, scene = StudyScene.AGENDA)
+            StudyWorldHeader("Agenda", "Deine Termine auf einen Blick", illustrated = false, scene = StudyScene.AGENDA)
         }
         item("events-empty") {
             Card(
