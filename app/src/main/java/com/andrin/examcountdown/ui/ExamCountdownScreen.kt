@@ -453,8 +453,8 @@ fun ExamCountdownScreen(
         if (uri == null) return@rememberLauncherForActivityResult
 
         runCatching {
-            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
-                writer.write(backupJson)
+            context.contentResolver.openOutputStream(uri)?.use { output ->
+                output.bufferedWriter().use { writer -> writer.write(backupJson) }
             } ?: error("Datei konnte nicht geschrieben werden.")
         }.onSuccess {
             scope.launch { snackbarHostState.showSnackbar("Backup exportiert.") }
@@ -489,8 +489,8 @@ fun ExamCountdownScreen(
         pendingCsvExport = null
         if (uri == null) return@rememberLauncherForActivityResult
         runCatching {
-            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
-                writer.write(payload.second)
+            context.contentResolver.openOutputStream(uri)?.use { output ->
+                output.bufferedWriter().use { writer -> writer.write(payload.second) }
             } ?: error("Datei konnte nicht geschrieben werden.")
         }.onSuccess {
             scope.launch { snackbarHostState.showSnackbar("${payload.first} exportiert.") }
