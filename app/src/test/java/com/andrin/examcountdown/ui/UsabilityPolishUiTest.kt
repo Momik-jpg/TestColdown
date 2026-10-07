@@ -96,10 +96,11 @@ class UsabilityPolishUiTest {
         assertWholeLabel("Menü")
         HomeTab.entries.forEach { tab ->
             compose.onNodeWithContentDescription("Bereiche öffnen").performClick()
-            val target = compose.onNodeWithContentDescription(tab.title)
+            val target = compose.onNodeWithTag("home-menu-${tab.route}")
             val bounds = target.fetchSemanticsNode().boundsInRoot
             assertTrue(bounds.width >= 48f && bounds.height >= 48f)
-            target.performClick().assertIsSelected()
+            target.performClick()
+            compose.onNodeWithContentDescription(tab.title).assertIsSelected()
             assertWholeLabel(tab.shortTitle)
         }
     }
