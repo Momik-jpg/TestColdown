@@ -113,7 +113,7 @@ internal fun SettingsContent(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (!searching && expandedSection == null) item("settings-world") {
-            StudyWorldHeader("Einstellungen", "Kalender, Darstellung und Daten", illustrated = false, scene = StudyScene.SETTINGS)
+            StudyWorldHeader("Anpassen", "Kalender, Darstellung und Daten", illustrated = false, scene = StudyScene.SETTINGS)
         }
         item("settings-search") {
             AppTextField(
