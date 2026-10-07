@@ -217,4 +217,58 @@ class UsabilityPolishUiTest {
         heading.performClick()
         compose.onNodeWithText("16 Prüfungen und 135 Lektionen synchronisiert.").assertDoesNotExist()
     }
+
+    @Test fun invalidGradeNeverSilentlyDisappearsFromTheAverage() {
+        show { GradeCalculatorScreen(Modifier.padding(16.dp)) }
+        compose.onAllNodesWithText("Note").onFirst().performScrollTo().performTextReplacement("5")
+        compose.onNodeWithText("5,00").performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithText("Note").onLast().performScrollTo().performTextReplacement("8")
+        compose.onAllNodesWithText("Note").onLast().assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.Error, "Gib eine Note von 1 bis 6 ein.")
+        )
+        compose.onNodeWithText("Korrigiere die markierten Notenzeilen, damit alle Noten in den Schnitt einfliessen.")
+            .performScrollTo().assertIsDisplayed()
+        screenshot("calculator-invalid-grade-large-text")
+        compose.onAllNodesWithText("Note").onLast().performScrollTo().performTextReplacement("3")
+        compose.onNodeWithText("4,00").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun missingWeightRequiresCorrectionWhenItsGradeIsFilled() {
+        show { GradeCalculatorScreen(Modifier.padding(16.dp)) }
+        compose.onAllNodesWithText("Note").onFirst().performTextReplacement("5")
+        val weight = compose.onAllNodesWithText("Gewicht").onFirst()
+        weight.performScrollTo().performTextClearance()
+        weight.assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Error))
+        compose.onNodeWithText("Korrigiere die markierten Notenzeilen, damit alle Noten in den Schnitt einfliessen.")
+            .performScrollTo().assertIsDisplayed()
+        weight.performScrollTo().performTextReplacement("1")
+        compose.onNodeWithText("5,00").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun negativeAndExcessPointsCannotProduceAnOutOfScaleGrade() {
+        show { GradeCalculatorScreen(Modifier.padding(16.dp)) }
+        val points = compose.onNodeWithText("Erreicht")
+        points.performScrollTo().performTextReplacement("-1")
+        points.assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Error))
+        compose.onNodeWithText("Trage Punkte und eine gültige Notenskala ein.").performScrollTo().assertIsDisplayed()
+        points.performScrollTo().performTextReplacement("101")
+        points.assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Error))
+        points.performTextReplacement("60")
+        points.assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Error))
+        compose.onNodeWithText("60,00 % der maximalen Punkte · lineare Skala").performScrollTo().assertIsDisplayed()
+        screenshot("calculator-points-result-large-text")
+    }
+
+    @Test fun targetClearlyDistinguishesImpossibleAndAlreadySecuredResults() {
+        show { GradeCalculatorScreen(Modifier.padding(16.dp)) }
+        compose.onAllNodesWithText("Note").onFirst().performTextReplacement("2")
+        compose.onNodeWithText("Zielschnitt").performScrollTo().performTextReplacement("6")
+        compose.onNodeWithText("Mit einer einzigen weiteren Note nicht erreichbar – auch eine 6 reicht nicht.")
+            .performScrollTo().assertIsDisplayed()
+        screenshot("calculator-impossible-target-large-text")
+        compose.onAllNodesWithText("Note").onFirst().performScrollTo().performTextReplacement("6")
+        compose.onNodeWithText("Zielschnitt").performScrollTo().performTextReplacement("2")
+        compose.onNodeWithText("Ziel bereits abgesichert – selbst mit einer 1 in der nächsten Prüfung.")
+            .performScrollTo().assertIsDisplayed()
+    }
 }
