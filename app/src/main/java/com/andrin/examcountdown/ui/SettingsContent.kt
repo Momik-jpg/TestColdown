@@ -84,7 +84,7 @@ internal enum class SettingsAction(val section: SettingsSection, val title: Stri
     BACKUP_EXPORT(SettingsSection.DATA, "Sicherung exportieren", "Backup von Daten und Einstellungen", Icons.Outlined.CloudUpload),
     BACKUP_IMPORT(SettingsSection.DATA, "Sicherung importieren", "Vorhandenes Backup wiederherstellen", Icons.Outlined.CloudDownload),
     HELP(SettingsSection.HELP, "Bedienung & Hilfe", "Schritt für Schritt starten", Icons.AutoMirrored.Outlined.HelpOutline),
-    LICENSES(SettingsSection.HELP, "Lizenzen & Bildnachweise", "Open Source und KI-Illustrationen · offline lesbar", Icons.Outlined.Description),
+    LICENSES(SettingsSection.HELP, "Lizenzen & Bildnachweise", "Nutzungsrechte und Bildherkunft · offline", Icons.Outlined.Description),
     CHANGELOG(SettingsSection.HELP, "Was ist neu", "Änderungen dieser Version", Icons.Outlined.CalendarToday)
 }
 
@@ -113,7 +113,7 @@ internal fun SettingsContent(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (!searching && expandedSection == null) item("settings-world") {
-            StudyWorldHeader("Deine Lernwelt", "Kalender, Darstellung und Schutz an einem Ort", illustrated = true, scene = StudyScene.SETTINGS)
+            StudyWorldHeader("Einstellungen", "Kalender, Darstellung und Daten", illustrated = false, scene = StudyScene.SETTINGS)
         }
         item("settings-search") {
             AppTextField(
