@@ -1112,9 +1112,6 @@ fun ExamCountdownScreen(
 
     val tabStateHolder = rememberSaveableStateHolder()
     val scheme = MaterialTheme.colorScheme
-    val backgroundBrush = remember(scheme.background, scheme.primaryContainer) {
-        Brush.verticalGradient(listOf(scheme.primaryContainer.copy(alpha = 0.28f).compositeOver(scheme.background), scheme.background))
-    }
     val headerBrush = remember(scheme.background) {
         Brush.verticalGradient(listOf(scheme.background, scheme.background))
     }
@@ -1126,8 +1123,8 @@ fun ExamCountdownScreen(
                 Surface(
                     color = Color.Transparent,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(
-                        bottomStart = 24.dp,
-                        bottomEnd = 24.dp
+                        bottomStart = 0.dp,
+                        bottomEnd = 0.dp
                     ),
                     tonalElevation = 0.dp,
                     shadowElevation = 0.dp
@@ -1239,7 +1236,7 @@ fun ExamCountdownScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(backgroundBrush)
+                .background(scheme.background)
                 .padding(paddingValues)
         ) {
             tabStateHolder.SaveableStateProvider(selectedTab.route) {
