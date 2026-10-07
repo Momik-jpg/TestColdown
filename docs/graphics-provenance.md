@@ -24,6 +24,8 @@ Gemeinsames Briefing (stylized-concept): Premium fantasy miniature learning worl
 
 Die originalen PNGs wurden nur für die mobile Auslieferung auf 1200 × 400 Pixel verkleinert und als WebP komprimiert. Alle fünf Ressourcen zusammen bleiben unter 750 KB. Texte, Schaltflächen, Kalender- und App-Symbole werden nativ gezeichnet; die App benötigt weder Netzwerk noch einen Bildgenerierungsdienst zum Anzeigen. Die oben genannten Hinweise zu KI-Ausgaben und MIT-Weitergabe gelten auch für diese Szenen.
 
-## Sparsame Verwendung ab Beta 12
+## Verwendung ab Beta 14
 
-Im normalen Arbeitsablauf werden die wiederholten Landschaftsbanner ausgeblendet. Die bereits komprimierte Sternwarten-Szene erscheint nur zur Begrüßung vor der ersten Prüfung. Bei großer Systemschrift oder im Kontrastmodus wird auch sie ausgelassen. Echte App- und Widget-Ansichten auf der Download-Seite erklären Funktionen; die zusätzlichen Landschaftskulissen der Seite entfallen. Alle Bildnachweise und die bisherigen MIT-Rechte bleiben erhalten.
+Arbeitsansichten und Begrüßung laden keine Landschaftsillustrationen. Ältere komprimierte Ressourcen und ihre Nachweise bleiben im Projekt erhalten. Echte App- und Widget-Ansichten auf der Download-Seite erklären Funktionen.
+
+Am 7. Oktober 2026 wurde mit der integrierten GPT-Bildgenerierung ein UI-Entwurf als Gestaltungsreferenz erstellt. Referenz war eine native Prüfungsansicht der Beta 13 mit synthetischen Beispieldaten. Das Briefing verlangte Weiß und Graphit, zurückhaltendes Stahlblau, klare Grenzen und fünf direkt erreichbare Navigationsziele. Abstände, Trennlinien und Navigation wurden anschließend nativ umgesetzt. Der Entwurf selbst und seine Texte werden nicht als Bild in die App eingebaut. Das ursprüngliche Kalender-Haken-Symbol wird wieder verwendet. Alle bisherigen Rechte und Bildnachweise bleiben erhalten.
