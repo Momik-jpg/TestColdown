@@ -5,7 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,6 +50,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.model.Exam
 import com.andrin.examcountdown.ui.AppTextField
 import com.andrin.examcountdown.ui.ActiveFilterChip
+import com.andrin.examcountdown.ui.AdaptiveFieldPair
 import com.andrin.examcountdown.ui.FilterControls
 import com.andrin.examcountdown.R
 import com.andrin.examcountdown.ui.ExamPresentation
@@ -98,22 +107,21 @@ internal fun ExamInsightsCard(
                 fontWeight = FontWeight.SemiBold
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InsightPill(
-                    label = "Sichtbar",
-                    value = visibleCount.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                InsightPill(
-                    label = "7 Tage",
-                    value = examsNext7.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                InsightPill(
-                    label = "30 Tage",
-                    value = examsNext30.toString(),
-                    modifier = Modifier.weight(1f)
-                )
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val metrics = listOf("Sichtbar" to visibleCount, "7 Tage" to examsNext7, "30 Tage" to examsNext30)
+                if (maxWidth / LocalDensity.current.fontScale < 240.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        metrics.forEach { (label, value) ->
+                            InsightPill(label, value.toString(), Modifier.fillMaxWidth())
+                        }
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        metrics.forEach { (label, value) ->
+                            InsightPill(label, value.toString(), Modifier.weight(1f))
+                        }
+                    }
+                }
             }
             Text(
                 text = "Fächer mit Prüfungen: $subjectCount",
@@ -124,6 +132,7 @@ internal fun ExamInsightsCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SetupGuideCard(
     examCount: Int,
@@ -136,28 +145,32 @@ internal fun SetupGuideCard(
     onOpenHelp: () -> Unit,
     onHide: () -> Unit
 ) {
+    val hasError = !lastSyncError.isNullOrBlank() || shouldSuggestLinkRepair
     val actionText = when {
         !hasIcalUrl -> "Kalender verbinden"
         shouldSuggestLinkRepair -> "Link reparieren"
+        hasError -> "Erneut versuchen"
         else -> "Jetzt synchronisieren"
     }
     val statusText = when {
-        !hasIcalUrl -> "Verbinde zuerst deinen iCal-Kalender."
+        !hasIcalUrl -> "Verbinde deinen iCal-Kalender oder lege Prüfungen manuell an."
         shouldSuggestLinkRepair -> "Der gespeicherte Link ist ungültig oder abgelaufen."
-        !hasSyncedOnce -> "Starte den ersten Sync mit \"Jetzt synchronisieren\"."
-        examCount == 0 -> "Sync war erfolgreich, aber es wurden noch keine Prüfungen gefunden."
-        !lastSyncError.isNullOrBlank() -> "Beim letzten Sync gab es ein Problem."
-        else -> "Alles bereit. Deine Prüfungen sind aktuell."
+        hasError -> "Die letzte Aktualisierung ist fehlgeschlagen. Gespeicherte Termine bleiben verfügbar."
+        !hasSyncedOnce -> "Dein Kalender ist verbunden. Starte jetzt die erste Aktualisierung."
+        examCount == 0 -> "Dein Kalender wurde aktualisiert. Es sind noch keine Prüfungen gespeichert."
+        else -> "Dein Kalender ist verbunden. Du kannst ihn jederzeit erneut aktualisieren."
     }
+    val container = if (hasError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer
+    val foreground = if (hasError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
 
     Card(
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.32f)
+            containerColor = container
         ),
         border = BorderStroke(
             1.dp,
-            MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f)
+            MaterialTheme.colorScheme.outlineVariant
         )
     ) {
         Column(
@@ -165,23 +178,29 @@ internal fun SetupGuideCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Start-Hilfe",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
+                text = "Dein Kalenderstart",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = foreground,
+                modifier = Modifier.semantics { heading() }
             )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 SetupStatusPill(
                     label = if (hasIcalUrl) "Kalender verbunden" else "Kalender fehlt",
                     ok = hasIcalUrl
                 )
                 SetupStatusPill(
-                    label = if (hasSyncedOnce) "Sync erledigt" else "Noch kein Sync",
-                    ok = hasSyncedOnce
+                    label = when {
+                        !hasIcalUrl -> "Noch kein Sync"
+                        hasError -> "Sync prüfen"
+                        hasSyncedOnce -> "Sync erledigt"
+                        else -> "Noch kein Sync"
+                    },
+                    ok = hasIcalUrl && hasSyncedOnce && !hasError
                 )
                 SetupStatusPill(
                     label = "$examCount Prüfungen",
@@ -189,34 +208,35 @@ internal fun SetupGuideCard(
                 )
             }
 
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = foreground,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+            )
             if (!lastSyncError.isNullOrBlank()) {
                 Text(
                     text = lastSyncError,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            } else {
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = foreground
                 )
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AdaptiveFieldPair(first = { buttonModifier ->
                 Button(
                     onClick = if (!hasIcalUrl || shouldSuggestLinkRepair) onOpenIcalImport else onRefreshNow,
-                    modifier = Modifier.weight(1f)
+                    modifier = buttonModifier.heightIn(min = 48.dp)
                 ) {
                     Text(actionText)
                 }
+            }, second = { buttonModifier ->
                 OutlinedButton(
                     onClick = onOpenHelp,
-                    modifier = Modifier.weight(1f)
+                    modifier = buttonModifier.heightIn(min = 48.dp)
                 ) {
                     Text("Hilfe")
                 }
-            }
+            }, minimumFieldWidth = 168.dp)
             TextButton(
                 onClick = onHide,
                 modifier = Modifier.align(Alignment.End)
@@ -260,7 +280,7 @@ private fun InsightPill(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.semantics(mergeDescendants = true) {},
         color = MaterialTheme.colorScheme.primaryContainer,
         shape = MaterialTheme.shapes.medium,
         tonalElevation = 1.dp
