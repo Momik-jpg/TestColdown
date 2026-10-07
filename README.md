@@ -91,5 +91,7 @@ Die separate Test-APK liegt unter `.build/app/outputs/apk/preview/app-preview.ap
 - No-Regression-Checkliste: `docs/no-regression-checkliste.md`
 
 ## Lizenz
-MIT License.  
-Details in `LICENSE`.
+
+Neue eigene Ergänzungen ab Beta 12: [Nutzungslizenz](LICENSE) mit Verboten gegen Verkauf, Werbung, Betrug und Datensammlung durch Anbieter. Kostenlose private und Bildungsnutzung ist erlaubt.
+
+[Genauer Umfang](docs/license-scope.md): Frühere MIT-Rechte und Bibliothekslizenzen bleiben bestehen. Der Quellcode ist einsehbar; die neuen Einschränkungen entsprechen keiner OSI-Open-Source-Lizenz.
