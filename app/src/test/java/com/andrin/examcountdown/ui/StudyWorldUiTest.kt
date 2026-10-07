@@ -155,9 +155,7 @@ class StudyWorldUiTest {
             }
         }
         compose.onNodeWithText("Prüfungen").assertIsSelected()
-        compose.onNodeWithContentDescription("Bereiche öffnen").performClick()
         compose.onNodeWithContentDescription("Notenrechner").performClick().assertIsSelected()
-        compose.onNodeWithContentDescription("Bereiche öffnen").performClick()
         compose.onNodeWithContentDescription("Einstellungen").performClick().assertIsSelected()
     }
 
