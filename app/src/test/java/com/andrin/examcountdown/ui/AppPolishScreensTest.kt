@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -80,7 +81,8 @@ class AppPolishScreensTest {
         }
         HomeTab.entries.forEach { tab ->
             compose.onNodeWithContentDescription("Bereiche öffnen").performClick()
-            compose.onNodeWithContentDescription(tab.title).performClick().assertIsSelected()
+            compose.onNodeWithTag("home-menu-${tab.route}").performClick()
+            compose.onNodeWithContentDescription(tab.title).assertIsSelected()
             val expected = when (tab) {
                 HomeTab.EXAMS -> "Lernen planen"
                 HomeTab.TIMETABLE -> "Raum geändert"
