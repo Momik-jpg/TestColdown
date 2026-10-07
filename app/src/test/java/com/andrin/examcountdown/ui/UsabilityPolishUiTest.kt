@@ -230,7 +230,7 @@ class UsabilityPolishUiTest {
             .performScrollTo().assertIsDisplayed()
         screenshot("calculator-invalid-grade-large-text")
         compose.onAllNodesWithText("Note").onLast().performScrollTo().performTextReplacement("3")
-        compose.onNodeWithText("4,00").performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithText("4,00").onFirst().performScrollTo().assertIsDisplayed()
     }
 
     @Test fun missingWeightRequiresCorrectionWhenItsGradeIsFilled() {
