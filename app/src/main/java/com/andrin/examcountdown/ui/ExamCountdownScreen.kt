@@ -1171,24 +1171,7 @@ fun ExamCountdownScreen(
                                             }
                                         }
                                     }
-                                    if (selectedTab != HomeTab.SETTINGS) {
-                                        FilledTonalIconButton(
-                                            onClick = {
-                                                selectTab(HomeTab.SETTINGS)
-                                            },
-                                            colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
-                                                containerColor = MaterialTheme.colorScheme.surface.copy(
-                                                    alpha = if (isDarkMode) 0.32f else 0.84f
-                                                ),
-                                                contentColor = MaterialTheme.colorScheme.onSurface
-                                            )
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Settings,
-                                                contentDescription = "Einstellungen öffnen"
-                                            )
-                                        }
-                                    }
+
                                 },
                                 colors = TopAppBarDefaults.topAppBarColors(
                                     containerColor = Color.Transparent,
