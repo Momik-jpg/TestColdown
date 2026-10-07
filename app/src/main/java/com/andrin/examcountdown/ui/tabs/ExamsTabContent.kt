@@ -217,9 +217,8 @@ fun ExamsTabContent(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item("study-world") {
+            Column {
             StudyWorldHeader("Deine Prüfungen", "Nächste Prüfung & Lernplan", illustrated = true)
-        }
-        item {
             ExamSearchAndFilterCard(
                 resultCount = filteredExams.size,
                 query = filters.query,
@@ -235,6 +234,7 @@ fun ExamsTabContent(
                 onSortModeSelected = { filters = filters.copy(sort = it) },
                 onReset = { filters = ExamFilters() }
             )
+            }
         }
         nextExam?.let { exam ->
             item("next-exam-${exam.id}") {
