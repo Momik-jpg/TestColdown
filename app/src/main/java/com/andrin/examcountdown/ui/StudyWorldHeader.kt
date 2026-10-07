@@ -1,7 +1,7 @@
 package com.andrin.examcountdown.ui
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -15,7 +15,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.andrin.examcountdown.R
@@ -42,35 +41,21 @@ internal fun StudyWorldHeader(
     val colors = MaterialTheme.colorScheme
     val artEnabled = illustrated && LocalDecorativeArtEnabled.current
     val largeText = LocalDensity.current.fontScale > 1.3f
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = 0.65f)),
-        colors = CardDefaults.cardColors(containerColor = colors.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (artEnabled) 2.dp else 0.dp)
-    ) {
+    Column(modifier.fillMaxWidth()) {
         if (artEnabled) {
             Image(
                 painter = painterResource(scene.artwork), contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().height(if (largeText) 64.dp else 112.dp)
+                modifier = Modifier.fillMaxWidth().height(if (largeText) 64.dp else 104.dp).clip(MaterialTheme.shapes.large)
             )
         }
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.padding(top = 14.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (!largeText) {
-                Surface(shape = MaterialTheme.shapes.medium, color = colors.primaryContainer) {
-                    Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
-                        Icon(scene.icon, null, Modifier.size(23.dp), tint = colors.onPrimaryContainer)
-                    }
-                }
-            }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(title, style = MaterialTheme.typography.titleLarge,
-                    fontFamily = if (artEnabled) FontFamily.Serif else FontFamily.SansSerif,
                     fontWeight = FontWeight.SemiBold, color = colors.onSurface,
                     modifier = Modifier.semantics { heading() })
                 if (subtitle.isNotBlank()) Text(subtitle,
