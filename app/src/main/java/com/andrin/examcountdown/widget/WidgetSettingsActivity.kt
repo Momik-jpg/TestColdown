@@ -19,7 +19,6 @@ import androidx.compose.material3.Button
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarToday
@@ -98,7 +97,7 @@ internal fun WidgetSettingsScreen(widgets: List<InstalledWidget>, canPin: Boolea
         WidgetKind.entries.forEach { kind -> item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.primaryContainer) {
                         Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
                             Icon(if (kind == WidgetKind.NEXT) Icons.Outlined.Timer else Icons.Outlined.CalendarToday,
                                 null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
@@ -117,7 +116,7 @@ internal fun WidgetSettingsScreen(widgets: List<InstalledWidget>, canPin: Boolea
             }
         } }
         item {
-            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)) {
+            Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)) {
                 Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(Icons.Outlined.Tune, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                     Text(if (canPin) "Nach dem Hinzufügen über das Zahnrad einstellen." else
@@ -131,7 +130,7 @@ internal fun WidgetSettingsScreen(widgets: List<InstalledWidget>, canPin: Boolea
                 style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
         }
         widgets.forEachIndexed { index, widget -> item(key = widget.id) {
-            Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface,
+            Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
