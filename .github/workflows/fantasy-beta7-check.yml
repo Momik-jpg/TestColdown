@@ -1,4 +1,4 @@
-name: Check Calculator Feedback Beta 9
+name: Check Calendar Start Beta 10
 
 on:
   push:
@@ -20,14 +20,14 @@ jobs:
       - name: Checkout verified app source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: 7d4cc85dd2f4988c68f4eb09f5a53973a5f79906
+          ref: 703b8c523f11dbee1b4087650fdf9c5c8cf6e57f
           path: project
           persist-credentials: false
       - name: Record exact source snapshot
         working-directory: project
         run: |
           git rev-parse HEAD > ../verified-source-sha.txt
-          git archive --format=zip --output=../calculator-beta9-source.zip HEAD
+          git archive --format=zip --output=../calendar-beta10-source.zip HEAD
       - name: Set up JDK 17
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
@@ -59,7 +59,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: calculator-beta9-qa
+          name: calendar-beta10-qa
           path: |
             project/.build/app/reports/**
             project/.build/app/test-results/**
@@ -68,5 +68,5 @@ jobs:
             artifacts/study-ui/*.png
             verified-source-sha.txt
             preview-sha256.txt
-            calculator-beta9-source.zip
+            calendar-beta10-source.zip
           if-no-files-found: warn
