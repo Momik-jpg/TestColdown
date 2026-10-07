@@ -173,7 +173,7 @@ fun ExamsTabContent(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item("study-world-empty") {
-                StudyWorldHeader("Bereit für deine erste Prüfung?", "Kalender importieren oder Prüfung anlegen.", illustrated = true)
+                StudyWorldHeader("Deine erste Prüfung", "Kalender verbinden oder Prüfung hinzufügen.", illustrated = true)
             }
             if (showSetupGuide) {
                 item("setup-guide-empty") {
@@ -218,7 +218,7 @@ fun ExamsTabContent(
     ) {
         item("study-world") {
             Column {
-            StudyWorldHeader("Deine Prüfungen", "Nächste Prüfung & Lernplan", illustrated = true)
+            StudyWorldHeader("Deine Prüfungen", "Termine finden und Lernen planen", illustrated = false)
             ExamSearchAndFilterCard(
                 resultCount = filteredExams.size,
                 query = filters.query,
