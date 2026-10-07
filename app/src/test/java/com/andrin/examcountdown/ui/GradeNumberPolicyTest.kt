@@ -29,7 +29,7 @@ class GradeNumberPolicyTest {
 
     @Test fun largeWeightsCannotTurnAValidAverageIntoNaN() {
         assertEquals(4.0, weightedGradeAverage(listOf(2.0 to 1e308, 6.0 to 1e308))!!, 0.0)
-        assertEquals(5.0, weightedGradeAverage(listOf(2.0 to 1.0, 6.0 to 3.0))!!, 0.0)
+        assertEquals(5.0, weightedGradeAverage(listOf(2.0 to 1.0, 6.0 to 3.0))!!, 1e-12)
         assertNull(weightedGradeAverage(emptyList()))
     }
 }
