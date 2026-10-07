@@ -6,7 +6,7 @@ Die App übernimmt die Android-Schriftgröße. Unter „Ansicht & Bedienung“ k
 
 ## Navigation und Screenreader
 
-Die fünf Hauptbereiche sind Prüfungen, Stundenplan, Agenda, Noten und Optionen. Bei wenig Platz oder großer Schrift werden ihre beschrifteten Schaltflächen in mehrere Zeilen angeordnet. Du kannst Tabs in den Einstellungen ausblenden und deine Startansicht bestimmen. Aktive Tabs, Filter und Schalter geben ihren Zustand an TalkBack weiter. Abschnittstitel sind als Überschriften ausgezeichnet. Dekorative Illustrationen werden nicht vorgelesen.
+Die fünf Hauptbereiche sind Prüfungen, Stundenplan, Agenda, Notenrechner und Einstellungen. Die kompakte untere Leiste zeigt den aktiven Bereich und „Menü“. Tippe „Menü“ oder den aktiven Bereich an: Die beschrifteten Ziele öffnen sich untereinander. Die Auswahl schliesst nach einem Bereichswechsel; über „Menü schliessen“, Zurück oder die Fläche ausserhalb lässt sie sich ohne Wechsel schliessen. Bei grosser Schrift bleibt die Auswahl scrollbar. Du kannst Tabs in den Einstellungen ausblenden und deine Startansicht bestimmen. Aktive Tabs, Filter und Schalter geben ihren Zustand an TalkBack weiter. Abschnittstitel sind als Überschriften ausgezeichnet. Dekorative Illustrationen werden nicht vorgelesen.
 
 Aktiviere TalkBack in den Android-Bedienungshilfen. Wische zum nächsten Element und tippe doppelt zum Ausführen. Bedienelemente lassen sich über ihre Beschriftung finden. Fehlermeldungen in Eingabefeldern erläutern die notwendige Korrektur. Zeiten, Status und Raumänderungen werden auch als Text angegeben.
 
