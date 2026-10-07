@@ -75,16 +75,16 @@ private val DarkColors = darkColorScheme(
 )
 
 private val LightAccessibleColors = LightColors.copy(
-    primary = Color(0xFF201D1A), onPrimary = Color.White,
+    primary = Color(0xFF233E5A), onPrimary = Color.White,
     background = Color.White, surface = Color.White,
     onBackground = Color(0xFF111111), onSurface = Color(0xFF111111),
-    onSurfaceVariant = Color(0xFF423A32), outline = Color(0xFF5D5145)
+    onSurfaceVariant = Color(0xFF37424F), outline = Color(0xFF465463)
 )
 
 private val DarkAccessibleColors = DarkColors.copy(
     background = Color.Black, surface = Color(0xFF101010),
-    onBackground = Color(0xFFF7F2EB), onSurface = Color(0xFFF7F2EB),
-    onSurfaceVariant = Color(0xFFDDD3C5), outline = Color(0xFFCABCAA)
+    onBackground = Color(0xFFF5F7FA), onSurface = Color(0xFFF5F7FA),
+    onSurfaceVariant = Color(0xFFDCE3EB), outline = Color(0xFFB7C4D3)
 )
 
 private val AppShapes = Shapes(
