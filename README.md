@@ -15,16 +15,16 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 
 ## Installation auf Android
 
-Die feste Beta 11 vereinheitlicht App, Widgets und Symbol mit Elfenbein, Graphit und gezielten Kupferakzenten. Klarere Ecken und zusammenhängende Abschnitte schaffen Ruhe. Die schmale untere Leiste zeigt den aktiven Bereich und «Menü»; alle Bereiche öffnen sich untereinander.
+Beta 12 zeigt kurze, konkrete Hilfetexte und blendet wiederholte Landschaftsbilder im Arbeitsablauf aus. Die kompakte Navigation und die einheitlichen Farben bleiben erhalten. Die neuen eigenen Ergänzungen haben klare Nutzungsbedingungen gegen Verkauf, Werbung, Betrug, Tracking und Datenhandel; frühere MIT-Rechte bleiben bestehen.
 
 1. [Download-Seite öffnen](https://testcoldown-work-30min.andrin875272.chatgpt.site).
 2. Bei vorhandener Test-App zuerst unter `Optionen → Daten` eine Sicherung exportieren und aufbewahren.
-3. `ExamCountdown-test-v1.6.15-beta.11.apk` herunterladen und öffnen. Falls Android danach fragt, für den verwendeten Browser die Installation erlauben.
-4. Beta 11 hat ein anderes Testzertifikat als Beta 10; ein direktes Update ist nicht möglich. Die alte Test-App erst nach dem Export deinstallieren. **Eine Deinstallation löscht lokale Daten.** Danach installieren und die Sicherung importieren.
+3. `ExamCountdown-test-v1.6.15-beta.12.apk` herunterladen und öffnen. Falls Android danach fragt, für den verwendeten Browser die Installation erlauben.
+4. Beta 12 hat ein anderes Testzertifikat als Beta 11; ein direktes Update ist nicht möglich. Die alte Test-App erst nach dem Export deinstallieren. **Eine Deinstallation löscht lokale Daten.** Danach installieren und die Sicherung importieren.
 
-Version `1.6.15-beta.11`, Code 34, Paket `com.andrin.examcountdown.preview`, Android 8+. Ein direktes Update benötigt dieselbe Paketkennung und dasselbe Zertifikat. Die Test-App ist unabhängig von der Produktions-App.
+Version `1.6.15-beta.12`, Code 35, Paket `com.andrin.examcountdown.preview`, Android 8+. Ein direktes Update benötigt dieselbe Paketkennung und dasselbe Zertifikat. Die Test-App ist unabhängig von der Produktions-App.
 
-Die APK wird über die Download-Seite bereitgestellt. Der [GitHub-Release](https://github.com/Momik-jpg/TestColdown/releases/tag/test-v1.6.15-beta.11) legt den geprüften Quellstand fest. Beta 8, Beta 9 und Beta 10 bleiben unter ihren bestehenden Releases und festen APK-Dateien erhalten.
+Die APK wird über die Download-Seite bereitgestellt. Der [GitHub-Release](https://github.com/Momik-jpg/TestColdown/releases/tag/test-v1.6.15-beta.12) legt den geprüften Quellstand fest. Beta 8, Beta 9, Beta 10 und Beta 11 bleiben unter ihren bestehenden Releases und festen APK-Dateien erhalten.
 
 ## Vorschau selbst bauen
 
