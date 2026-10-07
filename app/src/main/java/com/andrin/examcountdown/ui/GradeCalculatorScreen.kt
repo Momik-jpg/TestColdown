@@ -51,7 +51,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.util.Locale
-import kotlin.math.roundToInt
 
 private data class GradeRow(
     val id: Int,
@@ -87,8 +86,8 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
     var targetGradeByPointsText by rememberSaveable { mutableStateOf("4.0") }
 
     val parsedRows = rows.mapNotNull { row ->
-        val grade = parseGradeNumber(row.grade)
-        val weight = parseGradeNumber(row.weight)
+        val grade = parseSchoolGrade(row.grade)
+        val weight = parsePositiveGradeNumber(row.weight)
         val category = row.category.trim().ifBlank { "Allgemein" }
         if (grade == null || weight == null || weight <= 0.0) {
             null
@@ -97,27 +96,28 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    val totalWeight = parsedRows.sumOf { it.second }
-    val weightedSum = parsedRows.sumOf { it.first * it.second }
-    val average = if (totalWeight > 0.0) weightedSum / totalWeight else null
+    val invalidRows = rows.any { row ->
+        row.grade.isNotBlank() && (parseSchoolGrade(row.grade) == null || parsePositiveGradeNumber(row.weight) == null)
+    }
+    val average = if (invalidRows) null else weightedGradeAverage(parsedRows.map { it.first to it.second })
     val categoryAverages = parsedRows
         .groupBy { it.third }
         .mapValues { (_, items) ->
-            val categoryWeight = items.sumOf { it.second }
-            val categorySum = items.sumOf { it.first * it.second }
-            if (categoryWeight > 0.0) categorySum / categoryWeight else 0.0
+            weightedGradeAverage(items.map { it.first to it.second })!!
         }
         .toSortedMap()
 
-    val targetAverage = parseGradeNumber(targetAverageText)
-    val nextWeight = parseGradeNumber(nextWeightText)
+    val targetAverage = parseSchoolGrade(targetAverageText)
+    val nextWeight = parsePositiveGradeNumber(nextWeightText)
     val requiredNextGrade = if (
         targetAverage != null &&
         nextWeight != null &&
         nextWeight > 0.0 &&
-        totalWeight > 0.0
+        average != null
     ) {
-        ((targetAverage * (totalWeight + nextWeight)) - weightedSum) / nextWeight
+        // Divide before summing; no grade-times-weight product can overflow.
+        (targetAverage + parsedRows.sumOf { (targetAverage - it.first) * (it.second / nextWeight) })
+            .takeIf { it.isFinite() }
     } else {
         null
     }
@@ -128,31 +128,33 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
     val maxGrade = parseGradeNumber(maxGradeText)
     val targetGradeByPoints = parseGradeNumber(targetGradeByPointsText)
 
-    val validScale = minGrade != null && maxGrade != null && maxGrade > minGrade
+    val validScale = minGrade != null && maxGrade != null && maxGrade > minGrade && (maxGrade - minGrade).isFinite()
     val validPointsRange = maxPoints != null && maxPoints > 0.0
+    val validAchievedPoints = achievedPoints != null && validPointsRange && achievedPoints in 0.0..maxPoints!!
+    val validPointTarget = targetGradeByPoints != null && validScale && targetGradeByPoints in minGrade!!..maxGrade!!
 
     val gradeFromPoints = if (
-        achievedPoints != null &&
+        validAchievedPoints &&
         validPointsRange &&
         validScale
     ) {
-        minGrade!! + (achievedPoints / maxPoints!!) * (maxGrade!! - minGrade)
+        minGrade!! + (achievedPoints!! / maxPoints!!) * (maxGrade!! - minGrade)
     } else {
         null
     }
 
-    val pointsPercent = if (achievedPoints != null && validPointsRange) {
-        (achievedPoints / maxPoints!!) * 100.0
+    val pointsPercent = if (validAchievedPoints) {
+        (achievedPoints!! / maxPoints!!) * 100.0
     } else {
         null
     }
 
     val neededPointsForTarget = if (
-        targetGradeByPoints != null &&
+        validPointTarget &&
         validScale &&
         validPointsRange
     ) {
-        ((targetGradeByPoints - minGrade!!) / (maxGrade!! - minGrade)) * maxPoints!!
+        ((targetGradeByPoints!! - minGrade!!) / (maxGrade!! - minGrade)) * maxPoints!!
     } else {
         null
     }
@@ -175,7 +177,7 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "Gewicht 2 zählt doppelt.",
+                    text = "Schweizer Skala 1–6. Gewicht 2 zählt doppelt.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -221,9 +223,9 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                     }
                 }
 
-                ResultPill(average = average)
+                ResultPill(average = average, invalidRows = invalidRows)
 
-                if (categoryAverages.isNotEmpty()) {
+                if (!invalidRows && categoryAverages.isNotEmpty()) {
                     Text(
                         text = "Schnitt je Kategorie",
                         modifier = Modifier.semantics { heading() },
@@ -272,6 +274,9 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             label = { Text("Zielschnitt") },
+                            isError = targetAverageText.isNotBlank() && targetAverage == null,
+                            errorMessage = "Gib einen Zielschnitt von 1 bis 6 ein.",
+                            supportingText = if (targetAverageText.isNotBlank() && targetAverage == null) { { Text("Note von 1 bis 6") } } else null,
                             placeholder = { Text("z. B. 4.5") },
                             colors = fieldColors
                         )
@@ -284,29 +289,29 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                             label = { Text("Gewicht") },
+                            isError = nextWeightText.isNotBlank() && nextWeight == null,
+                            errorMessage = "Das Gewicht muss eine Zahl größer als 0 sein.",
+                            supportingText = if (nextWeightText.isNotBlank() && nextWeight == null) { { Text("Größer als 0") } } else null,
                             placeholder = { Text("z. B. 1") },
                             colors = fieldColors
                         )
                     }
                 )
 
-                val requiredText = requiredNextGrade?.let { formatNumber(it) } ?: "-"
-                Text(
-                    text = "Nächste Note: $requiredText",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                CalculatorResult(
+                    title = "Nächste Note",
+                    value = requiredNextGrade?.let { formatNumber(it) } ?: "–",
+                    detail = when {
+                        invalidRows -> "Korrigiere zuerst die markierten Notenzeilen."
+                        targetAverage == null || nextWeight == null -> "Gib einen gültigen Zielschnitt und ein Gewicht ein."
+                        average == null -> "Trage zuerst mindestens eine Note ein."
+                        requiredNextGrade == null -> "Diese Gewichtung ist zu gross für eine verlässliche Berechnung."
+                        requiredNextGrade > 6.0 -> "Mit einer einzigen weiteren Note nicht erreichbar – auch eine 6 reicht nicht."
+                        requiredNextGrade <= 1.0 -> "Ziel bereits abgesichert – selbst mit einer 1 in der nächsten Prüfung."
+                        else -> "Diese Note brauchst du mindestens für deinen Zielschnitt."
+                    },
+                    warning = requiredNextGrade != null && requiredNextGrade > 6.0
                 )
-
-                requiredNextGrade?.let { needed ->
-                    val clamped = needed.coerceIn(1.0, 6.0)
-                    if (needed != clamped) {
-                        Text(
-                            text = "${formatNumber(needed)} liegt außerhalb der Schweizer Skala (1–6).",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
             }
         }
 
@@ -331,6 +336,9 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             label = { Text("Erreicht") },
+                            isError = achievedPointsText.isNotBlank() && !validAchievedPoints,
+                            errorMessage = "Die erreichten Punkte müssen zwischen 0 und dem Maximum liegen.",
+                            supportingText = if (achievedPointsText.isNotBlank() && !validAchievedPoints) { { Text("Zwischen 0 und Maximum") } } else null,
                             placeholder = { Text("z. B. 42") },
                             colors = fieldColors
                         )
@@ -343,6 +351,9 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                             label = { Text("Maximum") },
+                            isError = maxPointsText.isNotBlank() && !validPointsRange,
+                            errorMessage = "Das Maximum muss eine Zahl größer als 0 sein.",
+                            supportingText = if (maxPointsText.isNotBlank() && !validPointsRange) { { Text("Größer als 0") } } else null,
                             placeholder = { Text("z. B. 60") },
                             colors = fieldColors
                         )
@@ -358,6 +369,8 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             label = { Text("Note min") },
+                            isError = minGradeText.isNotBlank() && !validScale,
+                            errorMessage = "Gib eine gültige Skala ein: Note max muss größer als Note min sein.",
                             placeholder = { Text("1.0") },
                             colors = fieldColors
                         )
@@ -370,23 +383,19 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                             label = { Text("Note max") },
+                            isError = maxGradeText.isNotBlank() && !validScale,
+                            errorMessage = "Gib eine gültige Skala ein: Note max muss größer als Note min sein.",
                             placeholder = { Text("6.0") },
                             colors = fieldColors
                         )
                     }
                 )
 
-                val gradeFromPointsText = gradeFromPoints?.let { formatNumber(it) } ?: "-"
-                val pointsPercentText = pointsPercent?.let { "${formatNumber(it)} %" } ?: "-"
-
-                Text(
-                    text = "Aktuelle Note aus Punkten: $gradeFromPointsText",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "Punkte in Prozent: $pointsPercentText",
-                    style = MaterialTheme.typography.bodyMedium
+                CalculatorResult(
+                    title = "Aktuelle Note aus Punkten",
+                    value = gradeFromPoints?.let { formatNumber(it) } ?: "–",
+                    detail = pointsPercent?.let { "${formatNumber(it)} % der maximalen Punkte · lineare Skala" }
+                        ?: "Trage Punkte und eine gültige Notenskala ein."
                 )
 
                 AppTextField(
@@ -396,6 +405,9 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                     label = { Text("Zielnote") },
+                    isError = targetGradeByPointsText.isNotBlank() && !validPointTarget,
+                    errorMessage = "Die Zielnote muss innerhalb der eingetragenen Notenskala liegen.",
+                    supportingText = if (targetGradeByPointsText.isNotBlank() && !validPointTarget) { { Text("Innerhalb der Notenskala") } } else null,
                     placeholder = { Text("z. B. 5.0") },
                     colors = fieldColors
                 )
@@ -416,13 +428,6 @@ fun GradeCalculatorScreen(modifier: Modifier = Modifier) {
                     )
                 }
 
-                if (achievedPoints != null && maxPoints != null && achievedPoints > maxPoints) {
-                    Text(
-                        text = "Hinweis: Erreichte Punkte sind größer als die maximalen Punkte.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
             }
         }
     }
@@ -464,14 +469,14 @@ private fun GradeRowEditor(
     onCategoryChange: (String) -> Unit,
     onDelete: () -> Unit
 ) {
-    val badGrade = row.grade.isNotBlank() && parseGradeNumber(row.grade) == null
-    val badWeight = row.weight.isNotBlank() && (parseGradeNumber(row.weight)?.let { it <= 0.0 } ?: true)
+    val badGrade = row.grade.isNotBlank() && parseSchoolGrade(row.grade) == null
+    val badWeight = (row.weight.isNotBlank() || row.grade.isNotBlank()) && parsePositiveGradeNumber(row.weight) == null
     val gradeField: @Composable (Modifier) -> Unit = { fieldModifier ->
         AppTextField(
             value = row.grade, onValueChange = onGradeChange, modifier = fieldModifier,
             singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            isError = badGrade, errorMessage = "Gib eine gültige Zahl ein.",
-            supportingText = if (badGrade) { { Text("Zahl eingeben") } } else null,
+            isError = badGrade, errorMessage = "Gib eine Note von 1 bis 6 ein.",
+            supportingText = if (badGrade) { { Text("Note von 1 bis 6") } } else null,
             label = { Text("Note") }, placeholder = { Text("z. B. 5.25") }, colors = fieldColors
         )
     }
@@ -529,15 +534,17 @@ private fun GradeRowEditor(
 }
 
 @Composable
-private fun ResultPill(average: Double?) {
+private fun ResultPill(average: Double?, invalidRows: Boolean) {
     val scheme = MaterialTheme.colorScheme
     val passed = average != null && average >= 4.0
     val background = when {
+        invalidRows -> scheme.errorContainer
         average == null -> scheme.surfaceVariant
         passed -> scheme.primaryContainer
         else -> scheme.errorContainer
     }
     val foreground = when {
+        invalidRows -> scheme.onErrorContainer
         average == null -> scheme.onSurfaceVariant
         passed -> scheme.onPrimaryContainer
         else -> scheme.onErrorContainer
@@ -549,6 +556,7 @@ private fun ResultPill(average: Double?) {
                 style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
                 color = foreground)
             Text(when {
+                invalidRows -> "Korrigiere die markierten Notenzeilen, damit alle Noten in den Schnitt einfliessen."
                 average == null -> "Füge eine gültige Note und ein Gewicht hinzu."
                 passed -> "Bestanden · ab Note 4.0"
                 else -> "Nicht bestanden · unter Note 4.0"
@@ -557,7 +565,18 @@ private fun ResultPill(average: Double?) {
     }
 }
 
-private fun formatNumber(value: Double): String {
-    val rounded = (value * 100.0).roundToInt() / 100.0
-    return String.format(Locale.GERMANY, "%.2f", rounded)
+@Composable
+private fun CalculatorResult(title: String, value: String, detail: String, warning: Boolean = false) {
+    val scheme = MaterialTheme.colorScheme
+    val foreground = if (warning) scheme.onErrorContainer else scheme.onSecondaryContainer
+    Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium,
+        color = if (warning) scheme.errorContainer else scheme.secondaryContainer) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.labelLarge, color = foreground)
+            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = foreground)
+            Text(detail, style = MaterialTheme.typography.bodyMedium, color = foreground)
+        }
+    }
 }
+
+private fun formatNumber(value: Double): String = String.format(Locale.GERMANY, "%.2f", value)
