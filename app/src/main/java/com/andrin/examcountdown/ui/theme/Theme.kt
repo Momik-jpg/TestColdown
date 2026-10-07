@@ -23,18 +23,18 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
 private val LightColors = lightColorScheme(
-    primary = BluePrimaryLight,
-    onPrimary = BlueOnPrimaryLight,
-    primaryContainer = BluePrimaryContainerLight,
-    onPrimaryContainer = BlueOnPrimaryContainerLight,
-    secondary = BlueSecondaryLight,
-    onSecondary = BlueOnSecondaryLight,
-    secondaryContainer = BlueSecondaryContainerLight,
-    onSecondaryContainer = BlueOnSecondaryContainerLight,
-    tertiary = BlueAccentLight,
-    onTertiary = BlueOnAccentLight,
-    tertiaryContainer = BlueAccentContainerLight,
-    onTertiaryContainer = BlueOnAccentContainerLight,
+    primary = AppPrimaryLight,
+    onPrimary = AppOnPrimaryLight,
+    primaryContainer = AppPrimaryContainerLight,
+    onPrimaryContainer = AppOnPrimaryContainerLight,
+    secondary = AppSecondaryLight,
+    onSecondary = AppOnSecondaryLight,
+    secondaryContainer = AppSecondaryContainerLight,
+    onSecondaryContainer = AppOnSecondaryContainerLight,
+    tertiary = AppAccentLight,
+    onTertiary = AppOnAccentLight,
+    tertiaryContainer = AppAccentContainerLight,
+    onTertiaryContainer = AppOnAccentContainerLight,
     background = BackgroundLight,
     onBackground = OnBackgroundLight,
     surface = SurfaceLight,
@@ -49,18 +49,18 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = BluePrimaryDark,
-    onPrimary = BlueOnPrimaryDark,
-    primaryContainer = BluePrimaryContainerDark,
-    onPrimaryContainer = BlueOnPrimaryContainerDark,
-    secondary = BlueSecondaryDark,
-    onSecondary = BlueOnSecondaryDark,
-    secondaryContainer = BlueSecondaryContainerDark,
-    onSecondaryContainer = BlueOnSecondaryContainerDark,
-    tertiary = BlueAccentDark,
-    onTertiary = BlueOnAccentDark,
-    tertiaryContainer = BlueAccentContainerDark,
-    onTertiaryContainer = BlueOnAccentContainerDark,
+    primary = AppPrimaryDark,
+    onPrimary = AppOnPrimaryDark,
+    primaryContainer = AppPrimaryContainerDark,
+    onPrimaryContainer = AppOnPrimaryContainerDark,
+    secondary = AppSecondaryDark,
+    onSecondary = AppOnSecondaryDark,
+    secondaryContainer = AppSecondaryContainerDark,
+    onSecondaryContainer = AppOnSecondaryContainerDark,
+    tertiary = AppAccentDark,
+    onTertiary = AppOnAccentDark,
+    tertiaryContainer = AppAccentContainerDark,
+    onTertiaryContainer = AppOnAccentContainerDark,
     background = BackgroundDark,
     onBackground = OnBackgroundDark,
     surface = SurfaceDark,
@@ -74,58 +74,25 @@ private val DarkColors = darkColorScheme(
     inversePrimary = InversePrimaryDark
 )
 
-private val LightAccessibleColors = lightColorScheme(
-    primary = Color(0xFF003A75),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFD2E4FF),
-    onPrimaryContainer = Color(0xFF001C3D),
-    secondary = Color(0xFF0059B8),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFD8E7FF),
-    onSecondaryContainer = Color(0xFF002A58),
-    tertiary = Color(0xFF3F66A8),
-    onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFD9E5FF),
-    onTertiaryContainer = Color(0xFF0F2B58),
-    background = Color(0xFFFFFFFF),
-    onBackground = Color(0xFF111111),
-    surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF111111),
-    surfaceVariant = Color(0xFFE8EEF8),
-    onSurfaceVariant = Color(0xFF213042),
-    outline = Color(0xFF425D7B),
-    outlineVariant = Color(0xFF9FB2CA)
+private val LightAccessibleColors = LightColors.copy(
+    primary = Color(0xFF201D1A), onPrimary = Color.White,
+    background = Color.White, surface = Color.White,
+    onBackground = Color(0xFF111111), onSurface = Color(0xFF111111),
+    onSurfaceVariant = Color(0xFF423A32), outline = Color(0xFF5D5145)
 )
 
-private val DarkAccessibleColors = darkColorScheme(
-    primary = Color(0xFF9DCCFF),
-    onPrimary = Color(0xFF002655),
-    primaryContainer = Color(0xFF00408C),
-    onPrimaryContainer = Color(0xFFDCE8FF),
-    secondary = Color(0xFF8EC2FF),
-    onSecondary = Color(0xFF002855),
-    secondaryContainer = Color(0xFF00428A),
-    onSecondaryContainer = Color(0xFFD8E7FF),
-    tertiary = Color(0xFFCAD8FF),
-    onTertiary = Color(0xFF18345A),
-    tertiaryContainer = Color(0xFF35507A),
-    onTertiaryContainer = Color(0xFFE1E8FF),
-    background = Color(0xFF000000),
-    onBackground = Color(0xFFEFEFEF),
-    surface = Color(0xFF0D0D0D),
-    onSurface = Color(0xFFEFEFEF),
-    surfaceVariant = Color(0xFF1D242E),
-    onSurfaceVariant = Color(0xFFC7D2DF),
-    outline = Color(0xFFA8BACF),
-    outlineVariant = Color(0xFF5D6F84)
+private val DarkAccessibleColors = DarkColors.copy(
+    background = Color.Black, surface = Color(0xFF101010),
+    onBackground = Color(0xFFF7F2EB), onSurface = Color(0xFFF7F2EB),
+    onSurfaceVariant = Color(0xFFDDD3C5), outline = Color(0xFFCABCAA)
 )
 
 private val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(26.dp),
-    extraLarge = RoundedCornerShape(30.dp)
+    extraSmall = RoundedCornerShape(2.dp),
+    small = RoundedCornerShape(4.dp),
+    medium = RoundedCornerShape(6.dp),
+    large = RoundedCornerShape(8.dp),
+    extraLarge = RoundedCornerShape(10.dp)
 )
 
 /** Decorative artwork is suppressed by the stronger-contrast, simpler reading mode. */
