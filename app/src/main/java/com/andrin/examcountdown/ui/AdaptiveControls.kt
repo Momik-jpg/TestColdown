@@ -130,7 +130,8 @@ internal fun HomeNavigationBar(
         ModalBottomSheet(onDismissRequest = { menuOpen = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = colors.surface, contentColor = colors.onSurface,
-            shape = MaterialTheme.shapes.extraLarge, dragHandle = null) {
+            shape = MaterialTheme.shapes.extraLarge, dragHandle = null,
+            modifier = Modifier.testTag("home-menu")) {
             Column(Modifier.fillMaxWidth()
                 .heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.7f)
                 .verticalScroll(rememberScrollState())
@@ -148,6 +149,7 @@ internal fun HomeNavigationBar(
                         Surface(color = if (selected) colors.primaryContainer else colors.surface,
                             shape = MaterialTheme.shapes.small) {
                             Row(Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                                .testTag("home-menu-${tab.route}")
                                 .selectable(selected, role = Role.Tab, onClick = {
                                     menuOpen = false
                                     onTabSelected(tab)
