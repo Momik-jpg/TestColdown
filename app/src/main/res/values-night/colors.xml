@@ -1,0 +1,17 @@
+<resources>
+    <color name="widget_surface">#22272E</color>
+    <color name="widget_on_surface">#E9EDF2</color>
+    <color name="widget_muted">#C0C9D3</color>
+    <color name="widget_accent">#B6CBE2</color>
+    <color name="widget_badge_bg">#303D4D</color>
+    <color name="widget_badge_text">#E1EAF4</color>
+    <color name="widget_chip_bg">#30373F</color>
+    <color name="widget_chip_text">#E4EAF0</color>
+    <color name="widget_row_bg">#2B3139</color>
+    <color name="widget_row_stroke">#47515D</color>
+    <color name="widget_focus_start">#303D4D</color>
+    <color name="widget_focus_end">#171B20</color>
+    <color name="widget_focus_text">#FFFFFF</color>
+    <color name="widget_focus_muted">#DCE3EB</color>
+    <color name="widget_focus_badge">#465566</color>
+</resources>

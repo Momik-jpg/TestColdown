@@ -10,8 +10,7 @@ class AgendaControlsPolicyTest {
     fun hasActiveAgendaFilters_isFalse_forDefaultState() {
         val result = hasActiveAgendaFilters(
             searchQuery = "",
-            sourceFilterIsAll = true,
-            layoutModeIsMonth = true
+            sourceFilterIsAll = true
         )
 
         assertFalse(result)
@@ -22,24 +21,16 @@ class AgendaControlsPolicyTest {
         assertTrue(
             hasActiveAgendaFilters(
                 searchQuery = "mathe",
-                sourceFilterIsAll = true,
-                layoutModeIsMonth = true
+                sourceFilterIsAll = true
             )
         )
         assertTrue(
             hasActiveAgendaFilters(
                 searchQuery = "",
-                sourceFilterIsAll = false,
-                layoutModeIsMonth = true
+                sourceFilterIsAll = false
             )
         )
-        assertTrue(
-            hasActiveAgendaFilters(
-                searchQuery = "",
-                sourceFilterIsAll = true,
-                layoutModeIsMonth = false
-            )
-        )
+        assertFalse(hasActiveAgendaFilters(searchQuery = "  ", sourceFilterIsAll = true))
     }
 
     @Test

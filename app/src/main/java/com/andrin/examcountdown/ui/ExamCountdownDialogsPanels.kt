@@ -3,6 +3,8 @@ package com.andrin.examcountdown.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -31,12 +33,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
+import com.andrin.examcountdown.ui.AppFilterChip as FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -82,7 +83,7 @@ internal fun IcalImportDialog(
         title = { Text("iCal-Kalender verbinden") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
+                AppTextField(
                     value = primaryUrl,
                     onValueChange = onPrimaryUrlChange,
                     label = { Text("iCal-URL 1") },
@@ -111,7 +112,7 @@ internal fun IcalImportDialog(
                         }
                     }
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = secondaryUrl,
                     onValueChange = onSecondaryUrlChange,
                     label = { Text("iCal-URL 2 (optional)") },
@@ -186,286 +187,6 @@ internal fun IcalImportDialog(
 }
 
 @Composable
-internal fun QuickActionsDialog(
-    showSyncStatusStrip: Boolean,
-    onDismiss: () -> Unit,
-    onSyncNow: () -> Unit,
-    onShowSyncStatusStripChange: (Boolean) -> Unit,
-    onOpenReminderSettings: () -> Unit,
-    onOpenSyncSettings: () -> Unit,
-    onOpenIcalImport: () -> Unit,
-    onOpenHelp: () -> Unit,
-    onOpenPrivacy: () -> Unit,
-    onOpenSyncDiagnostics: () -> Unit,
-    onOpenExport: () -> Unit,
-    onOpenChangelog: () -> Unit,
-    onOpenPersonalization: () -> Unit,
-    onOpenAppLock: () -> Unit,
-    onExportBackup: () -> Unit,
-    onImportBackup: () -> Unit,
-    hasUnseenChangelog: Boolean
-) {
-    val scrollState = rememberScrollState()
-    val isDark = isSystemInDarkTheme()
-    val dialogContainer = if (isDark) {
-        MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
-    } else {
-        MaterialTheme.colorScheme.surface
-    }
-    var showAdvanced by rememberSaveable { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = if (isDark) {
-            MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
-        } else {
-            MaterialTheme.colorScheme.surface
-        },
-        title = {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    text = "Einstellungen",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Wichtige Aktionen und Optionen",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .heightIn(max = AppDimens.dialogMaxHeightLarge)
-                    .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(AppDimens.sectionSpacing)
-            ) {
-                SettingsSectionCard(
-                    title = "Anzeige",
-                    containerColor = dialogContainer
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Text(
-                                text = "Sync-Leiste anzeigen",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "Zeigt zuletzt synchronisiert + Status direkt oben.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Switch(
-                            checked = showSyncStatusStrip,
-                            onCheckedChange = onShowSyncStatusStripChange
-                        )
-                    }
-                }
-
-                SettingsSectionCard(
-                    title = "Kalender & Sync",
-                    containerColor = dialogContainer
-                ) {
-                    FilledTonalButton(
-                        onClick = onSyncNow,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = if (isDark) {
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                            } else {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f)
-                            },
-                            contentColor = if (isDark) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            }
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Refresh,
-                            contentDescription = null,
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
-                        Text("Jetzt synchronisieren")
-                    }
-                    QuickActionTile(
-                        text = "Kalender verbinden",
-                        subtitle = null,
-                        icon = Icons.Outlined.CloudDownload,
-                        onClick = onOpenIcalImport
-                    )
-                    QuickActionTile(
-                        text = "Benachrichtigungen",
-                        subtitle = null,
-                        icon = Icons.Outlined.NotificationsActive,
-                        onClick = onOpenReminderSettings
-                    )
-                    QuickActionTile(
-                        text = "Automatisch aktualisieren",
-                        subtitle = null,
-                        icon = Icons.Outlined.Sync,
-                        onClick = onOpenSyncSettings
-                    )
-                }
-
-                SettingsSectionCard(
-                    title = "App",
-                    containerColor = dialogContainer
-                ) {
-                    QuickActionTile(
-                        text = "App anpassen",
-                        subtitle = null,
-                        icon = Icons.Outlined.MoreVert,
-                        onClick = onOpenPersonalization
-                    )
-                    QuickActionTile(
-                        text = "Hilfe",
-                        subtitle = null,
-                        icon = Icons.AutoMirrored.Outlined.HelpOutline,
-                        onClick = onOpenHelp
-                    )
-                }
-
-                TextButton(
-                    onClick = { showAdvanced = !showAdvanced },
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text(if (showAdvanced) "Weniger Optionen" else "Weitere Optionen")
-                }
-
-                if (showAdvanced) {
-                    SettingsSectionCard(
-                        title = "Datenschutz & Sicherheit",
-                        containerColor = dialogContainer
-                    ) {
-                        QuickActionTile(
-                            text = "App-Schutz (PIN)",
-                            subtitle = "Optional mit Biometrie",
-                            icon = Icons.Outlined.Lock,
-                            onClick = onOpenAppLock
-                        )
-                        QuickActionTile(
-                            text = "Datenschutz",
-                            subtitle = null,
-                            icon = Icons.Outlined.Lock,
-                            onClick = onOpenPrivacy
-                        )
-                        QuickActionTile(
-                            text = "Sync-Diagnose",
-                            subtitle = null,
-                            icon = Icons.Outlined.Schedule,
-                            onClick = onOpenSyncDiagnostics
-                        )
-                    }
-
-                    SettingsSectionCard(
-                        title = "Daten",
-                        containerColor = dialogContainer
-                    ) {
-                        QuickActionTile(
-                            text = "CSV/PDF Export",
-                            subtitle = null,
-                            icon = Icons.Outlined.CloudDownload,
-                            onClick = onOpenExport
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            FilledTonalButton(
-                                onClick = onExportBackup,
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = if (isDark) {
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                    } else {
-                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
-                                    },
-                                    contentColor = if (isDark) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    }
-                                )
-                            ) {
-                                Text("Backup Export")
-                            }
-                            FilledTonalButton(
-                                onClick = onImportBackup,
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = if (isDark) {
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                    } else {
-                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
-                                    },
-                                    contentColor = if (isDark) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    }
-                                )
-                            ) {
-                                Text("Backup Import")
-                            }
-                        }
-                    }
-
-                    SettingsSectionCard(
-                        title = "Version",
-                        containerColor = dialogContainer
-                    ) {
-                        QuickActionTile(
-                            text = "Was ist neu",
-                            subtitle = null,
-                            icon = Icons.Outlined.CalendarToday,
-                            showAlertBadge = hasUnseenChangelog,
-                            onClick = onOpenChangelog
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            FilledTonalButton(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = if (isDark) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                    } else {
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f)
-                    },
-                    contentColor = if (isDark) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    }
-                )
-            ) {
-                Text("Fertig")
-            }
-        }
-    )
-}
-
-@Composable
 internal fun OnboardingDialog(
     primaryUrl: String,
     secondaryUrl: String,
@@ -514,7 +235,7 @@ internal fun OnboardingDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    OutlinedTextField(
+                    AppTextField(
                         value = primaryUrl,
                         onValueChange = onPrimaryUrlChange,
                         label = { Text("iCal-URL 1") },
@@ -543,7 +264,7 @@ internal fun OnboardingDialog(
                             }
                         }
                     )
-                    OutlinedTextField(
+                    AppTextField(
                         value = secondaryUrl,
                         onValueChange = onSecondaryUrlChange,
                         label = { Text("iCal-URL 2 (optional)") },
@@ -832,7 +553,7 @@ internal fun BackupExportDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = password,
                     onValueChange = onPasswordChange,
                     modifier = Modifier.fillMaxWidth(),
@@ -925,7 +646,7 @@ internal fun BackupPasswordDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = password,
                     onValueChange = onPasswordChange,
                     modifier = Modifier.fillMaxWidth(),
@@ -975,7 +696,8 @@ internal fun PrivacyDialog(
     screenshotProtectionEnabled: Boolean,
     onScreenshotProtectionChange: (Boolean) -> Unit,
     onDeleteAllData: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onReadPolicy: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var showDeleteConfirmDialog by rememberSaveable { mutableStateOf(false) }
@@ -996,7 +718,7 @@ internal fun PrivacyDialog(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "Daten bleiben lokal auf deinem Gerät.",
+                    text = "Die App speichert Kalenderdaten und Einstellungen auf deinem Gerät. Es gibt keinen App-Server und keine eingebauten Analyse- oder Werbedienste.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
@@ -1004,7 +726,7 @@ internal fun PrivacyDialog(
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
-                    text = "Für Sync wird nur dein iCal-Link abgerufen.",
+                    text = "Beim Aktualisieren wird dein Kalender per HTTPS bei deinem Anbieter abgerufen. Dabei erhält der Anbieter deinen Kalender-Link und deine IP-Adresse. Exporte speicherst oder teilst du selbst.",
                     style = MaterialTheme.typography.bodySmall
                 )
 
@@ -1017,13 +739,19 @@ internal fun PrivacyDialog(
                     text = "Benachrichtigungen werden erst dann angefragt, wenn du Erinnerungen wirklich nutzen willst.",
                     style = MaterialTheme.typography.bodySmall
                 )
+                Text("Widgets und Benachrichtigungen können außerhalb des App-Schutzes sichtbar sein. In der Widget-Konfiguration kannst du persönliche Titel und Räume verbergen.",
+                    style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(onClick = onReadPolicy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text("Vollständige Datenschutzhinweise")
+                }
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     shape = MaterialTheme.shapes.medium
                 ) {
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxWidth().heightIn(min = 48.dp)
+                            .toggleable(value = screenshotProtectionEnabled, role = Role.Switch, onValueChange = onScreenshotProtectionChange)
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
@@ -1038,14 +766,14 @@ internal fun PrivacyDialog(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "Aktiviert FLAG_SECURE gegen Mitschnitt in Apps/Recent-Screen.",
+                                text = "Blockiert Screenshots und Vorschauen in der App-Übersicht.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Switch(
                             checked = screenshotProtectionEnabled,
-                            onCheckedChange = onScreenshotProtectionChange
+                            onCheckedChange = null
                         )
                     }
                 }
@@ -1057,13 +785,13 @@ internal fun PrivacyDialog(
                             context.startActivity(
                                 Intent(
                                     Intent.ACTION_VIEW,
-                                    Uri.parse("https://github.com/Momik-jpg/TestColdown")
+                                    Uri.parse("https://github.com/Momik-jpg/TestColdown#sicherheit-und-datenschutz")
                                 )
                             )
                         }
                     }
                 ) {
-                    Text("Datenschutz-Infos öffnen")
+                    Text("Projekt und Datenschutz öffnen")
                 }
 
                 OutlinedButton(
@@ -1426,10 +1154,13 @@ internal fun SyncSettingsDialog(
         title = { Text("Auto-Synchronisierung") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
+                AppTextField(
                     value = intervalRaw,
                     onValueChange = { intervalRaw = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Intervall in Minuten") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    ),
                     placeholder = { Text("z. B. 60") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -1483,4 +1214,3 @@ internal fun SyncSettingsDialog(
         }
     )
 }
-
