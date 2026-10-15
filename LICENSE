@@ -1,21 +1,36 @@
-MIT License
+# TestColdown – Nutzungslizenz 1.0
 
-Copyright (c) 2026-2027 Andrin Maag
+Stand: 7. Oktober 2026. Copyright (c) 2026 Andrin Maag.
+Lizenzkennung: LicenseRef-TestColdown-NC-Privacy-1.0.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+## 1. Geltungsbereich und bestehende Rechte
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Diese Lizenz gilt für neue, vom Projektinhaber lizenzierbare Ergänzungen ab Beta 12 gegenüber dem Quellstand 33e575222a6657090a943971b27655e999ccde10. Maßgeblich ist der vollständige Quellstand der Beta 11; der genaue Vergleichsstand wird in docs/license-scope.md dokumentiert. Bestehender Code, Beiträge anderer Urheber und Bibliotheken werden nicht nachträglich umgelizenziert. Der vollständige bisherige MIT-Text bleibt in third-party/TestColdown-MIT-legacy.txt erhalten.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Bereits unter MIT erhaltene Bestandteile und frühere Versionen dürfen weiterhin nach MIT verwendet werden, einschließlich kommerzieller Nutzung. Die neuen Verbote entziehen diese Rechte nicht. Fremde Komponenten behalten ihre eigenen Lizenzen und Hinweise. Diese Lizenz ist wegen der Nutzungsbeschränkungen keine Open-Source-Lizenz im Sinne der Open Source Initiative; der Quellcode bleibt einsehbar.
+
+## 2. Erlaubte Nutzung
+
+Du darfst die erfassten Ergänzungen kostenlos für private Zwecke und Bildung verwenden, untersuchen und anpassen. Du darfst unveränderte oder klar gekennzeichnete angepasste Fassungen kostenlos weitergeben, wenn du diese Lizenz, die Urheberhinweise, die Hinweise auf bisherige MIT-Rechte und alle Bibliotheksnachweise vollständig mitgibst. Für die erfassten Ergänzungen dürfen Empfänger keine weitergehenden Nutzungsrechte erhalten als hier eingeräumt. Eigene Bildungsnutzung ist auch in Schulen und am Arbeitsplatz erlaubt.
+
+## 3. Kein Verkauf und keine Werbung
+
+Du darfst die erfassten Ergänzungen oder eine sie enthaltende App nicht verkaufen, gegen Gebühr freischalten, vermieten, als kostenpflichtigen Zugang anbieten oder durch Werbung finanzieren. Verboten sind insbesondere Werbebanner, Werbe-SDKs, gesponserte Einblendungen, Affiliate-Werbung und bezahlte Produktplatzierung innerhalb solcher Fassungen. Ein entgeltliches Angebot des erfassten App-Zugangs als Teil eines Pakets fällt ebenfalls darunter.
+
+## 4. Kein Betrug oder schädliche Anpassungen
+
+Du darfst die erfassten Ergänzungen nicht für Betrug, Phishing, Identitätstäuschung, heimlichen Zugangsdaten-Diebstahl, Schadsoftware oder täuschende Zahlungsaufforderungen verwenden oder entsprechend verändern. Änderungen müssen als Änderungen erkennbar sein. Eine angepasste Fassung darf nicht als offizielle TestColdown-Veröffentlichung oder als vom Projektinhaber gebilligt ausgegeben werden.
+
+## 5. Keine Datensammlung durch Anbieter
+
+Du darfst keine Erhebung, Ausleitung oder Zusammenführung von Benutzerdaten für App-Anbieter, Vertreiber oder sonstige Dritte einbauen oder betreiben. Verboten sind insbesondere Telemetrie, Nutzungsanalyse, Werbeprofile, geräteübergreifendes Tracking, Datenhandel sowie Verkauf oder Vermietung von Benutzerdaten. Eine Einwilligungsabfrage hebt diese Lizenzverbote nicht auf.
+
+Erlaubt bleibt die für die Lernfunktionen erforderliche lokale Verarbeitung auf dem Gerät. Ebenfalls erlaubt sind vom Benutzer veranlasste Kalenderabrufe beim gewählten Anbieter, gewählte lokale Erinnerungen und Widgets sowie bewusst gestartete Importe, Exporte und Sicherungen an vom Benutzer gewählte Ziele. Diese Vorgänge müssen transparent und auf ihren Zweck begrenzt bleiben; die Ausnahme erlaubt keinen zusätzlichen Datentransfer an App-Anbieter oder Werbe- und Analysedienste.
+
+## 6. Grenzen, Verstöße und Gewährleistung
+
+Diese Lizenz vergibt nur Rechte, die der Projektinhaber tatsächlich vergeben kann. Sie behauptet weder exklusive Rechte an KI-generierten Bildern noch Rechte an fremdem Material. Gesetzliche Nutzungsrechte bleiben unberührt. Für nicht erlaubte Nutzungen ist eine separate vorherige Erlaubnis des Rechteinhabers erforderlich.
+
+Bei Verstößen endet die Erlaubnis für die erfassten Ergänzungen; eine weitere Nutzung oder Weitergabe erfordert die Behebung des Verstoßes und eine neue Erlaubnis. Unabhängige MIT- und Bibliotheksrechte bleiben bestehen.
+
+Die erfassten Ergänzungen werden ohne Zusicherung von Fehlerfreiheit oder Eignung bereitgestellt. Gewährleistung und Haftung sind im gesetzlich zulässigen Umfang ausgeschlossen; zwingende gesetzliche Ansprüche bleiben bestehen. Die Lizenz verhindert Missbrauch nicht technisch und stellt keine Garantie dar, dass Dritte sie einhalten.

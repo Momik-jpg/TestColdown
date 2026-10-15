@@ -3,21 +3,38 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 
 ## Funktionen
 - `Prüfungen`: Suche, Filter, Sortierung, Countdown und Kollisionsprüfung.
-- `Stundenplan`: Lektionen inkl. Verschiebungen, Ausfällen und Raumänderungen.
-- `Events`: Zeitachsen-Ansicht mit Filtern (`Alles`, `Prüfungen`, `Lektionen`, `Events`).
+- `Stundenplan`: Fach-/Raumsuche, Liste/Woche und Filter für Verschiebungen, Ausfälle und Raumänderungen.
+- `Agenda`: Liste, Kalender und Tagesansicht mit Filtern für Prüfungen, Unterricht und Termine.
+- `Optionen`: durchsuchbare Einstellungen für Kalender, Darstellung, Sicherheit, Daten und Hilfe.
 - `Notenrechner`: Durchschnitt, Zielnote und Noten-Punkte-Rechner.
 - `Sync-Diagnose`: Status, Dauer, HTTP-Code, Delta-Status und Import-Zahlen.
 - `Delta-Sync`: `ETag` und `Last-Modified` zur Reduktion von Datenverkehr.
-- `Widgets`: Nächste Prüfung und Liste, pro Instanz konfigurierbar.
+- `Widgets`: Nächster Eintrag und Terminliste, mit Hell/Dunkel, Raum, Countdown und kompakter Ansicht. Unter `Optionen → Darstellung → Widgets` hinzufügen oder je Instanz einstellen.
 - `Export`: CSV/PDF für Prüfungen und Stundenplan.
 - `Backup`: Export/Import der App-Daten.
 
 ## Installation auf Android
-1. Repository öffnen: `https://github.com/Momik-jpg/TestColdown`
-2. `Releases` öffnen.
-3. Neueste `ExamCountdown-*.apk` herunterladen.
-4. APK installieren.
-5. Falls nötig: Berechtigung für "Unbekannte Apps installieren" aktivieren.
+
+Beta 15 entfernt den doppelten Einstellungen-Zugang oben. Die Einstellungen bleiben unter „Optionen“ in der unteren Leiste erreichbar. Das Design verbindet weiße und graphitgraue Flächen mit zurückhaltendem Stahlblau. Die fünf Bereiche sind direkt nebeneinander erreichbar, das ursprüngliche Kalender-Symbol ist wieder da und dekorative Landschaften entfallen auch bei der Begrüßung. Widgets nutzen dieselbe Farbpalette. Die Lizenzbedingungen ab Beta 12 und frühere MIT-Rechte bleiben bestehen.
+
+1. [Download-Seite öffnen](https://testcoldown-work-30min.andrin875272.chatgpt.site).
+2. Bei vorhandener Test-App zuerst unter `Optionen → Daten` eine Sicherung exportieren und aufbewahren.
+3. `ExamCountdown-test-v1.6.15-beta.15.apk` herunterladen und öffnen. Falls Android danach fragt, für den verwendeten Browser die Installation erlauben.
+4. Das Zertifikat der veröffentlichten APK in den Versionsdaten prüfen. Ein direktes Update benötigt dasselbe Zertifikat. Falls das Zertifikat verschieden ist, die alte Test-App erst nach dem Export deinstallieren. **Eine Deinstallation löscht lokale Daten.** Danach installieren und die Sicherung importieren.
+
+Version `1.6.15-beta.15`, Code 38, Paket `com.andrin.examcountdown.preview`, Android 8+. Ein direktes Update benötigt dieselbe Paketkennung und dasselbe Zertifikat. Die Test-App ist unabhängig von der Produktions-App.
+
+Die APK wird über die Download-Seite bereitgestellt. Der [GitHub-Release](https://github.com/Momik-jpg/TestColdown/releases/tag/test-v1.6.15-beta.15) legt den geprüften Quellstand fest. Beta 8 bis Beta 14 bleiben unter ihren bestehenden Releases und festen APK-Dateien erhalten.
+
+## Vorschau selbst bauen
+
+```bash
+./gradlew :app:testDebugUnitTest :app:lintPreview :app:assemblePreview --no-daemon
+```
+
+Die separate Test-APK liegt unter `.build/app/outputs/apk/preview/app-preview.apk`. Der Testschlüssel ersetzt keine mit dem Produktionsschlüssel signierte App.
+
+[Gestaltung und Menü Beta 11](docs/beta11-coherent-design.md) · [Kalenderstart und Abnahme Beta 10](docs/beta10-calendar-start.md) · [Notenrechner Beta 9](docs/beta9-calculator-feedback.md) · [Lernwelt Beta 8](docs/immersive-learning-world-beta8.md) · [Widget-Vorschauen](docs/widget-overhaul.md) · [Bedienprüfung](docs/usability-polish.md)
 
 ## Ersteinrichtung
 1. App starten.
@@ -33,6 +50,7 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 - Snooze und stille Zeiten werden unterstützt.
 
 ## Sicherheit und Datenschutz
+- Vollständige Hinweise: [Datenschutz](PRIVACY.md), auch offline in der App.
 - iCal-Links werden lokal verschlüsselt gespeichert.
 - Es werden nur `https`-Links akzeptiert.
 - Sensible URL-Daten werden in Fehlermeldungen redigiert.
@@ -62,6 +80,10 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 4. Ergebnis: `dist/ExamCountdown-release.aab`
 
 ## Dokumentation
+- Barrierefreie Bedienung: [Schrift, Kontrast, TalkBack und Widgets](docs/accessibility.md)
+- Lizenzen: [Bibliotheken und Nachweise](THIRD_PARTY_NOTICES.md)
+- Fantasy-Illustrationen: [Herkunft und Nutzung](docs/graphics-provenance.md)
+- Lernwelt-Design, Bedienung und Prüfungen: `docs/study-world-overhaul.md`
 - Schüler-Kurzanleitung: `docs/kurzanleitung-schueler.md`
 - iCal-Link-Anleitung mit Bild: `docs/ical-link-anleitung-mit-bild.md`
 - Troubleshooting: `docs/troubleshooting.md`
@@ -69,5 +91,7 @@ Android-App für Prüfungen, Stundenplan, Events, Erinnerungen, Widgets und Note
 - No-Regression-Checkliste: `docs/no-regression-checkliste.md`
 
 ## Lizenz
-MIT License.  
-Details in `LICENSE`.
+
+Neue eigene Ergänzungen ab Beta 12: [Nutzungslizenz](LICENSE) mit Verboten gegen Verkauf, Werbung, Betrug und Datensammlung durch Anbieter. Kostenlose private und Bildungsnutzung ist erlaubt.
+
+[Genauer Umfang](docs/license-scope.md): Frühere MIT-Rechte und Bibliothekslizenzen bleiben bestehen. Der Quellcode ist einsehbar; die neuen Einschränkungen entsprechen keiner OSI-Open-Source-Lizenz.
