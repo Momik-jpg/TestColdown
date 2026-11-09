@@ -28,14 +28,14 @@ jobs:
           persist-credentials: false
 
       - name: Set up JDK 17
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: "17"
           cache: gradle
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
+        uses: github/codeql-action/init@0911ee96d2d6c8def97122c36c5cadd93829a4b4 # v4
         with:
           languages: ${{ matrix.language }}
           build-mode: manual
@@ -47,4 +47,4 @@ jobs:
         run: ./gradlew :app:assembleDebug --no-daemon
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
+        uses: github/codeql-action/analyze@0911ee96d2d6c8def97122c36c5cadd93829a4b4 # v4
